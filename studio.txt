@@ -1,0 +1,66 @@
+mixer
+
+1 guitar/bass clean
+ 2 guitar effect chain
+ 3 microbruite
+ 4 volca keys
+ 5 volca bass
+ 6 volca beats
+ 7 monitron / paia (todo)
+ 8 paia (todo)
+ 9 delta 1
+10 delta 2
+11 delta 3
+12 delta 4
+
+
+bcr2000
+
+top row: mixer (0-127) midi control
+bittons: part mute
+bottom 3 rows: synth control (incremental)
+
+
+TODO:
+- sync microbruite to the volcas
+- find a good sequencer
+- mount all the "knobs" to a movable surface
+- set up a good echo/delay digitally
+- set up midi for all
+- route guitar effects chain through mixer
+- focus on non-portable setup first built around delta1010
+- later add "easy detach" portability
+- find a simple touch screen
+
+
+Entry: Sequencer
+Date: Fri Mar  4 18:38:06 EST 2016
+
+Find a good sequencer, or build one.
+
+
+Entry: Analog
+Date: Fri Mar  4 19:31:29 EST 2016
+
+8 channels should be enough.  All of them have direct out to
+delta1010.
+
+I have 4 channels direct 
+
+
+Entry: Monoprice
+Date: Fri Mar  4 20:04:54 EST 2016
+
+- TS Single angle
+- TS 
+
+
+Entry: Effects send
+Date: Fri Mar  4 21:06:59 EST 2016
+
+Not sure why this didn't work earlier.  Too noisy?  Let's try again..
+
+The reason was feedback, since this needs to be set pre-fader, and the
+self-send on the return channel is too strong. It's doable for most
+cases but easy to trigger.
+
