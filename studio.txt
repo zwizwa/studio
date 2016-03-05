@@ -1,6 +1,8 @@
 mixer
 
-1 guitar/bass clean
+with direct out connected to delta1010 in
+all post-fader
+ 1 guitar/bass clean
  2 guitar effect chain
  3 microbruite
  4 volca keys
@@ -8,10 +10,32 @@ mixer
  6 volca beats
  7 monitron / paia (todo)
  8 paia (todo)
- 9 delta 1
-10 delta 2
-11 delta 3
-12 delta 4
+
+
+from delta1010 - digital mix chain
+13/14 out 1/2 
+
+from delta1010, for routing to analog effects
+
+15/16 out 3/4
+ 9    out 5
+10    out 6
+11    out 7
+12    out 8
+
+from intel built-in audio - pulseaudio digital mix chain
+17/18 
+19/20 free
+
+sends:
+aux1 pre      guitar effects
+aux2 pre/post free 
+aux3 post     free
+
+note:
+
+aux send to digital in (e.g. for reverb/delay) is not really necessary
+as they can be sent digitally.
 
 
 bcr2000
@@ -22,7 +46,7 @@ bottom 3 rows: synth control (incremental)
 
 
 TODO:
-- sync microbruite to the volcas
+- sync microbruite to the volcas (all on midi sync?)
 - find a good sequencer
 - mount all the "knobs" to a movable surface
 - set up a good echo/delay digitally
@@ -64,3 +88,13 @@ The reason was feedback, since this needs to be set pre-fader, and the
 self-send on the return channel is too strong. It's doable for most
 cases but easy to trigger.
 
+
+Entry: MIDI
+Date: Fri Mar  4 22:37:04 EST 2016
+
+- map all midi devices to some other messages (osc?)
+- program bcr2000 for mixerm, mute botton + inc control operation
+
+
+SYNC:
+http://www.sweetwater.com/sweetcare/articles/how-do-i-set-up-my-korg-volca-series-synth-module-to-sync-to-an-external-midi-clock/
