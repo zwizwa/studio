@@ -98,3 +98,11 @@ Date: Fri Mar  4 22:37:04 EST 2016
 
 SYNC:
 http://www.sweetwater.com/sweetcare/articles/how-do-i-set-up-my-korg-volca-series-synth-module-to-sync-to-an-external-midi-clock/
+
+
+Entry: alsa midi
+Date: Wed Mar 16 11:49:52 EDT 2016
+
+Looks like it's necessary to use alsa midi interface, as multi-port
+devices only show up with a single legacy /dev/midi? port.
+
