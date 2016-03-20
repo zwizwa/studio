@@ -17,5 +17,5 @@ pkg_erl_tools_commit = master
 
 include erlang.mk
 
-erlang.mk:
-	wget https://raw.githubusercontent.com/ninenines/erlang.mk/master/erlang.mk
+#erlang.mk:
+#	wget https://raw.githubusercontent.com/ninenines/erlang.mk/master/erlang.mk
