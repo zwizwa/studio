@@ -16,3 +16,6 @@ pkg_erl_tools_repo = http://github.com/zwizwa/erl_tools
 pkg_erl_tools_commit = master
 
 include erlang.mk
+
+erlang.mk:
+	wget https://raw.githubusercontent.com/ninenines/erlang.mk/master/erlang.mk
