@@ -100,7 +100,6 @@ SYNC:
 http://www.sweetwater.com/sweetcare/articles/how-do-i-set-up-my-korg-volca-series-synth-module-to-sync-to-an-external-midi-clock/
 
 
-
 Entry: udev
 Date: Sat Mar  5 11:02:02 EST 2016
 
@@ -113,6 +112,18 @@ Two options:
 - learn how to use the alsa sequencer
 
 Since I need the "accumulator" anyway, let's do this in erlang (exo).
+
+
+
+Entry: Sending clock sync from Erlang
+Date: Sat Mar  5 23:08:03 EST 2016
+
+At 120bpm, 2pbs
+
+(* 2 4 24)  192 messages per second.
+
+5ms per message.
+
 
 
 Entry: alsa midi
