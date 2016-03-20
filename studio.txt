@@ -98,3 +98,20 @@ Date: Fri Mar  4 22:37:04 EST 2016
 
 SYNC:
 http://www.sweetwater.com/sweetcare/articles/how-do-i-set-up-my-korg-volca-series-synth-module-to-sync-to-an-external-midi-clock/
+
+
+
+Entry: udev
+Date: Sat Mar  5 11:02:02 EST 2016
+
+Fixed device names in /etc/net/udev
+Next is to find a way to share the device
+
+Using the legacy midi devices (and alsa's rawmidi?) is single-access only.
+Two options:
+- create a daemon that converts midi to osc
+- learn how to use the alsa sequencer
+
+Since I need the "accumulator" anyway, let's do this in erlang (exo).
+
+
