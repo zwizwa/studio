@@ -406,3 +406,11 @@ function level (init,handle) as opposed to module level, especially
 since most of them are so simple.
 
 
+Entry: M-Audio Delta1010 midi
+Date: Sun Mar 20 19:50:34 EDT 2016
+
+Is problematic.  When I connect it, all the others seem to skip
+timecodes.  Some echo thing?
+
+Suspicious though that it's the first one so might be something else
+also.
