@@ -192,7 +192,21 @@ name_port(Dir, N) ->
                   <<"out">> -> "midi_playback_~p"
               end,
     tools:format(NameFmt,[N]).
-    
+
+fmt_port({Client,Port}) ->
+    tools:format("~s:~s",[Client,Port]).
+jack_connect(Source,Dest) ->
+    spawn(
+      fun() ->
+              %% FIXME: use .c port jack client to send connect
+              %% command, to make sure ports are all up.
+              timer:sleep(1000), 
+              Cmd = tools:format(
+                      "jack_connect ~s ~s",
+                      [fmt_port(Source),fmt_port(Dest)]),
+              tools:info("~p~n",[Cmd]),
+              open_port({spawn,Cmd},[])
+      end).
 
 %% Jack state update, fed from jackd stdout.
 jackd_init() ->
@@ -218,6 +232,16 @@ jackd_handle({line, <<"scan: ", Rest/binary>>}, State) ->
                          #{{next_port, Dir} => N+1,
                            Key => PortName}),
             tools:info("~s ~p => ~p~n",[Action, Key, PortName]),
+            case Dir of
+                <<"in">> ->
+                    jack_connect(
+                      {<<"system">>,PortName},
+                      {<<"studio">>,<<"midi_in_0">>});
+                <<"out">> ->
+                    jack_connect(
+                      {<<"studio">>,<<"midi_out_0">>},
+                      {<<"system">>,PortName})
+            end,
             need_client(S);
         <<"deleted">> ->
             S=maps:remove(Key, State),
@@ -228,8 +252,11 @@ jackd_handle({line, <<"scan: ", Rest/binary>>}, State) ->
     end;
 
 jackd_handle({line,_Msg}, State) -> State;
-jackd_handle({client, _Msg}, State) ->
-    %% tools:info("jack client message: ~p~n",[_Msg]),
+jackd_handle({client, Msg}, State) ->
+    case Msg of
+        {_,tc} -> dont_print;
+        _ -> tools:info("jack client message: ~p~n",[Msg])
+    end,
     State;
 
 jackd_handle(Msg, State) -> obj:handle(Msg, State).
