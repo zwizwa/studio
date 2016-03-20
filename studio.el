@@ -4,10 +4,12 @@
   (switch-to-buffer "*studio-dev*")
   )
 
-(defun studio-dev ()
+(defun studio-build ()
   (interactive)
-  (studio-start)
+  (setq compilation-finish-functions
+        (list (lambda (buf info) (studio-start))))
   (compile "make -C ~/studio"))
+
 
 
 
