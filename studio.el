@@ -1,6 +1,6 @@
 (defun studio-start ()
   (interactive)
-  (make-comint "studio-dev" "~/exo/erl.sh")
+  (make-comint "studio-dev" "~/studio/studio.sh")
   (switch-to-buffer "*studio-dev*")
   )
 
