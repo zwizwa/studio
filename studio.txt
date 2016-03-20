@@ -100,6 +100,7 @@ SYNC:
 http://www.sweetwater.com/sweetcare/articles/how-do-i-set-up-my-korg-volca-series-synth-module-to-sync-to-an-external-midi-clock/
 
 
+
 Entry: Sending clock sync from Erlang
 Date: Sat Mar  5 23:08:03 EST 2016
 
@@ -108,3 +109,235 @@ At 120bpm, 2pbs
 (* 2 4 24)  192 messages per second.
 
 5ms per message.
+
+
+Entry: alsa midi
+Date: Wed Mar 16 11:49:52 EDT 2016
+
+Looks like it's necessary to use alsa midi interface, as multi-port
+devices only show up with a single legacy /dev/midi? port.
+
+Making exo/c_src/midi_in.c to simply map back to raw MIDI in erlang.
+Alternatively, pass through the full binary event structs.
+
+Next: figure out how to set tempo, send midi sync, send start/stop to
+all clients at once, and configure volca's to sync to midi.
+
+
+Entry: amidi / aconnect
+Date: Wed Mar 16 22:16:43 EDT 2016
+
+tom@zoo:~$ amidi -l
+Dir Device    Name
+IO  hw:0,0    M Audio Delta 1010 MIDI
+IO  hw:3,0,0  USB Midi 4i4o MIDI 1
+IO  hw:3,0,1  USB Midi 4i4o MIDI 2
+IO  hw:3,0,2  USB Midi 4i4o MIDI 3
+IO  hw:3,0,3  USB Midi 4i4o MIDI 4
+
+
+tom@zoo:~$ aconnect -l
+client 0: 'System' [type=kernel]
+    0 'Timer           '
+    1 'Announce        '
+client 14: 'Midi Through' [type=kernel]
+    0 'Midi Through Port-0'
+client 16: 'M Audio Delta 1010' [type=kernel]
+    0 'M Audio Delta 1010 MIDI'
+client 28: 'USB Midi 4i4o' [type=kernel]
+    0 'USB Midi 4i4o MIDI 1'
+    1 'USB Midi 4i4o MIDI 2'
+    2 'USB Midi 4i4o MIDI 3'
+    3 'USB Midi 4i4o MIDI 4'
+
+
+So some questions.
+
+- Should I use the sequencer or the raw midi?  Maybe jack midi (which
+is on top of raw midi) The oss midi is likely not a good idea.
+
+- There are 4 ports, but only one /dev/midiCD0 device
+
+
+This http://wiki.linuxaudio.org/faq/start
+mentions alsa sequencer should be used for interconnecting applications.
+Jack MIDI might just be for recording, then?
+
+No, looks like the reason has to do with high-resolution timing.
+250kHz not being enough.
+
+I wonder, is it possible to have the time sync sent out by the sequencer?
+http://www.alsa-project.org/~tiwai/alsa-sync.html
+
+
+Entry: alsa timers
+Date: Wed Mar 16 23:32:34 EDT 2016
+
+tom@tp:~$ cat /proc/asound/timers 
+G0: system timer : 4000.000us (10000000 ticks)
+G3: HR timer : 0.001us (1000000000 ticks)
+P0-0-0: PCM playback 0-0-0 : SLAVE
+P0-0-1: PCM capture 0-0-1 : SLAVE
+P0-3-0: PCM playback 0-3-0 : SLAVE
+
+tom@zoo:~$ cat /proc/asound/timers 
+G0: system timer : 4000.000us (10000000 ticks)
+P0-0-0: PCM playback 0-0-0 : SLAVE
+P0-0-1: PCM capture 0-0-1 : SLAVE
+P1-0-0: PCM playback 1-0-0 : SLAVE
+P1-0-1: PCM capture 1-0-1 : SLAVE
+P1-2-1: PCM capture 1-2-1 : SLAVE
+P2-3-0: PCM playback 2-3-0 : SLAVE
+
+
+Entry: sending out sync
+Date: Wed Mar 16 23:33:24 EDT 2016
+
+Is this up-to-date?
+http://www.alsa-project.org/~tiwai/alsa-sync.html
+
+core function seems to be: snd_seq_alloc_sync_queue()
+which is the only reference i find
+
+I need to look into the alsa sources...  Too much old stale
+documentation..
+
+in seq.h:
+
+/** sequencer timer sources */
+typedef enum {
+	SND_SEQ_TIMER_ALSA = 0,		/* ALSA timer */
+	SND_SEQ_TIMER_MIDI_CLOCK = 1,	/* Midi Clock (CLOCK event) */
+	SND_SEQ_TIMER_MIDI_TICK = 2	/* Midi Timer Tick (TICK event */
+} snd_seq_queue_timer_type_t;
+void snd_seq_queue_timer_set_type(snd_seq_queue_timer_t *info, snd_seq_queue_timer_type_t type);
+
+
+Yeah this is badly documented. I'm annoyed.
+Let's look at code from others.
+
+Something to look for
+#define SNDRV_SEQ_EVENT_CLOCK		36	/* midi Real Time Clock message */
+#define MIDI_CMD_COMMON_CLOCK		0xf8
+
+
+
+Entry: hydrogen
+Date: Thu Mar 17 00:43:18 EDT 2016
+
+Looks like jack midi is the way to go.
+
+http://www.hydrogen-music.org/hcms/node/1966
+http://www.teuton.org/~gabriel/jack_midi_clock/
+git clone git://gabe.is-a-geek.org/git/jack_midi_clock.git
+
+
+Entry: sooperlooper
+Date: Thu Mar 17 00:52:27 EDT 2016
+
+http://essej.net/sooperlooper/
+
+
+
+Entry: jack midi or alsa sequencer?
+Date: Thu Mar 17 00:57:03 EDT 2016
+
+It seems that people are standardizing on jack, and jack midi.
+For new things it seems best to not use alsa sequencer.
+
+http://www.teuton.org/~gabriel/jack_midi_clock/
+http://wiki.linuxaudio.org/faq/start#qwhat_is_the_difference_between_jack-midi_and_alsa-midi
+
+Since jack is used for audio anyway, it seems best to use it for midi
+as well.  Jack can then provide abstraction of alsa sequencer or alsa
+hardware.
+
+jack_midi_clock.c uses these calls:
+
+      send_rt_message(port_buf, 0, MIDI_RT_CLOCK);
+      send_rt_message(port_buf, next_tick_offset, MIDI_RT_CLOCK);
+
+static void send_rt_message(void* port_buf, jack_nframes_t time, uint8_t rt_msg) {
+  uint8_t *buffer;
+  buffer = jack_midi_event_reserve(port_buf, time, 1);
+  if(buffer) {
+    buffer[0] = rt_msg;
+  }
+}
+
+  if ((mclk_output_port = jack_port_register(j_client, "mclk_out", JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0)) == 0) {
+
+
+jack_midi_event_reserve()
+- can be called from the process() method
+- needs sorted input
+
+Overall this seems like a much better approach to handling timer
+issues.  Synchronize to the audio sample (block) clock for logical
+time base, and have jack handle the event scheduling details.
+
+For other things, alsa seq is probably ok.
+
+One thing to figure out is how usable erlang would be for midi event
+processing.
+
+Do I really need alsa sequencers for new code?  For new softsynths,
+best to stick with jack.
+
+a2jmidid (separate app) is apparently better than seq and raw
+http://home.gna.org/a2jmidid/
+
+the reason to use a2jmidid is that it allows to run jack in -X raw
+mode, while still allowing to bridge jack midi ports to (wrapped)
+sequencer ports.
+
+
+Yeah need to play with it.  Coexist. Conclusions:
+
+
+
+
+Entry: audio/midi Routing setup
+Date: Thu Mar 17 01:55:41 EDT 2016
+
+MIDI
+- Use jack midi for anything that uses jack audio already 
+- Use jack midi for hi-rez timing (based off of sample clock) (ex: jack_midi_clock.c)
+- Use ordinary alsa seq for non-timing critical bits (e.g. erlang hacking?)
+- Create a jack midi interface to erlang (also for better timing).
+- Run jack in raw mode, use a2jmidid to connect sequencers to raw ports
+
+AUDIO
+- jack
+- pulseaudio jack bridge (optional)
+- pd (no jack midi tho)
+- rai soft synths with jack midi / osc or pd on stdin
+
+
+Entry: jack midi api
+Date: Thu Mar 17 02:19:23 EDT 2016
+
+http://jack-audio-connection-kit.sourcearchive.com/documentation/0.116.1/group__MIDIAPI_g6037a3936f8d2ef063dbbd47d722f660.html
+http://www.teuton.org/~gabriel/jack_midi_clock/
+
+
+Entry: Next
+Date: Thu Mar 17 02:25:32 EDT 2016
+
+Try the drum machine sync.
+
+
+
+Entry: Jack timebase
+Date: Fri Mar 18 16:12:45 EDT 2016
+
+Got it to work in exo.
+
+
+Entry: poly-rhythm timebase. 
+Date: Fri Mar 18 16:15:41 EDT 2016
+
+Discrete is simple.
+Can also do on audio for looper recording of analogs.
+Main problem here is interference between LFOs and loops.
+
