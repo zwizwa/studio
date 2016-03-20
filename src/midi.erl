@@ -180,11 +180,28 @@ port_start(Node) ->
                 fun midi:port_handle/2}).
 
 
-
+need_client(#{client := _}=State) -> State;
+need_client(State) ->
+    tools:info("starting client~n"),
+    Self = self(),
+    Sink = fun(Msg) -> Self ! {client, Msg} end,
+    maps:put(client, jack("studio",16,16,Sink), State).
+name_port(Dir, N) ->
+    NameFmt = case Dir of
+                  <<"in">>  -> "midi_capture_~p";
+                  <<"out">> -> "midi_playback_~p"
+              end,
+    tools:format(NameFmt,[N]).
+    
 
 %% Jack state update, fed from jackd stdout.
 jackd_init() ->
     #{}.
+
+%% FIXME: when port mapping changed, reconnect the clients.  The
+%% canonical naming is the fixed list of input ports in the client
+%% instance, hence we don't need to do any lookup for the bulk of the
+%% messages.
 jackd_handle({line, <<"scan: ", Rest/binary>>}, State) ->
     {match,[_|Event]} =
         re:run(Rest,
@@ -193,44 +210,30 @@ jackd_handle({line, <<"scan: ", Rest/binary>>}, State) ->
     %%tools:info("jack_midi: ~p~n", [Event]),
     [Action,_,Dir,Name] = Event,
     N = maps:get({next_port, Dir}, State, 1),
+    Key = {Dir, Name},
     case Action of
         <<"added">> ->
-            NameFmt = case Dir of
-                          <<"in">>  -> "midi_capture_~p";
-                          <<"out">> -> "midi_playback_~p"
-                      end,
-            PortName = tools:format(NameFmt,[N]),
+            PortName = name_port(Dir, N),
             S=maps:merge(State,
                          #{{next_port, Dir} => N+1,
-                           {Name,Dir} => PortName}),
-            tools:info("jack: ~s ~p => ~p~n",[Action, {Name,Dir},PortName]),
-            S;
+                           Key => PortName}),
+            tools:info("~s ~p => ~p~n",[Action, Key, PortName]),
+            need_client(S);
         <<"deleted">> ->
-            S=maps:remove({Name,Dir}, State),
-            tools:info("jack: ~s ~p~n",[Action, {Name,Dir}]),
+            S=maps:remove(Key, State),
+            tools:info("~s ~p~n",[Action, Key]),
             S;
         _ ->
             State
     end;
-%% Not clear what we should sync to exactly, but the point is to start
-%% our client once the daemon is running.
-jackd_handle({line,<<"Acquire audio card ", _Card/binary>>}, State) ->
-    Self = self(),
-    Sink = fun(Msg) -> Self ! {client, Msg} end,
-    maps:put(client, jack("studio",16,16,Sink), State);
 
-jackd_handle({line,_Msg}, State) ->
-    %% tools:info("jack: ~p~n", [{_Msg,State}]),
-    State;
-
-%% We can annotate client's midi messages.
+jackd_handle({line,_Msg}, State) -> State;
 jackd_handle({client, _Msg}, State) ->
-    %%tools:info("jack client message: ~p~n",[_Msg]),
+    %% tools:info("jack client message: ~p~n",[_Msg]),
     State;
 
-jackd_handle(Msg, State) ->
-    %% tools:info("jackd_handle: ~p ~p~n",[Msg, State]),
-    obj:handle(Msg, State).
+jackd_handle(Msg, State) -> obj:handle(Msg, State).
+
 
 
 %% Start jackd as a port, and connect it to jack_update/2.
