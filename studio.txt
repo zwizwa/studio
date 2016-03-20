@@ -106,3 +106,35 @@ Date: Wed Mar 16 11:49:52 EDT 2016
 Looks like it's necessary to use alsa midi interface, as multi-port
 devices only show up with a single legacy /dev/midi? port.
 
+
+
+
+Entry: jack midi ports
+Date: Fri Mar 18 16:55:15 EDT 2016
+
+scan: added port hw:0,0,0 in-hw-0-0-0-M-Audio-Delta-1010-MIDI
+scan: added port hw:0,0,0 out-hw-0-0-0-M-Audio-Delta-1010-MIDI
+scan: added port hw:3,0,0 in-hw-3-0-0-USB-Midi-4i4o-MIDI-1
+scan: added port hw:3,0,1 in-hw-3-0-1-USB-Midi-4i4o-MIDI-2
+scan: added port hw:3,0,2 in-hw-3-0-2-USB-Midi-4i4o-MIDI-3
+scan: added port hw:3,0,3 in-hw-3-0-3-USB-Midi-4i4o-MIDI-4
+scan: added port hw:3,0,0 out-hw-3-0-0-USB-Midi-4i4o-MIDI-1
+scan: added port hw:3,0,1 out-hw-3-0-1-USB-Midi-4i4o-MIDI-2
+scan: added port hw:3,0,2 out-hw-3-0-2-USB-Midi-4i4o-MIDI-3
+scan: added port hw:3,0,3 out-hw-3-0-3-USB-Midi-4i4o-MIDI-4
+scan: added port hw:4,0,0 in-hw-4-0-0-MicroBrute-MIDI-1
+scan: added port hw:4,0,1 in-hw-4-0-1-MicroBrute-MIDI-2
+scan: added port hw:4,0,0 out-hw-4-0-0-MicroBrute-MIDI-1
+scan: added port hw:4,0,1 out-hw-4-0-1-MicroBrute-MIDI-2
+
+
+
+Entry: separate exo and studio
+Date: Sat Mar 19 23:26:00 EDT 2016
+
+I'd like to build this into something dedicated, and handle all
+starting/stopping from Erlang as well.
+
+If events need to be exchanged between exo and studio, it would likely
+not be such a huge deal..
+
