@@ -4,7 +4,8 @@
   (switch-to-buffer "*studio-dev*")
   )
 
-(defun studio-build ()
+;; Switch dev setup to studio.
+(defun dev-studio ()
   (interactive)
   (setq compilation-finish-functions
         (list (lambda (buf info) (studio-start))))
