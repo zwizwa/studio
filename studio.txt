@@ -153,3 +153,23 @@ starting/stopping from Erlang as well.
 If events need to be exchanged between exo and studio, it would likely
 not be such a huge deal..
 
+
+Entry: MIDI
+Date: Sun Mar 20 13:50:23 EDT 2016
+
+- use jack midi: -X raw, only using physical ports
+- start it in Erlang, and hook up the stdout monitor to keep track of port names
+- together with jackd, start a jack client erlang port that connects to all jack midi ports
+- use naming resolution to build a generic, plug and play midi router
+
+
+Entry: Startup
+Date: Sun Mar 20 14:27:28 EDT 2016
+
+Maybe good to start looking into OTP?  I still think that for what I
+want to do, OTP is overkill.  I'd rather implement servers at the
+function level (init,handle) as opposed to module level, especially
+since most of them are so simple.
+
+
+
