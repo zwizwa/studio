@@ -220,16 +220,16 @@ jackd_handle({line,<<"Acquire audio card ", _Card/binary>>}, State) ->
     maps:put(client, jack("studio",16,16,Sink), State);
 
 jackd_handle({line,_Msg}, State) ->
-    tools:info("jack: ~p~n", [{_Msg,State}]),
+    %% tools:info("jack: ~p~n", [{_Msg,State}]),
     State;
 
 %% We can annotate client's midi messages.
-jackd_handle({client, Msg}, State) ->
-    tools:info("jack client message: ~p~n",[Msg]),
+jackd_handle({client, _Msg}, State) ->
+    %%tools:info("jack client message: ~p~n",[_Msg]),
     State;
 
 jackd_handle(Msg, State) ->
-    tools:info("jackd_handle: ~p ~p~n",[Msg, State]),
+    %% tools:info("jackd_handle: ~p ~p~n",[Msg, State]),
     obj:handle(Msg, State).
 
 
@@ -250,5 +250,5 @@ jackd_port_handle({Port, {data, {eol, Line}}}, #{port := Port} = State) ->
 jackd_port_handle({Port, {exit_status, _}=Msg}, #{port := Port}) ->
     exit(Msg);
 jackd_port_handle(Msg, State) ->
-    tools:info("jackd_port_handle: ~p ~p~n",[Msg,State]),
-    obj:handle(Msg, State).
+    %% tools:info("jackd_port_handle: ~p ~p~n",[Msg,State]),
+    jackd_handle(Msg, State).
