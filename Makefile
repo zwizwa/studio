@@ -12,7 +12,7 @@ pkg_erl_tools_name = erl_tools
 pkg_erl_tools_description = Misc Erlang tools
 pkg_erl_tools_homepage = https://zwizwa.be/git/erl_tools
 pkg_erl_tools_fetch = git
-pkg_erl_tools_repo = ~/git/erl_tools
+pkg_erl_tools_repo = http://github.com/zwizwa/erl_tools
 pkg_erl_tools_commit = master
 
 include erlang.mk
