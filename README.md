@@ -1,3 +1,5 @@
 studio
 
-Erlang code for audio/midi studio.
+Glue code for audio/midi studio.
+Written in Erlang.
+
