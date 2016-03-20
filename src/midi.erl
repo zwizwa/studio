@@ -1,8 +1,9 @@
 -module(midi).
 -export([alsa_seq_in/1, alsa_seq_in/2, alsa_seq_handle/2,
-         jack/4, jack/3, jack_handle/2, 
-         jack_ports/0, jack_update/2,
-         jackd/0, jackd_handle/2,
+         jack/4, jack/3, jack_handle/2, %% jack midi client
+         jack_ports/0, %% obsolete
+         jackd_init/0, jackd_handle/2, %% jackd wrapper
+         jackd_port_start/0, jackd_port_handle/2, %% jackd erlang port wrapper
          decode/2,decode/1,encode/1,
          port_start/1, port_handle/2]).
 %% Original idea was to route messages over broadcast, but that works
@@ -77,7 +78,7 @@ encode(_) -> <<>>.
 alsa_seq_in(Client, Sink) ->
     serv:start({handler,
                 fun() ->
-                        {open_port({spawn,"priv/exo alsa_seq_in " ++ Client},
+                        {open_port({spawn,"priv/studio alsa_seq_in " ++ Client},
                                    [{packet,1},binary,exit_status]),
                          Sink}
                 end,
@@ -102,7 +103,7 @@ alsa_seq_ev(Type,S,Data,Sink) -> Sink({S,{Type,Data}}).
 
 %% JACK midi. Preferred as it has better timing properties.
 jack(Client,NI,NO,Sink) ->
-    Cmd = tools:format("priv/exo jack_midi ~s ~p ~p",
+    Cmd = tools:format("priv/studio jack_midi ~s ~p ~p",
                        [Client, NI, NO]),
     serv:start(
       {handler,
@@ -182,7 +183,9 @@ port_start(Node) ->
 
 
 %% Jack state update, fed from jackd stdout.
-jack_update({line, <<"scan: ", Rest/binary>>}, State) ->
+jackd_init() ->
+    #{}.
+jackd_handle({line, <<"scan: ", Rest/binary>>}, State) ->
     {match,[_|Event]} =
         re:run(Rest,
                <<"(\\S+) port (\\S+) (\\S+)\\-hw\\-\\d+\\-\\d+\\-\\d+\\-(\\S+)\n*">>,
@@ -209,16 +212,31 @@ jack_update({line, <<"scan: ", Rest/binary>>}, State) ->
         _ ->
             State
     end;
+%% Not clear what we should sync to exactly, but the point is to start
+%% our client once the daemon is running.
+jackd_handle({line,<<"Acquire audio card ", _Card/binary>>}, State) ->
+    Self = self(),
+    Sink = fun(Msg) -> Self ! {client, Msg} end,
+    maps:put(client, jack("studio",16,16,Sink), State);
 
-jack_update(_Msg, State) ->
-    %%tools:info("jack: ~p~n", [{_Msg,State}]),
-    State.
+jackd_handle({line,_Msg}, State) ->
+    tools:info("jack: ~p~n", [{_Msg,State}]),
+    State;
+
+%% We can annotate client's midi messages.
+jackd_handle({client, Msg}, State) ->
+    tools:info("jack client message: ~p~n",[Msg]),
+    State;
+
+jackd_handle(Msg, State) ->
+    tools:info("jackd_handle: ~p ~p~n",[Msg, State]),
+    obj:handle(Msg, State).
 
 
 %% Start jackd as a port, and connect it to jack_update/2.
 %% Alternatively, use: socat EXEC:$JACKD TCP-CONNECT:localhost:13000
 %% in combination with linemon.erl
-jackd() ->
+jackd_port_start() ->
     serv:start(
       {handler,
        fun() -> #{
@@ -226,12 +244,11 @@ jackd() ->
                 open_port({spawn, "jackd.local"},
                           [{line,1024}, binary, use_stdio, exit_status])}
        end,
-       fun midi:jackd_handle/2}).
-jackd_handle({Port, {data, {eol, Line}}},
-             #{port := Port} = State) ->
-    jack_update({line, Line}, State);
-jackd_handle({Port, {exit_status, _}},
-             #{port := Port} = State) ->
-    State;
-jackd_handle(Msg, State) ->
+       fun midi:jackd_port_handle/2}).
+jackd_port_handle({Port, {data, {eol, Line}}}, #{port := Port} = State) ->
+    jackd_handle({line, Line}, State);
+jackd_port_handle({Port, {exit_status, _}=Msg}, #{port := Port}) ->
+    exit(Msg);
+jackd_port_handle(Msg, State) ->
+    tools:info("jackd_port_handle: ~p ~p~n",[Msg,State]),
     obj:handle(Msg, State).
