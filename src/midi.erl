@@ -1,7 +1,6 @@
 -module(midi).
 -export([alsa_seq_in/1, alsa_seq_in/2, alsa_seq_handle/2,
          jack/4, jack/3, jack_handle/2, %% jack midi client
-         jack_ports/0, %% obsolete
          jackd_init/0, jackd_handle/2, %% jackd wrapper
          jackd_port_start/0, jackd_port_handle/2, %% jackd erlang port wrapper
          decode/2,decode/1,encode/1,
@@ -137,21 +136,6 @@ jack_handle({Port,{data,<<MidiPort,Data/binary>>}},
       fun(Msg) -> Sink({{jack,MidiPort},Msg}) end,
       decode(Data)),
     State.
-jack_ports() ->
-    %% FIXME: there doesn't seem to be a better way to get to real
-    %% names, so resort to whack-a-mole.  requires jackd to be started
-    %% with stdout>/tmp/jackd.log
-    {ok, Ports} = tools:script_lines("cat /tmp/jackd.log |grep 'added port' |awk '{ print $5 }'",1000),
-    {Ins, Outs} = lists:partition(fun(L) -> hd(L) == <<"in">> end, [re:split(P,"-") || P<- Ports]),
-    Strip = fun([_,_,_,_,_|Ws]) -> string:join([binary_to_list(W) || W<-Ws],"_") end,
-    Map = fun(L,Tag) ->
-                  maps:from_list(
-                    [{list_to_atom(Strip(Name)),
-                      list_to_atom(tools:format("system:midi_~s_~p",[Tag,N+1]))}
-                     ||{N,Name} <- tools:enumerate(L)])
-          end,
-    {Map(Ins, "capture"),
-     Map(Outs,"playback")}.
 
 
 %% Jack I/O map.
@@ -186,15 +170,10 @@ need_client(State) ->
     Self = self(),
     Sink = fun(Msg) -> Self ! {client, Msg} end,
     maps:put(client, jack("studio",16,16,Sink), State).
-name_port(Dir, N) ->
-    NameFmt = case Dir of
-                  <<"in">>  -> "midi_capture_~p";
-                  <<"out">> -> "midi_playback_~p"
-              end,
-    tools:format(NameFmt,[N]).
-
 fmt_port({Client,Port}) ->
-    tools:format("~s:~s",[Client,Port]).
+    tools:format("~s:~s",[Client,Port]);
+fmt_port(Name) -> Name.
+
 jack_connect(Source,Dest) ->
     spawn(
       fun() ->
@@ -219,28 +198,25 @@ jackd_init() ->
 jackd_handle({line, <<"scan: ", Rest/binary>>}, State) ->
     {match,[_|Event]} =
         re:run(Rest,
-               <<"(\\S+) port (\\S+) (\\S+)\\-hw\\-\\d+\\-\\d+\\-\\d+\\-(\\S+)\n*">>,
+               <<"(\\S+) port (\\S+) (\\S+)\\-(hw\\-\\d+\\-\\d+\\-\\d+)\\-(\\S+)\n*">>,
                [{capture,all,binary}]),
     %%tools:info("jack_midi: ~p~n", [Event]),
-    [Action,_,Dir,Name] = Event,
-    N = maps:get({next_port, Dir}, State, 1),
+    [Action,_,Dir,Addr,Name] = Event,
+    PortName = <<Dir/binary,$-,Addr/binary,$-,Name/binary>>,
     Key = {Dir, Name},
     case Action of
         <<"added">> ->
-            PortName = name_port(Dir, N),
-            S=maps:merge(State,
-                         #{{next_port, Dir} => N+1,
-                           Key => PortName}),
+            S=maps:put(Key,PortName,State),
             tools:info("~s ~p => ~p~n",[Action, Key, PortName]),
             case Dir of
                 <<"in">> ->
                     jack_connect(
-                      {<<"system">>,PortName},
+                      PortName,
                       {<<"studio">>,<<"midi_in_0">>});
                 <<"out">> ->
                     jack_connect(
                       {<<"studio">>,<<"midi_out_0">>},
-                      {<<"system">>,PortName})
+                      PortName)
             end,
             need_client(S);
         <<"deleted">> ->
