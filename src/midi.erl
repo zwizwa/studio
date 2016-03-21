@@ -170,23 +170,13 @@ port_start(Node) ->
                 fun midi:port_handle/2}).
 
 
-need_client(#{client := Client}=State) ->
-    {Client, State};
-need_client(State) ->
-    tools:info("starting client~n"),
-    Self = self(),
-    Sink = fun(Msg) -> Self ! {client, Msg} end,
-    Client = jackc("studio",16,16,Sink),
-    {Client, maps:put(client, Client, State)}.
 
 %% Jack state update, fed from jackd stdout.
 jackd_init() ->
     #{}.
 
-%% FIXME: when port mapping changed, reconnect the clients.  The
-%% canonical naming is the fixed list of input ports in the client
-%% instance, hence we don't need to do any lookup for the bulk of the
-%% messages.
+    
+
 jackd_handle({line, <<"scan: ", Rest/binary>>}, State) ->
     {match,[_|Event]} =
         re:run(Rest,
@@ -194,19 +184,13 @@ jackd_handle({line, <<"scan: ", Rest/binary>>}, State) ->
                [{capture,all,binary}]),
     %%tools:info("jack_midi: ~p~n", [Event]),
     [Action,_,Dir,Addr,Name] = Event,
-    PortName = <<Dir/binary,$-,Addr/binary,$-,Name/binary>>,
+    PortAlias = <<Dir/binary,$-,Addr/binary,$-,Name/binary>>,
     Key = {Dir, Name},
     case Action of
         <<"added">> ->
-            S1=maps:put(Key,PortName,State),
-            tools:info("~s ~p => ~p~n",[Action, Key, PortName]),
-            {Client,S2} = need_client(S1),
-            Connect = fun(Src,Dst) -> Client ! {connect,Src,Dst} end,
-            case Dir of
-                <<"in">>  -> Connect(PortName,<<"studio:midi_in_0">>);
-                <<"out">> -> Connect(<<"studio:midi_out_0">>,PortName)
-            end,
-            S2;
+            S1=maps:put(Key,PortAlias,State),
+            tools:info("~s ~p => ~p~n",[Action, Key, PortAlias]),
+            jackd_connect(PortAlias, Dir, Name, S1);
         
         <<"deleted">> ->
             S=maps:remove(Key, State),
@@ -225,6 +209,27 @@ jackd_handle({client, Msg}, State) ->
     State;
 
 jackd_handle(Msg, State) -> obj:handle(Msg, State).
+
+%% Connect to canonical ports, based on config.
+jackd_connect(PortAlias, Dir, Name, State) ->
+    {C,S} = jackd_need_client(State),
+    N = integer_to_binary(
+          maps:get(Name,
+                   #{<<"LPK25-MIDI-1">> => 5},
+                   0)),
+    case Dir of
+        <<"in">>  -> C ! {connect,PortAlias,<<"studio:midi_in_",N/binary>>};
+        <<"out">> -> C ! {connect,<<"studio:midi_out_",N/binary>>,PortAlias}
+    end,
+    S.
+jackd_need_client(#{client := Client}=State) ->
+    {Client, State};
+jackd_need_client(State) ->
+    tools:info("starting client~n"),
+    Self = self(),
+    Sink = fun(Msg) -> Self ! {client, Msg} end,
+    Client = jackc("studio",16,16,Sink),
+    {Client, maps:put(client, Client, State)}.
 
 
 
