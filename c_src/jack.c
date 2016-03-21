@@ -6,7 +6,7 @@
 
 int nb_out; static jack_port_t **midi_out = NULL;
 int nb_in;  static jack_port_t **midi_in  = NULL;
-static jack_client_t          *j_client = NULL;
+static jack_client_t          *client = NULL;
 
 #define BPM_TO_PERIOD(sr,bpm) ((sr*60)/(bpm*24))
 
@@ -27,14 +27,20 @@ unsigned int read_buf = 0, write_buf = 0;
 
 ssize_t cmd_size[NB_CMD_BUFS];
 uint8_t cmd_buf[NB_CMD_BUFS][CMD_BUF_SIZE];
-struct header {
-    mask_t mask;
-} __attribute__((__packed__));
 struct command {
     uint8_t size; // {packet,1} size = sizeof(struct header) + midi data size
-    struct header hdr;
-    uint8_t data[0];
+    uint8_t type;
+    union {
+        struct {
+            mask_t  mask;
+            uint8_t midibytes[0];
+        } midi;
+        uint8_t u8[0];
+        char c[0];
+    } data;
 } __attribute__((__packed__));
+#define CMD_MIDI 0
+#define CMD_CONNECT 1
 
 
 // TODO:
@@ -62,16 +68,18 @@ static int process (jack_nframes_t nframes, void *arg) {
         ssize_t cmd_offset = 0;
         while (cmd_offset < cmd_size[read_buf]) {
             struct command *cmd = (void*)&cmd_buf[read_buf][cmd_offset];
-            size_t nb_bytes = cmd->size - sizeof(struct header);
-            /* Send to selected outputs */
-            for (int out=0; out<nb_out; out++) {
-                if (cmd->hdr.mask & (1 << out)) {
-                    send_midi(out_buf[out], 0/*time*/, cmd->data, nb_bytes);
+            if (CMD_MIDI == cmd->type) {
+                size_t nb_bytes = cmd->size - (1 + 4);
+                /* Send to selected outputs */
+                for (int out=0; out<nb_out; out++) {
+                    if (cmd->data.midi.mask & (1 << out)) {
+                        send_midi(out_buf[out], 0/*time*/, cmd->data.midi.midibytes, nb_bytes);
+                    }
                 }
-            }
-            /* Reset clock on start */
-            for (int i=0; i<nb_bytes; i++) {
-                if (cmd->data[i] == 0xFA) clock_sub_state = 0;
+                /* Reset clock on start */
+                for (int i=0; i<nb_bytes; i++) {
+                    if (cmd->data.midi.midibytes[i] == 0xFA) clock_sub_state = 0;
+                }
             }
             cmd_offset += cmd->size+1;
         }
@@ -126,30 +134,45 @@ int jack_midi(int argc, char **argv) {
     nb_in  = atoi(argv[2]);  midi_in  = calloc(nb_in,sizeof(void*));
     nb_out = atoi(argv[3]);  midi_out = calloc(nb_out,sizeof(void*));
     jack_status_t status;
-    j_client = jack_client_open (client_name, JackNullOption, &status);
+    client = jack_client_open (client_name, JackNullOption, &status);
     char port_name[32] = {};
     for (int in = 0; in < nb_in; in++) {
         snprintf(port_name,sizeof(port_name)-1,"midi_in_%d",in);
         ASSERT(midi_in[in] = jack_port_register(
-                   j_client, port_name,
+                   client, port_name,
                    JACK_DEFAULT_MIDI_TYPE, JackPortIsInput, 0));
     }
     for (int out = 0; out < nb_out; out++) {
         snprintf(port_name,sizeof(port_name)-1,"midi_out_%d",out);
         ASSERT(midi_out[out] = jack_port_register(
-                   j_client, port_name,
+                   client, port_name,
                    JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0));
     }
 
 
-    jack_set_process_callback (j_client, process, 0);
+    jack_set_process_callback (client, process, 0);
     ASSERT(!mlockall(MCL_CURRENT | MCL_FUTURE));
-    ASSERT(!jack_activate(j_client));
+    ASSERT(!jack_activate(client));
     for(;;) {
         /* FIXME: it's simpler to have it read non-blocking inside the
            process loop */
         if ((cmd_size[write_buf] =
              read(0,cmd_buf[write_buf],CMD_BUF_SIZE)) < sizeof(struct command)) exit(1);
+        struct command *cmd = (void*)&cmd_buf[write_buf];
+        switch(cmd->type) {
+        case CMD_MIDI:
+            // Handled in process()
+            break;
+        case CMD_CONNECT: {
+            char *src = cmd->data.c;
+            char *dst = src + strlen(src) + 1;
+            LOG("connect %s %s\n", src, dst);
+            jack_connect(client, src, dst);
+            break;
+        }
+        default:
+            break;
+        }
         write_buf = (write_buf + 1) % NB_CMD_BUFS;
     }
     return 0;

@@ -1,6 +1,6 @@
 -module(midi).
 -export([alsa_seq_in/1, alsa_seq_in/2, alsa_seq_handle/2,
-         jack/4, jack/3, jack_handle/2, %% jack midi client
+         jackc/4, jackc/3, jackc_handle/2, %% jack midi client
          jackd_init/0, jackd_handle/2, %% jackd wrapper
          jackd_port_start/0, jackd_port_handle/2, %% jackd erlang port wrapper
          decode/2,decode/1,encode/1,
@@ -11,6 +11,8 @@
 %% there.
 
 %% int(X) -> list_to_integer(binary_to_list(X)).
+
+-define(IF(C,A,B),if C -> A; true -> B end).
 
 
 %% Accumulator task for incremental encoders.
@@ -101,7 +103,7 @@ alsa_seq_ev(Type,S,Data,Sink) -> Sink({S,{Type,Data}}).
     
 
 %% JACK midi. Preferred as it has better timing properties.
-jack(Client,NI,NO,Sink) ->
+jackc(Client,NI,NO,Sink) ->
     Cmd = tools:format("priv/studio jack_midi ~s ~p ~p",
                        [Client, NI, NO]),
     serv:start(
@@ -111,31 +113,35 @@ jack(Client,NI,NO,Sink) ->
                   [{packet,1},binary,exit_status]),
                 Sink}
        end,
-       fun midi:jack_handle/2}).
-jack(Client,NI,NO) ->
-    jack(Client,NI,NO,
+       fun midi:jackc_handle/2}).
+jackc(Client,NI,NO) ->
+    jackc(Client,NI,NO,
          fun(Msg) -> tools:info("~p~n",[Msg]) end).
-jack_handle(exit, {Port,_}=State) ->
+-define(CMD_MIDI,0).
+-define(CMD_CONNECT,1).
+jackc_handle(exit, {Port,_}=State) ->
     Port ! {self(), {command, <<>>}},
     State;
-jack_handle({Port,{exit_status,_}=E},{Port,_}) ->
+jackc_handle({Port,{exit_status,_}=E},{Port,_}) ->
     exit(E);
-jack_handle({send,Mask,Data},
-            {Port,_}=State) ->
-    Bin = if
-              is_binary(Data) -> Data;
-              true -> encode(Data)
-          end,
-    Port ! {self(), {command,
-                     <<Mask:32/little,
-                       Bin/binary>>}},
-    State;
-jack_handle({Port,{data,<<MidiPort,Data/binary>>}},
-                 {Port,Sink}=State) ->
+%% Midi in
+jackc_handle({Port,{data,<<MidiPort,Data/binary>>}},
+            {Port,Sink}=State) ->
     lists:foreach(
       fun(Msg) -> Sink({{jack,MidiPort},Msg}) end,
       decode(Data)),
+    State;
+
+%% Midi out
+jackc_handle({midi,Mask,Data}, {Port,_}=State) ->
+    Bin = ?IF(is_binary(Data), Data, encode(Data)),
+    Port ! {self(), {command, <<?CMD_MIDI, Mask:32/little, Bin/binary>>}},
+    State;
+
+jackc_handle({connect,Src,Dst},{Port,_}=State) ->
+    Port ! {self(), {command, <<?CMD_CONNECT,Src/binary,0,Dst/binary,0>>}},
     State.
+
 
 
 %% Jack I/O map.
@@ -164,28 +170,14 @@ port_start(Node) ->
                 fun midi:port_handle/2}).
 
 
-need_client(#{client := _}=State) -> State;
+need_client(#{client := Client}=State) ->
+    {Client, State};
 need_client(State) ->
     tools:info("starting client~n"),
     Self = self(),
     Sink = fun(Msg) -> Self ! {client, Msg} end,
-    maps:put(client, jack("studio",16,16,Sink), State).
-fmt_port({Client,Port}) ->
-    tools:format("~s:~s",[Client,Port]);
-fmt_port(Name) -> Name.
-
-jack_connect(Source,Dest) ->
-    spawn(
-      fun() ->
-              %% FIXME: use .c port jack client to send connect
-              %% command, to make sure ports are all up.
-              timer:sleep(1000), 
-              Cmd = tools:format(
-                      "jack_connect ~s ~s",
-                      [fmt_port(Source),fmt_port(Dest)]),
-              tools:info("~p~n",[Cmd]),
-              open_port({spawn,Cmd},[])
-      end).
+    Client = jackc("studio",16,16,Sink),
+    {Client, maps:put(client, Client, State)}.
 
 %% Jack state update, fed from jackd stdout.
 jackd_init() ->
@@ -206,19 +198,16 @@ jackd_handle({line, <<"scan: ", Rest/binary>>}, State) ->
     Key = {Dir, Name},
     case Action of
         <<"added">> ->
-            S=maps:put(Key,PortName,State),
+            S1=maps:put(Key,PortName,State),
             tools:info("~s ~p => ~p~n",[Action, Key, PortName]),
+            {Client,S2} = need_client(S1),
+            Connect = fun(Src,Dst) -> Client ! {connect,Src,Dst} end,
             case Dir of
-                <<"in">> ->
-                    jack_connect(
-                      PortName,
-                      {<<"studio">>,<<"midi_in_0">>});
-                <<"out">> ->
-                    jack_connect(
-                      {<<"studio">>,<<"midi_out_0">>},
-                      PortName)
+                <<"in">>  -> Connect(PortName,<<"studio:midi_in_0">>);
+                <<"out">> -> Connect(<<"studio:midi_out_0">>,PortName)
             end,
-            need_client(S);
+            S2;
+        
         <<"deleted">> ->
             S=maps:remove(Key, State),
             tools:info("~s ~p~n",[Action, Key]),
