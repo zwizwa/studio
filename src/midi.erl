@@ -73,16 +73,15 @@ encode(_) -> <<>>.
     
     
 
-%% Alsa sequencer, midi in.
+%% Alsa sequencer client, midi in.
 %% Only a single listener is necessary: distinguish based on source addr.
 %% E.g. use aconnect in udev?
+alsa_open(Client) ->
+    open_port({spawn,"priv/studio alsa_seq_in " ++ Client},
+              [{packet,1},binary,exit_status]).
 alsa_seq_in(Client, Sink) ->
     serv:start({handler,
-                fun() ->
-                        {open_port({spawn,"priv/studio alsa_seq_in " ++ Client},
-                                   [{packet,1},binary,exit_status]),
-                         Sink}
-                end,
+                fun() -> {alsa_open(Client), Sink} end,
                 fun midi:alsa_seq_handle/2}).
 alsa_seq_in(Client) ->
     alsa_seq_in(Client,
@@ -94,112 +93,72 @@ alsa_seq_route(<<Type,_Flags,_Tag,_Queue,
                  SC,SP,_DC,_DP,
                  Data/binary>>, Sink) ->
     alsa_seq_ev(Type,{seq,{SC,SP}},Data,Sink).
-
-%% Decode events into our tuple representation.
 alsa_seq_ev(6, S,<<C,K,V,_/binary>>,Sink) -> Sink({S,{on, C,K,V}});
 alsa_seq_ev(7, S,<<C,K,V,_/binary>>,Sink) -> Sink({S,{off,C,K,V}});
 alsa_seq_ev(10,S,<<C,_,_,_,K:32/little,V:32/signed-little,_/binary>>,Sink) -> Sink({S,{cc, C,K,V}});
 alsa_seq_ev(Type,S,Data,Sink) -> Sink({S,{Type,Data}}).
     
 
-%% JACK midi. Preferred as it has better timing properties.
+
+%% JACK midi client. Preferred as it has better timing properties.
+%% Supports midi in/out, clock generation, and jack client connection.
+-define(JACKC_CMD_MIDI,0).
+-define(JACKC_CMD_CONNECT,1).
+jackc_open(Client,NI,NO) ->
+    Cmd = tools:format("priv/studio jack_midi ~s ~p ~p", [Client, NI, NO]),
+    open_port({spawn,Cmd},[{packet,1},binary,exit_status]).
 jackc(Client,NI,NO,Sink) ->
-    Cmd = tools:format("priv/studio jack_midi ~s ~p ~p",
-                       [Client, NI, NO]),
-    serv:start(
-      {handler,
-       fun() ->{open_port(
-                  {spawn,Cmd},
-                  [{packet,1},binary,exit_status]),
-                Sink}
-       end,
-       fun midi:jackc_handle/2}).
+    serv:start({handler,
+                fun() -> {jackc_open(Client,NI,NO),Sink} end,
+                fun midi:jackc_handle/2}).
 jackc(Client,NI,NO) ->
     jackc(Client,NI,NO,
          fun(Msg) -> tools:info("~p~n",[Msg]) end).
--define(CMD_MIDI,0).
--define(CMD_CONNECT,1).
+jackc_handle({connect,Src,Dst},{Port,_}=State) ->
+    Port ! {self(), {command, <<?JACKC_CMD_CONNECT,Src/binary,0,Dst/binary,0>>}},
+    State;
 jackc_handle(exit, {Port,_}=State) ->
     Port ! {self(), {command, <<>>}},
     State;
 jackc_handle({Port,{exit_status,_}=E},{Port,_}) ->
     exit(E);
-%% Midi in
-jackc_handle({Port,{data,<<MidiPort,Data/binary>>}},
-            {Port,Sink}=State) ->
+%% Midi in. Translate to symbolic form.
+jackc_handle({Port,{data,<<MidiPort,Data/binary>>}}, {Port,Sink}=State) ->
     lists:foreach(
       fun(Msg) -> Sink({{jack,MidiPort},Msg}) end,
       decode(Data)),
     State;
-
 %% Midi out
 jackc_handle({midi,Mask,Data}, {Port,_}=State) ->
     Bin = ?IF(is_binary(Data), Data, encode(Data)),
-    Port ! {self(), {command, <<?CMD_MIDI, Mask:32/little, Bin/binary>>}},
-    State;
-
-jackc_handle({connect,Src,Dst},{Port,_}=State) ->
-    Port ! {self(), {command, <<?CMD_CONNECT,Src/binary,0,Dst/binary,0>>}},
+    Port ! {self(), {command, <<?JACKC_CMD_MIDI, Mask:32/little, Bin/binary>>}},
     State.
 
 
 
-%% Jack I/O map.
 
-
-%% Arbitrary midi sources.
-%% Note: can't read from device, so /dev/midi? needs a port program.
-port_init({socat, SocatTag, Node}) ->
-    port_init(tools:format("socat - ~s:~s", [SocatTag, Node]),
-              list_to_atom(Node));
-port_init(Node) ->
-    port_init({socat,"OPEN",Node}).
-port_init(Cmd, Tag) ->
-    Port=open_port({spawn,Cmd},[binary,exit_status]),
-    #{port => Port, tag => Tag}.
-port_handle({Port, {data, Data}},
-            #{tag := Tag, port := Port}=State) ->
-    tools:info("~p~n",[{Tag,decode(Data)}]),
-    State;
-port_handle({data, Data}, #{port := Port}=State) ->
-    Port ! {self(), {command, Data}},
-    State.
-port_start(Node) ->    
-    serv:start({handler,
-                fun() -> port_init(Node) end,
-                fun midi:port_handle/2}).
-
-
-
-%% Jack state update, fed from jackd stdout.
+%% Jack I/O name mapper
+%% Easy enough to observe stdout of the server process for port add/delete.
+%% Once midi port aliases are known, connect them to a specified port number on the jack client.
 jackd_init() ->
     #{}.
-
-    
-
 jackd_handle({line, <<"scan: ", Rest/binary>>}, State) ->
-    {match,[_|Event]} =
+    {match,[_|[Action,_,Dir,Addr,Name]]} =
         re:run(Rest,
                <<"(\\S+) port (\\S+) (\\S+)\\-(hw\\-\\d+\\-\\d+\\-\\d+)\\-(\\S+)\n*">>,
                [{capture,all,binary}]),
-    %%tools:info("jack_midi: ~p~n", [Event]),
-    [Action,_,Dir,Addr,Name] = Event,
     PortAlias = <<Dir/binary,$-,Addr/binary,$-,Name/binary>>,
     Key = {Dir, Name},
+    tools:info("~s ~p => ~p~n",[Action, Key, PortAlias]),
     case Action of
         <<"added">> ->
             S1=maps:put(Key,PortAlias,State),
-            tools:info("~s ~p => ~p~n",[Action, Key, PortAlias]),
             jackd_connect(PortAlias, Dir, Name, S1);
-        
         <<"deleted">> ->
-            S=maps:remove(Key, State),
-            tools:info("~s ~p~n",[Action, Key]),
-            S;
+            maps:remove(Key, State);
         _ ->
             State
     end;
-
 jackd_handle({line,_Msg}, State) -> State;
 jackd_handle({client, Msg}, State) ->
     case Msg of
@@ -207,10 +166,8 @@ jackd_handle({client, Msg}, State) ->
         _ -> tools:info("jack client message: ~p~n",[Msg])
     end,
     State;
-
-jackd_handle(Msg, State) -> obj:handle(Msg, State).
-
-%% Connect to canonical ports, based on config.
+jackd_handle(Msg, State) ->
+    obj:handle(Msg, State).
 jackd_connect(PortAlias, Dir, Name, State) ->
     {C,S} = jackd_need_client(State),
     N = integer_to_binary(
@@ -236,14 +193,13 @@ jackd_need_client(State) ->
 %% Start jackd as a port, and connect it to jack_update/2.
 %% Alternatively, use: socat EXEC:$JACKD TCP-CONNECT:localhost:13000
 %% in combination with linemon.erl
+jackd_open() ->
+    open_port({spawn, "jackd.local"},
+              [{line,1024}, binary, use_stdio, exit_status]).
 jackd_port_start() ->
     serv:start(
       {handler,
-       fun() -> #{
-            port =>
-                open_port({spawn, "jackd.local"},
-                          [{line,1024}, binary, use_stdio, exit_status])}
-       end,
+       fun() -> #{port => jackd_open()} end,
        fun midi:jackd_port_handle/2}).
 jackd_port_handle({Port, {data, {eol, Line}}}, #{port := Port} = State) ->
     jackd_handle({line, Line}, State);
@@ -252,3 +208,30 @@ jackd_port_handle({Port, {exit_status, _}=Msg}, #{port := Port}) ->
 jackd_port_handle(Msg, State) ->
     %% tools:info("jackd_port_handle: ~p ~p~n",[Msg,State]),
     jackd_handle(Msg, State).
+
+
+
+
+
+
+%% Arbitrary raw midi sources.
+%% Note: can't read from device, so /dev/midi? needs a port program.
+port_init({socat, SocatTag, Node}) ->
+    port_init(tools:format("socat - ~s:~s", [SocatTag, Node]),
+              list_to_atom(Node));
+port_init(Node) ->
+    port_init({socat,"OPEN",Node}).
+port_init(Cmd, Tag) ->
+    Port=open_port({spawn,Cmd},[binary,exit_status]),
+    #{port => Port, tag => Tag}.
+port_handle({Port, {data, Data}},
+            #{tag := Tag, port := Port}=State) ->
+    tools:info("~p~n",[{Tag,decode(Data)}]),
+    State;
+port_handle({data, Data}, #{port := Port}=State) ->
+    Port ! {self(), {command, Data}},
+    State.
+port_start(Node) ->    
+    serv:start({handler,
+                fun() -> port_init(Node) end,
+                fun midi:port_handle/2}).
