@@ -23,7 +23,7 @@ int frames = 0;
 unsigned int read_buf = 0, write_buf = 0;
 
 #define NB_CMD_BUFS 4
-#define CMD_BUF_SIZE 1024
+#define CMD_BUF_SIZE 4096
 
 ssize_t cmd_size[NB_CMD_BUFS];
 uint8_t cmd_buf[NB_CMD_BUFS][CMD_BUF_SIZE];
@@ -154,24 +154,26 @@ int jack_midi(int argc, char **argv) {
     ASSERT(!mlockall(MCL_CURRENT | MCL_FUTURE));
     ASSERT(!jack_activate(client));
     for(;;) {
-        /* FIXME: it's simpler to have it read non-blocking inside the
-           process loop */
         if ((cmd_size[write_buf] =
              read(0,cmd_buf[write_buf],CMD_BUF_SIZE)) < sizeof(struct command)) exit(1);
-        struct command *cmd = (void*)&cmd_buf[write_buf];
-        switch(cmd->type) {
-        case CMD_MIDI:
-            // Handled in process()
-            break;
-        case CMD_CONNECT: {
-            char *src = cmd->data.c;
-            char *dst = src + strlen(src) + 1;
-            LOG("connect %s %s\n", src, dst);
-            jack_connect(client, src, dst);
-            break;
-        }
-        default:
-            break;
+        ssize_t cmd_offset = 0;
+        while (cmd_offset < cmd_size[write_buf]) {
+            struct command *cmd = (void*)&cmd_buf[write_buf][cmd_offset];
+            switch(cmd->type) {
+            case CMD_MIDI:
+                // Handled in process()
+                break;
+            case CMD_CONNECT: {
+                char *src = cmd->data.c;
+                char *dst = src + strlen(src) + 1;
+                LOG("connect %s %s\n", src, dst);
+                jack_connect(client, src, dst);
+                break;
+            }
+            default:
+                break;
+            }
+            cmd_offset += cmd->size+1;
         }
         write_buf = (write_buf + 1) % NB_CMD_BUFS;
     }

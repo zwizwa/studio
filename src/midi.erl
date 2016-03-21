@@ -149,7 +149,7 @@ jackd_handle({line, <<"scan: ", Rest/binary>>}, State) ->
                [{capture,all,binary}]),
     PortAlias = <<Dir/binary,$-,Addr/binary,$-,Name/binary>>,
     Key = {Dir, Name},
-    tools:info("~s ~p => ~p~n",[Action, Key, PortAlias]),
+    %%tools:info("~s ~p => ~p~n",[Action, Key, PortAlias]),
     case Action of
         <<"added">> ->
             S1=maps:put(Key,PortAlias,State),
@@ -172,11 +172,35 @@ jackd_connect(PortAlias, Dir, Name, State) ->
     {C,S} = jackd_need_client(State),
     N = integer_to_binary(
           maps:get(Name,
-                   #{<<"LPK25-MIDI-1">> => 5},
+                   #{<<"BCR2000-MIDI-1">> => 1,
+                     <<"BCR2000-MIDI-2">> => 2,
+                     <<"BCR2000-MIDI-3">> => 3,
+                     <<"USB-Midi-4i4o-MIDI-1">> => 5,
+                     <<"USB-Midi-4i4o-MIDI-2">> => 6,
+                     <<"USB-Midi-4i4o-MIDI-3">> => 7,
+                     <<"USB-Midi-4i4o-MIDI-4">> => 8,
+                     <<"LPK25-MIDI-1">> => 9,
+                     <<"M-Audio-Delta-1010-MIDI">> => 10,
+                     <<"Axiom-25-MIDI-1">> => 11, 
+                     <<"Axiom-25-MIDI-2">> => 12, 
+                     <<"Axiom-25-MIDI-3">> => 13
+                    },
                    0)),
+    %% tools:info("~p~n",[[PortAlias,Dir,Name,N]]),
+    Connect = fun(Src,Dst) ->
+                      spawn(
+                        fun() ->
+                                %% Port creation seems to happen after
+                                %% it is logged to the console.  Can't
+                                %% sync, so wait.
+                                timer:sleep(500),
+                                C!{connect,Src,Dst}
+                        end)
+              end,
+                      
     case Dir of
-        <<"in">>  -> C ! {connect,PortAlias,<<"studio:midi_in_",N/binary>>};
-        <<"out">> -> C ! {connect,<<"studio:midi_out_",N/binary>>,PortAlias}
+        <<"in">>  -> Connect(PortAlias,<<"studio:midi_in_",N/binary>>);
+        <<"out">> -> Connect(<<"studio:midi_out_",N/binary>>,PortAlias)
     end,
     S.
 jackd_need_client(#{client := Client}=State) ->
