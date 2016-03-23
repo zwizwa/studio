@@ -22,25 +22,16 @@ jack_nframes_t clock_sub_state = 0;
 int frames = 0;
 unsigned int read_buf = 0, write_buf = 0;
 
-#define NB_CMD_BUFS 4
-#define CMD_BUF_SIZE 4096
+#define NB_CMD_BUFS 8
+#define CMD_BUF_SIZE 8
 
 ssize_t cmd_size[NB_CMD_BUFS];
 uint8_t cmd_buf[NB_CMD_BUFS][CMD_BUF_SIZE];
 struct command {
     uint8_t size; // {packet,1} size = sizeof(struct header) + midi data size
-    uint8_t type;
-    union {
-        struct {
-            mask_t  mask;
-            uint8_t midibytes[0];
-        } midi;
-        uint8_t u8[0];
-        char c[0];
-    } data;
+    mask_t  mask;
+    uint8_t midibytes[0];
 } __attribute__((__packed__));
-#define CMD_MIDI 0
-#define CMD_CONNECT 1
 
 
 // TODO:
@@ -68,18 +59,16 @@ static int process (jack_nframes_t nframes, void *arg) {
         ssize_t cmd_offset = 0;
         while (cmd_offset < cmd_size[read_buf]) {
             struct command *cmd = (void*)&cmd_buf[read_buf][cmd_offset];
-            if (CMD_MIDI == cmd->type) {
-                size_t nb_bytes = cmd->size - (1 + 4);
-                /* Send to selected outputs */
-                for (int out=0; out<nb_out; out++) {
-                    if (cmd->data.midi.mask & (1 << out)) {
-                        send_midi(out_buf[out], 0/*time*/, cmd->data.midi.midibytes, nb_bytes);
-                    }
+            size_t nb_bytes = cmd->size - sizeof(mask_t);
+            /* Send to selected outputs */
+            for (int out=0; out<nb_out; out++) {
+                if (cmd->mask & (1 << out)) {
+                    send_midi(out_buf[out], 0/*time*/, cmd->midibytes, nb_bytes);
                 }
-                /* Reset clock on start */
-                for (int i=0; i<nb_bytes; i++) {
-                    if (cmd->data.midi.midibytes[i] == 0xFA) clock_sub_state = 0;
-                }
+            }
+            /* Reset clock on start */
+            for (int i=0; i<nb_bytes; i++) {
+                if (cmd->midibytes[i] == 0xFA) clock_sub_state = 0;
             }
             cmd_offset += cmd->size+1;
         }
@@ -149,32 +138,12 @@ int jack_midi(int argc, char **argv) {
                    JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0));
     }
 
-
     jack_set_process_callback (client, process, 0);
     ASSERT(!mlockall(MCL_CURRENT | MCL_FUTURE));
     ASSERT(!jack_activate(client));
     for(;;) {
         if ((cmd_size[write_buf] =
              read(0,cmd_buf[write_buf],CMD_BUF_SIZE)) < sizeof(struct command)) exit(1);
-        ssize_t cmd_offset = 0;
-        while (cmd_offset < cmd_size[write_buf]) {
-            struct command *cmd = (void*)&cmd_buf[write_buf][cmd_offset];
-            switch(cmd->type) {
-            case CMD_MIDI:
-                // Handled in process()
-                break;
-            case CMD_CONNECT: {
-                char *src = cmd->data.c;
-                char *dst = src + strlen(src) + 1;
-                LOG("connect %s %s\n", src, dst);
-                jack_connect(client, src, dst);
-                break;
-            }
-            default:
-                break;
-            }
-            cmd_offset += cmd->size+1;
-        }
         write_buf = (write_buf + 1) % NB_CMD_BUFS;
     }
     return 0;

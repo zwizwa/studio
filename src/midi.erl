@@ -115,9 +115,6 @@ jack_midi(Client,NI,NO,Sink) ->
 jack_midi(Client,NI,NO) ->
     jack_midi(Client,NI,NO,
          fun(Msg) -> tools:info("~p~n",[Msg]) end).
-jack_midi_handle({connect,Src,Dst},{Port,_}=State) ->
-    Port ! {self(), {command, <<?JACK_MIDI_CMD_CONNECT,Src/binary,0,Dst/binary,0>>}},
-    State;
 jack_midi_handle(exit, {Port,_}=State) ->
     Port ! {self(), {command, <<>>}},
     State;
@@ -132,7 +129,7 @@ jack_midi_handle({Port,{data,<<MidiPort,Data/binary>>}}, {Port,Sink}=State) ->
 %% Midi out
 jack_midi_handle({midi,Mask,Data}, {Port,_}=State) ->
     Bin = ?IF(is_binary(Data), Data, encode(Data)),
-    Port ! {self(), {command, <<?JACK_MIDI_CMD_MIDI, Mask:32/little, Bin/binary>>}},
+    Port ! {self(), {command, <<Mask:32/little, Bin/binary>>}},
     State.
 
 
