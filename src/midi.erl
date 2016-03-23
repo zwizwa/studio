@@ -1,7 +1,7 @@
 -module(midi).
 -export([alsa_seq_in/1, alsa_seq_in/2, alsa_seq_handle/2,
          jack_control/1, jack_control_loop/1,
-         jack_midi/4, jack_midi/3, jack_midi_handle/2, %% jack midi client
+         jack_midi/3, jack_midi_handle/2, %% jack midi client
          jackd_init/0, jackd_handle/2, %% jackd wrapper
          jackd_port_start/0, jackd_port_handle/2, %% jackd erlang port wrapper
          decode/2,decode/1,encode/1,
@@ -108,24 +108,33 @@ alsa_seq_ev(Type,S,Data,Sink) -> Sink({S,{Type,Data}}).
 jack_midi_open(Client,NI,NO) ->
     Cmd = tools:format("priv/studio jack_midi ~s ~p ~p", [Client, NI, NO]),
     open_port({spawn,Cmd},[{packet,1},binary,exit_status]).
-jack_midi(Client,NI,NO,Sink) ->
-    serv:start({handler,
-                fun() -> {jack_midi_open(Client,NI,NO),Sink} end,
-                fun midi:jack_midi_handle/2}).
 jack_midi(Client,NI,NO) ->
-    jack_midi(Client,NI,NO,
-         fun(Msg) -> tools:info("~p~n",[Msg]) end).
-jack_midi_handle(exit, {Port,_}=State) ->
+    serv:start({handler,
+                fun() -> #{fwd  => [],
+                           port => jack_midi_open(Client,NI,NO)}
+                end,
+                fun midi:jack_midi_handle/2}).
+jack_midi_handle(exit, #{port := Port}=State) ->
     Port ! {self(), {command, <<>>}},
     State;
-jack_midi_handle({Port,{exit_status,_}=E},{Port,_}) ->
+jack_midi_handle({Port,{exit_status,_}=E},#{port := Port}) ->
     exit(E);
 %% Midi in. Translate to symbolic form.
-jack_midi_handle({Port,{data,<<MidiPort,Data/binary>>}}, {Port,Sink}=State) ->
+jack_midi_handle({Port,{data,<<MidiPort,Data/binary>>}},
+                 #{port := Port, fwd := Fwd}=State) ->
     lists:foreach(
-      fun(Msg) -> Sink({{jack,MidiPort},Msg}) end,
+      fun(Msg) -> 
+              Tagged = {{jack,MidiPort},Msg},
+              case Msg of
+                  tc -> ignore;
+                  _ -> tools:info("~p~n",[Tagged])
+              end,
+              lists:foreach(
+                fun(Pid) -> Pid ! Tagged end,
+                Fwd) end,
       decode(Data)),
     State;
+
 %% Midi out
 jack_midi_handle({midi,Mask,Data}, {Port,_}=State) ->
     Bin = ?IF(is_binary(Data), Data, encode(Data)),
@@ -239,12 +248,11 @@ jackd_need_client(#{control := Client}=State) ->
     {Client, State};
 jackd_need_client(State) ->
     tools:info("starting client~n"),
-    Sink=fun(Msg) -> tools:info("~p~n",[Msg]) end,
     jackd_need_client(
       maps:merge(
         State,
         #{control => jack_control("studio_control"),
-          midi    => jack_midi("studio",16,16,Sink)})).
+          midi    => jack_midi("studio",16,16)})).
 
 
 
