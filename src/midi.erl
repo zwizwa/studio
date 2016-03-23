@@ -1,5 +1,6 @@
 -module(midi).
 -export([alsa_seq_in/1, alsa_seq_in/2, alsa_seq_handle/2,
+         jack_control/1, jack_control_loop/1,
          jackc/4, jackc/3, jackc_handle/2, %% jack midi client
          jackd_init/0, jackd_handle/2, %% jackd wrapper
          jackd_port_start/0, jackd_port_handle/2, %% jackd erlang port wrapper
@@ -133,6 +134,40 @@ jackc_handle({midi,Mask,Data}, {Port,_}=State) ->
     Bin = ?IF(is_binary(Data), Data, encode(Data)),
     Port ! {self(), {command, <<?JACKC_CMD_MIDI, Mask:32/little, Bin/binary>>}},
     State.
+
+
+
+%% Jack control client
+-define(JACK_CONTROL_CMD_CONNECT,1).
+jack_control_open(Client) ->
+    Cmd = tools:format("priv/studio jack_control ~s", [Client]),
+    open_port({spawn,Cmd},[{packet,1},binary,exit_status]).
+jack_control(Client) ->
+    serv:start({body, 
+                fun() -> midi:jack_control_loop(
+                           #{port => jack_control_open(Client)})
+                end}).
+jack_control_loop(#{port := Port}=State) ->
+    NextState =
+        receive
+            %% Port communication needs to be serialized.
+            {Pid, {connect, Src, Dst}} ->
+                Reply = jack_control_rpc(
+                          <<?JACK_CONTROL_CMD_CONNECT,Src/binary,0,Dst/binary,0>>,
+                          Port),
+                Pid ! {self(), obj_reply, Reply},
+                State;
+            %% All other messages implement the obj protocol.
+            Msg ->
+                obj:handle(Msg, State)
+        end,
+    jack_control_loop(NextState).
+jack_control_rpc(Cmd, Port) ->
+    Port ! {self(), {command, Cmd}},
+    receive
+        {Port,{exit_status,_}=E} -> exit(E);
+        {Port,{data, Data}} -> Data
+    end.
 
 
 

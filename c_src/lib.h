@@ -46,6 +46,7 @@
     (sizeof(x)/sizeof(x[0]))
 
 int jack_midi(int argc, char **argv);
+int jack_control(int argc, char **argv);
 int alsa_seq_in(int argc, char **argv);
 int alsa_seq_out(int argc, char **argv);
 int alsa_midi_in(int argc, char **argv);
