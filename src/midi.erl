@@ -1,7 +1,7 @@
 -module(midi).
 -export([alsa_seq_in/1, alsa_seq_in/2, alsa_seq_handle/2,
          jack_control/1, jack_control_loop/1,
-         jackc/4, jackc/3, jackc_handle/2, %% jack midi client
+         jack_midi/4, jack_midi/3, jack_midi_handle/2, %% jack midi client
          jackd_init/0, jackd_handle/2, %% jackd wrapper
          jackd_port_start/0, jackd_port_handle/2, %% jackd erlang port wrapper
          decode/2,decode/1,encode/1,
@@ -103,36 +103,36 @@ alsa_seq_ev(Type,S,Data,Sink) -> Sink({S,{Type,Data}}).
 
 %% JACK midi client. Preferred as it has better timing properties.
 %% Supports midi in/out, clock generation, and jack client connection.
--define(JACKC_CMD_MIDI,0).
--define(JACKC_CMD_CONNECT,1).
-jackc_open(Client,NI,NO) ->
+-define(JACK_MIDI_CMD_MIDI,0).
+-define(JACK_MIDI_CMD_CONNECT,1).
+jack_midi_open(Client,NI,NO) ->
     Cmd = tools:format("priv/studio jack_midi ~s ~p ~p", [Client, NI, NO]),
     open_port({spawn,Cmd},[{packet,1},binary,exit_status]).
-jackc(Client,NI,NO,Sink) ->
+jack_midi(Client,NI,NO,Sink) ->
     serv:start({handler,
-                fun() -> {jackc_open(Client,NI,NO),Sink} end,
-                fun midi:jackc_handle/2}).
-jackc(Client,NI,NO) ->
-    jackc(Client,NI,NO,
+                fun() -> {jack_midi_open(Client,NI,NO),Sink} end,
+                fun midi:jack_midi_handle/2}).
+jack_midi(Client,NI,NO) ->
+    jack_midi(Client,NI,NO,
          fun(Msg) -> tools:info("~p~n",[Msg]) end).
-jackc_handle({connect,Src,Dst},{Port,_}=State) ->
-    Port ! {self(), {command, <<?JACKC_CMD_CONNECT,Src/binary,0,Dst/binary,0>>}},
+jack_midi_handle({connect,Src,Dst},{Port,_}=State) ->
+    Port ! {self(), {command, <<?JACK_MIDI_CMD_CONNECT,Src/binary,0,Dst/binary,0>>}},
     State;
-jackc_handle(exit, {Port,_}=State) ->
+jack_midi_handle(exit, {Port,_}=State) ->
     Port ! {self(), {command, <<>>}},
     State;
-jackc_handle({Port,{exit_status,_}=E},{Port,_}) ->
+jack_midi_handle({Port,{exit_status,_}=E},{Port,_}) ->
     exit(E);
 %% Midi in. Translate to symbolic form.
-jackc_handle({Port,{data,<<MidiPort,Data/binary>>}}, {Port,Sink}=State) ->
+jack_midi_handle({Port,{data,<<MidiPort,Data/binary>>}}, {Port,Sink}=State) ->
     lists:foreach(
       fun(Msg) -> Sink({{jack,MidiPort},Msg}) end,
       decode(Data)),
     State;
 %% Midi out
-jackc_handle({midi,Mask,Data}, {Port,_}=State) ->
+jack_midi_handle({midi,Mask,Data}, {Port,_}=State) ->
     Bin = ?IF(is_binary(Data), Data, encode(Data)),
-    Port ! {self(), {command, <<?JACKC_CMD_MIDI, Mask:32/little, Bin/binary>>}},
+    Port ! {self(), {command, <<?JACK_MIDI_CMD_MIDI, Mask:32/little, Bin/binary>>}},
     State.
 
 
@@ -229,7 +229,7 @@ jackd_connect(PortAlias, Dir, Name, State) ->
                                 %% it is logged to the console.  Can't
                                 %% sync, so wait.
                                 timer:sleep(500),
-                                C!{connect,Src,Dst}
+                                obj:call(C,{connect,Src,Dst})
                         end)
               end,
                       
@@ -238,14 +238,16 @@ jackd_connect(PortAlias, Dir, Name, State) ->
         <<"out">> -> Connect(<<"studio:midi_out_",N/binary>>,PortAlias)
     end,
     S.
-jackd_need_client(#{client := Client}=State) ->
+jackd_need_client(#{control := Client}=State) ->
     {Client, State};
 jackd_need_client(State) ->
     tools:info("starting client~n"),
-    Self = self(),
-    Sink = fun(Msg) -> Self ! {client, Msg} end,
-    Client = jackc("studio",16,16,Sink),
-    {Client, maps:put(client, Client, State)}.
+    Sink=fun(Msg) -> tools:info("~p~n",[Msg]) end,
+    jackd_need_client(
+      maps:merge(
+        State,
+        #{control => jack_control("studio_control"),
+          midi    => jack_midi("studio",16,16,Sink)})).
 
 
 
