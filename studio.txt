@@ -414,3 +414,46 @@ timecodes.  Some echo thing?
 
 Suspicious though that it's the first one so might be something else
 also.
+
+
+
+Entry: jack changes
+Date: Thu Mar 24 11:17:53 EDT 2016
+
+separated midi and control clients so they can use different buffering
+schemes.  control: rpc, midi: packet switching, with possible drops.
+still not happy with the possible drops (really a design problem) but
+for now we're fine.
+
+
+Entry: erlang sequencer
+Date: Thu Mar 24 11:19:54 EDT 2016
+
+next is event sequencing.  trouble is in the "note off" events.
+
+my idea had been to use a process for an event stream, but it's not
+clear if that's a good idea.  ordered queues are probably better, but
+more clumsy to work with.
+
+yesterday i was thinking about the problem of interface
+vs. representation.  in my payed gig i've been dealing a lot with this
+problem: to build something that has a model quite different from the
+way it is implemented.
+
+in any case it would be a nice experiment to see how far the erlang
+scheduler can be trusted with accurate sequencing.
+
+what i really want though, is infinite (floating point) timing
+resolution.
+
+
+a possible solution:
+
+- build a model in erlang that can in principle be translated to
+  bare-bones implementation (state machines + priority queue).
+
+- once it works, implement the state machine scheduler
+
+
+
+
