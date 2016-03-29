@@ -456,4 +456,9 @@ a possible solution:
 
 
 
+Entry: Settings
+Date: Sun Mar 27 21:47:43 EDT 2016
 
+Storage is necessary.  I wonder if it makes sense to put this in a
+sqlite database, or to hard-code it in Erlang datastructures.  Once
+"learning" is added, the former might make sense.
