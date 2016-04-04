@@ -4,10 +4,8 @@ PROJECT_VERSION = 0.0.1
 DEPS = erl_tools erl_sqlite3
 
 C_SRC_TYPE = executable
+CFLAGS  += -std=c99 -I$(shell readlink -f deps/erl_tools/include)
 LDFLAGS += -lasound -ljack
-
-CFLAGS_ERL_TOOLS := -I$(shell readlink -f deps/erl_tools/c_src)
-CFLAGS += -std=c99 $(CFLAGS_ERL_TOOLS)
 
 
 
