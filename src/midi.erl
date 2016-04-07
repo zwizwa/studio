@@ -3,7 +3,7 @@
          jack_control/1, jack_control_loop/1,
          jack_midi/3, jack_midi_handle/2, %% jack midi client
          jackd_init/0, jackd_handle/2, %% jackd wrapper
-         jackd_port_start/0, jackd_port_handle/2, %% jackd erlang port wrapper
+         jackd_port_start_link/0, jackd_port_handle/2, %% jackd erlang port wrapper
          decode/2,decode/1,encode/1,
          port_start/1, port_handle/2]).
 %% Original idea was to route messages over broadcast, but that works
@@ -200,7 +200,9 @@ jackd_handle({line, <<"scan: ", Rest/binary>>}, State) ->
         _ ->
             State
     end;
-jackd_handle({line,_Msg}, State) -> State;
+jackd_handle({line, _Line}, State) -> 
+    tools:info("~s~n",[_Line]),
+    State;
 jackd_handle({client, Msg}, State) ->
     case Msg of
         {_,tc} -> dont_print;
@@ -262,11 +264,11 @@ jackd_need_client(State) ->
 jackd_open() ->
     open_port({spawn, "jackd.local"},
               [{line,1024}, binary, use_stdio, exit_status]).
-jackd_port_start() ->
-    serv:start(
-      {handler,
-       fun() -> #{port => jackd_open()} end,
-       fun midi:jackd_port_handle/2}).
+jackd_port_start_link() ->
+    {ok, serv:start(
+           {handler,
+            fun() -> #{port => jackd_open()} end,
+            fun midi:jackd_port_handle/2})}.
 jackd_port_handle({Port, {data, {eol, Line}}}, #{port := Port} = State) ->
     jackd_handle({line, Line}, State);
 jackd_port_handle({Port, {exit_status, _}=Msg}, #{port := Port}) ->
