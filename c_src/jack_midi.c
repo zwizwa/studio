@@ -14,7 +14,7 @@ typedef uint32_t mask_t;
 
 jack_nframes_t clock_period = BPM_TO_PERIOD(48000, 120);
 jack_nframes_t clock_time;
-mask_t clock_mask = (1<<5)|(1<<6)|(1<<7)|(1<<8); // FIXME: configurable
+mask_t clock_mask = 0;
 jack_nframes_t clock_sub_period = 6;
 jack_nframes_t clock_sub_state = 0;
 
@@ -118,10 +118,11 @@ static int process (jack_nframes_t nframes, void *arg) {
 
 
 int jack_midi(int argc, char **argv) {
-    ASSERT(argc == 4);
+    ASSERT(argc == 5);
     const char *client_name = argv[1];
     nb_in  = atoi(argv[2]);  midi_in  = calloc(nb_in,sizeof(void*));
     nb_out = atoi(argv[3]);  midi_out = calloc(nb_out,sizeof(void*));
+    clock_mask = atoi(argv[4]);
     jack_status_t status;
     client = jack_client_open (client_name, JackNullOption, &status);
     char port_name[32] = {};

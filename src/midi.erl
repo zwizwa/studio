@@ -1,7 +1,7 @@
 -module(midi).
 -export([alsa_seq_in/1, alsa_seq_in/2, alsa_seq_handle/2,
          jack_control/1, jack_control_loop/1,
-         jack_midi/3, jack_midi_handle/2, %% jack midi client
+         jack_midi/4, jack_midi_handle/2, %% jack midi client
          jackd_init/0, jackd_handle/2, %% jackd wrapper
          jackd_port_start_link/0, jackd_port_handle/2, %% jackd erlang port wrapper
          decode/2,decode/1,encode/1,
@@ -105,13 +105,13 @@ alsa_seq_ev(Type,S,Data,Sink) -> Sink({S,{Type,Data}}).
 %% Supports midi in/out, clock generation, and jack client connection.
 -define(JACK_MIDI_CMD_MIDI,0).
 -define(JACK_MIDI_CMD_CONNECT,1).
-jack_midi_open(Client,NI,NO) ->
-    Cmd = tools:format("priv/studio jack_midi ~s ~p ~p", [Client, NI, NO]),
+jack_midi_open(Client,NI,NO,ClockMask) ->
+    Cmd = tools:format("priv/studio jack_midi ~s ~p ~p ~p", [Client, NI, NO, ClockMask]),
     open_port({spawn,Cmd},[{packet,1},binary,exit_status]).
-jack_midi(Client,NI,NO) ->
+jack_midi(Client,NI,NO,ClockMask) ->
     serv:start({handler,
                 fun() -> #{fwd  => [],
-                           port => jack_midi_open(Client,NI,NO)}
+                           port => jack_midi_open(Client,NI,NO,ClockMask)}
                 end,
                 fun midi:jack_midi_handle/2}).
 jack_midi_handle(exit, #{port := Port}=State) ->
@@ -235,11 +235,12 @@ jackd_need_client(#{control := Client}=State) ->
     {Client, State};
 jackd_need_client(State) ->
     tools:info("starting client~n"),
+    ClockMask = (1 bsl 5) bor (1 bsl 6) bor (1 bsl 7) bor (1 bsl 8), %% FIXME: DB
     jackd_need_client(
       maps:merge(
         State,
         #{control => jack_control("studio_control"),
-          midi    => jack_midi("studio",16,16)})).
+          midi    => jack_midi("studio",16,16,ClockMask)})).
 
 
 
