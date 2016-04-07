@@ -235,7 +235,7 @@ jackd_need_client(#{control := Client}=State) ->
     {Client, State};
 jackd_need_client(State) ->
     tools:info("starting client~n"),
-    ClockMask = (1 bsl 5) bor (1 bsl 6) bor (1 bsl 7) bor (1 bsl 8), %% FIXME: DB
+    ClockMask = db:midiclock_mask(),
     jackd_need_client(
       maps:merge(
         State,
