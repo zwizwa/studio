@@ -14,7 +14,7 @@ typedef uint32_t mask_t;
 
 jack_nframes_t clock_period = BPM_TO_PERIOD(48000, 120);
 jack_nframes_t clock_time;
-mask_t clock_mask = -1;
+mask_t clock_mask = (1<<5)|(1<<6)|(1<<7)|(1<<8); // FIXME: configurable
 jack_nframes_t clock_sub_period = 6;
 jack_nframes_t clock_sub_state = 0;
 

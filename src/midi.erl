@@ -213,22 +213,7 @@ jackd_handle(Msg, State) ->
     obj:handle(Msg, State).
 jackd_connect(PortAlias, Dir, Name, State) ->
     {C,S} = jackd_need_client(State),
-    N = integer_to_binary(
-          maps:get(Name,
-                   #{<<"BCR2000-MIDI-1">> => 1,
-                     <<"BCR2000-MIDI-2">> => 2,
-                     <<"BCR2000-MIDI-3">> => 3,
-                     <<"USB-Midi-4i4o-MIDI-1">> => 5,
-                     <<"USB-Midi-4i4o-MIDI-2">> => 6,
-                     <<"USB-Midi-4i4o-MIDI-3">> => 7,
-                     <<"USB-Midi-4i4o-MIDI-4">> => 8,
-                     <<"LPK25-MIDI-1">> => 9,
-                     <<"M-Audio-Delta-1010-MIDI">> => 10,
-                     <<"Axiom-25-MIDI-1">> => 11, 
-                     <<"Axiom-25-MIDI-2">> => 12, 
-                     <<"Axiom-25-MIDI-3">> => 13
-                    },
-                   0)),
+    N = integer_to_binary(db:port_id(Name)),
     %% tools:info("~p~n",[[PortAlias,Dir,Name,N]]),
     Connect = fun(Src,Dst) ->
                       spawn(
