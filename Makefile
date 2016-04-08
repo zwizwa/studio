@@ -30,3 +30,7 @@ include erlang.mk
 
 #erlang.mk:
 #	wget https://raw.githubusercontent.com/ninenines/erlang.mk/master/erlang.mk
+
+update:
+	cd deps/erl_tools   ; git pull
+	cd deps/erl_sqlite3 ; git pull

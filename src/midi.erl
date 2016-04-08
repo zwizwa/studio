@@ -6,7 +6,8 @@
          jackd_port_start_link/0, jackd_port_handle/2, %% jackd erlang port wrapper
          decode/2,decode/1,encode/1,
          port_start_link/1, port_handle/2,
-         hub_start_link/0]).
+         hub_start_link/0,
+         trigger_start/2, trigger_cc/1]).
 %% Original idea was to route messages over broadcast, but that works
 %% horribly over wifi.  It seems best to make a translation to erlang
 %% on the host the device is plugged into, and then distribute it
@@ -14,7 +15,7 @@
 
 %% int(X) -> list_to_integer(binary_to_list(X)).
 
--define(IF(C,A,B),if C -> A; true -> B end).
+-define(IF(C,A,B), (case (C) of true -> (A); false -> (B) end)).
 
 
 %% Accumulator task for incremental encoders.
@@ -293,3 +294,17 @@ hub_start_link() ->
     register(midi_hub, Pid),
     serv:hub_add(Pid, fun not_tc/1, serv:info_start()),
     {ok, Pid}.
+
+
+%% Event trigger, e.g. for midi learn.
+trigger_start(Pred, Cont) ->
+    serv:start(
+      {body,
+       fun() -> 
+               serv:hub_add(midi_hub, Pred, self()),
+               receive Msg -> Cont(Msg) end
+       end}).
+                   
+trigger_cc({_,{cc,_,_,_}}) -> true;
+trigger_cc(_) -> false.
+    

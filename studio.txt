@@ -481,3 +481,10 @@ So that gives a way to organize.
 The router is a set of {Predicate,Process} rules.
 Broadcaster could be extended to that.
 
+
+Entry: Trigger & Learn
+Date: Fri Apr  8 00:38:35 EDT 2016
+
+Triggers are easy on top of routing.
+Next: midi learn for rai code numbers.
+
