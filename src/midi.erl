@@ -111,38 +111,25 @@ jack_midi_open(Client,NI,NO,ClockMask) ->
     open_port({spawn,Cmd},[{packet,1},binary,exit_status]).
 jack_midi(Client,NI,NO,ClockMask) ->
     serv:start({handler,
-                fun() -> #{fwd  => [],
-                           port => jack_midi_open(Client,NI,NO,ClockMask)}
-                end,
+                fun() -> jack_midi_open(Client,NI,NO,ClockMask) end,
                 fun midi:jack_midi_handle/2}).
-jack_midi_handle(exit, #{port := Port}=State) ->
+jack_midi_handle(exit, Port) ->
     Port ! {self(), {command, <<>>}},
-    State;
-jack_midi_handle({Port,{exit_status,_}=E},#{port := Port}) ->
+    Port;
+jack_midi_handle({Port,{exit_status,_}=E},Port) ->
     exit(E);
 %% Midi in. Translate to symbolic form.
-jack_midi_handle({Port,{data,<<MidiPort,Data/binary>>}},
-                 #{port := Port, fwd := Fwd}=State) ->
+jack_midi_handle({Port,{data,<<MidiPort,Data/binary>>}}, Port) ->
     lists:foreach(
-      fun(Msg) -> 
-              Tagged = {{jack,MidiPort},Msg},
-              case Msg of
-                  %% Don't send timecode messages everywhere.
-                  tc -> ignore;
-                  %% Broadcaster
-                  _ -> serv:hub_send(midi_hub, Msg)
-              end,
-              lists:foreach(
-                fun(Pid) -> Pid ! Tagged end,
-                Fwd) end,
+      fun(Msg) -> serv:hub_send(midi_hub, {{jack,MidiPort},Msg}) end,
       decode(Data)),
-    State;
+    Port;
 
 %% Midi out
-jack_midi_handle({midi,Mask,Data}, {Port,_}=State) ->
+jack_midi_handle({midi,Mask,Data}, Port) ->
     Bin = ?IF(is_binary(Data), Data, encode(Data)),
     Port ! {self(), {command, <<Mask:32/little, Bin/binary>>}},
-    State.
+    Port.
 
 
 
@@ -298,11 +285,11 @@ port_start_link(Node) ->
 
         
 
+not_tc({_,Msg}) -> Msg =/= tc.
 
-    
-%% Midi hub.  Currently all messages get sent to all processes.
+%% Midi hub.  serv:hub object filters at the source
 hub_start_link() ->
     Pid = serv:hub_start(), 
     register(midi_hub, Pid),
-    serv:hub_add(Pid, serv:info_start()),
+    serv:hub_add(Pid, fun not_tc/1, serv:info_start()),
     {ok, Pid}.
