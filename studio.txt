@@ -462,3 +462,22 @@ Date: Sun Mar 27 21:47:43 EDT 2016
 Storage is necessary.  I wonder if it makes sense to put this in a
 sqlite database, or to hard-code it in Erlang datastructures.  Once
 "learning" is added, the former might make sense.
+
+EDIT: added erl_sqlite3 dependency and database.
+
+
+Entry: Routing
+Date: Thu Apr  7 21:40:30 EDT 2016
+
+Everything is set up.  Next: routing.
+Basic tool is serv:broadcaster (fan-out) and receive selection.
+
+Basically, event comes in at port and based on what it is, it needs to
+be dispatched to one or more registered processes.
+
+It doesn't seem like a good idea to route everything to every process.
+So that gives a way to organize.
+
+The router is a set of {Predicate,Process} rules.
+Broadcaster could be extended to that.
+

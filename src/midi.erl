@@ -5,7 +5,8 @@
          jackd_init/0, jackd_handle/2, %% jackd wrapper
          jackd_port_start_link/0, jackd_port_handle/2, %% jackd erlang port wrapper
          decode/2,decode/1,encode/1,
-         port_start/1, port_handle/2]).
+         port_start_link/1, port_handle/2,
+         hub_start_link/0]).
 %% Original idea was to route messages over broadcast, but that works
 %% horribly over wifi.  It seems best to make a translation to erlang
 %% on the host the device is plugged into, and then distribute it
@@ -126,8 +127,10 @@ jack_midi_handle({Port,{data,<<MidiPort,Data/binary>>}},
       fun(Msg) -> 
               Tagged = {{jack,MidiPort},Msg},
               case Msg of
+                  %% Don't send timecode messages everywhere.
                   tc -> ignore;
-                  _ -> tools:info("~p~n",[Tagged])
+                  %% Broadcaster
+                  _ -> serv:hub_send(midi_hub, Msg)
               end,
               lists:foreach(
                 fun(Pid) -> Pid ! Tagged end,
@@ -146,7 +149,8 @@ jack_midi_handle({midi,Mask,Data}, {Port,_}=State) ->
 %% Jack control client
 -define(JACK_CONTROL_CMD_CONNECT,1).
 jack_control_open(Client) ->
-    Cmd = tools:format("priv/studio jack_control ~s", [Client]),
+    Cmd = tools:format("~s/studio jack_control ~s",
+                       [code:priv_dir(studio),Client]),
     open_port({spawn,Cmd},[{packet,1},binary,exit_status]).
 jack_control(Client) ->
     serv:start({body, 
@@ -285,7 +289,20 @@ port_handle({Port, {data, Data}},
 port_handle({data, Data}, #{port := Port}=State) ->
     Port ! {self(), {command, Data}},
     State.
-port_start(Node) ->    
-    serv:start({handler,
-                fun() -> port_init(Node) end,
-                fun midi:port_handle/2}).
+port_start_link(Node) ->    
+    {ok, serv:start({handler,
+                     fun() -> port_init(Node) end,
+                     fun midi:port_handle/2})}.
+
+
+
+        
+
+
+    
+%% Midi hub.  Currently all messages get sent to all processes.
+hub_start_link() ->
+    Pid = serv:hub_start(), 
+    register(midi_hub, Pid),
+    serv:hub_add(Pid, serv:info_start()),
+    {ok, Pid}.
