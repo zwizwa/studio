@@ -488,3 +488,6 @@ Date: Fri Apr  8 00:38:35 EDT 2016
 Triggers are easy on top of routing.
 Next: midi learn for rai code numbers.
 
+The interesting part there is to keep the locations invariant.
+Inserting forms will violate that.  This was not a problem using the
+emacs cursor.

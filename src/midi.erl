@@ -278,9 +278,10 @@ port_handle({data, Data}, #{port := Port}=State) ->
     Port ! {self(), {command, Data}},
     State.
 port_start_link(Node) ->    
-    {ok, serv:start({handler,
-                     fun() -> port_init(Node) end,
-                     fun midi:port_handle/2})}.
+    {ok, serv:start(
+           {handler,
+            fun() -> port_init(Node) end,
+            fun midi:port_handle/2})}.
 
 
 
@@ -307,4 +308,3 @@ trigger_start(Pred, Cont) ->
                    
 trigger_cc({_,{cc,_,_,_}}) -> true;
 trigger_cc(_) -> false.
-    
