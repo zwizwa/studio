@@ -28,14 +28,17 @@ from intel built-in audio - pulseaudio digital mix chain
 19/20 free
 
 sends:
-aux1 pre      guitar effects
-aux2 pre/post free 
+aux1 pre      free
+aux2 pre/post guitar effects  (pre default)
 aux3 post     free
 
-note:
+notes:
 
-aux send to digital in (e.g. for reverb/delay) is not really necessary
-as they can be sent digitally.
+* aux send to digital in (e.g. for reverb/delay) is not really
+  necessary as they can be sent digitally.
+
+* aux1 somehow gives feedback trouble on high-gain effects chain
+  (self-send not off completely?).  using aux2 in pre mode works fine.
 
 
 bcr2000
@@ -525,3 +528,23 @@ load-module module-jack-source
 load-module module-jack-sink
 .endif
 
+
+Entry: pulse udev
+Date: Sat Apr  9 00:39:20 EDT 2016
+
+/lib/udev/rules.d/90-pulseaudio.rules
+
+to disable a card, use udev environment to inflence that rule.
+https://jamielinux.com/blog/tell-pulseaudio-to-ignore-a-usb-device-using-udev/
+
+ATTRS{idVendor}=="1852", ATTRS{idProduct}=="5110", ENV{PULSE_IGNORE}="1"
+
+From default.pa:
+
+### Automatically load driver modules depending on the hardware available
+.ifexists module-udev-detect.so
+load-module module-udev-detect
+.else
+### Use the static hardware detection module (for systems that lack udev support)
+load-module module-detect
+.endif

@@ -80,6 +80,7 @@ static int process (jack_nframes_t nframes, void *arg) {
         /* Clock pulse fits in current frame. */
         for (int out=0; out<nb_out; out++) {
             if (clock_mask & (1 << out)) {
+                //LOG("F8 on %d\n", out);
                 const uint8_t clock[] = {0xF8};
                 send_midi(out_buf[out], clock_time, clock, sizeof(clock));
             }
@@ -123,6 +124,7 @@ int jack_midi(int argc, char **argv) {
     nb_in  = atoi(argv[2]);  midi_in  = calloc(nb_in,sizeof(void*));
     nb_out = atoi(argv[3]);  midi_out = calloc(nb_out,sizeof(void*));
     clock_mask = atoi(argv[4]);
+    LOG("clock_mask = %d\n", clock_mask);
     jack_status_t status;
     client = jack_client_open (client_name, JackNullOption, &status);
     char port_name[32] = {};
