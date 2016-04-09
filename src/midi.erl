@@ -175,7 +175,8 @@ jack_control_rpc(Cmd, Port) ->
 %% Once midi port aliases are known, connect them to a specified port number on the jack client.
 jackd_init() ->
     #{}.
-jackd_handle({line, <<"scan: ", Rest/binary>>}, State) ->
+jackd_handle({line, <<"scan: ", Rest/binary>>=_Line}, State) ->
+    tools:info("~s~n",[_Line]),
     {match,[_|[Action,_,Dir,Addr,Name]]} =
         re:run(Rest,
                <<"(\\S+) port (\\S+) (\\S+)\\-(hw\\-\\d+\\-\\d+\\-\\d+)\\-(\\S+)\n*">>,
@@ -240,7 +241,7 @@ jackd_need_client(State) ->
 %% Alternatively, use: socat EXEC:$JACKD TCP-CONNECT:localhost:13000
 %% in combination with linemon.erl
 jackd_open() ->
-    open_port({spawn, "jackd.local"},
+    open_port({spawn, code:priv_dir(studio) ++ "/start_jackd.sh"},
               [{line,1024}, binary, use_stdio, exit_status]).
 jackd_port_start_link() ->
     {ok, serv:start(
