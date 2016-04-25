@@ -548,3 +548,13 @@ load-module module-udev-detect
 ### Use the static hardware detection module (for systems that lack udev support)
 load-module module-detect
 .endif
+
+
+
+
+Entry: jackd bug
+Date: Tue Apr 19 09:41:46 EDT 2016
+
+https://github.com/jackaudio/jack2/pull/153
+
+2^31-1 Samples (~13.5h at 44.1kHz),
