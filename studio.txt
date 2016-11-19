@@ -558,3 +558,10 @@ Date: Tue Apr 19 09:41:46 EDT 2016
 https://github.com/jackaudio/jack2/pull/153
 
 2^31-1 Samples (~13.5h at 44.1kHz),
+
+Fix is not in 1.9.10 release, so build from git.
+How to turn this into a jackd2 debian package?
+
+Not necessary:
+- build in ~/git/jackd2 using standard options
+- set ~/bin/jackd.zoo to use /home/tom/git/jack2/build/jackd
