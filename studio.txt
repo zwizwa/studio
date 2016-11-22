@@ -559,9 +559,56 @@ https://github.com/jackaudio/jack2/pull/153
 
 2^31-1 Samples (~13.5h at 44.1kHz),
 
+EDIT:
 Fix is not in 1.9.10 release, so build from git.
 How to turn this into a jackd2 debian package?
 
 Not necessary:
 - build in ~/git/jackd2 using standard options
 - set ~/bin/jackd.zoo to use /home/tom/git/jack2/build/jackd
+
+
+
+Entry: lmms
+Date: Sat Nov 19 18:00:25 EST 2016
+
+Not very useful to me atm, but useful as a pattern editor.
+How to get pattern from lmms into erlang?
+
+lmms -d hobble.mmpz # gives an xml file
+
+Maybe a good push for making something in Rust
+
+
+
+Entry: rust
+Date: Sat Nov 19 18:43:12 EST 2016
+
+https://github.com/seriyps/rust-erl-ext
+
+
+
+Entry: next
+Date: Sun Nov 20 08:27:35 EST 2016
+
+What to do next?  I like the romantic Erlang story, but currently have
+no idea on how to put it to use properly.  There is no point of
+increment.
+
+What is needed?
+
+- A pattern sequence player / editor
+
+- A sample player / matcher
+
+
+Maybe if the artistic inspiration is not there, focus on the dry,
+technical problems?  The problem has always been management of
+phrases as midi notes + synth configs, or recorded samples.
+
+I've always felt the need to have to choose between synths and
+samples.  Is that still the case?
+
+Also, reproducibility has been a problem.  But that conflicts with the
+lure of the analog knobs..
+
