@@ -612,3 +612,10 @@ samples.  Is that still the case?
 Also, reproducibility has been a problem.  But that conflicts with the
 lure of the analog knobs..
 
+
+
+Entry: FLAC decoder in rust
+Date: Thu Dec  1 08:19:31 EST 2016
+
+https://github.com/ruuda/claxon
+https://ruudvanasseldonk.com/2016/11/30/zero-cost-abstractions
