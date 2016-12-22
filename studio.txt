@@ -619,3 +619,48 @@ Date: Thu Dec  1 08:19:31 EST 2016
 
 https://github.com/ruuda/claxon
 https://ruudvanasseldonk.com/2016/11/30/zero-cost-abstractions
+
+
+
+Entry: UI revisited
+Date: Sat Dec 17 17:55:50 EST 2016
+
+The point here is to keep it fun, right?
+And allow for some "job well done" gloating afterwards..
+
+What about UI.  I want to build my own widgets in a way that makes
+sense, e.g. using constraints or some declarative approach.  As a
+language I'd go for either Rust or Haskell.  Former if this has to
+ever run on a low-end machine (unlikely).  Latter if it's ok to use a
+2010-style laptop which can run reasonable 2D compositing and can host
+Haskell.
+
+Really, thinking about synth networks, it might be best to completely
+separate UI and sound, so platform would not be such a problem.  The
+question would be: is Haskell responsive enough?
+
+Some requirements:
+- would have to be frame-synchronous: no tearing
+- I'd like to avoid X11
+
+
+
+So.. I have all these thinkpads.  They all have:
+
+lspci:
+00:02.0 VGA compatible controller: Intel Corporation Core Processor Integrated Graphics Controller (rev 02)
+
+cpuinfo:
+(zora, broom)
+model name      : Intel(R) Core(TM) i5 CPU       M 520  @ 2.40GHz
+(tp)
+model name      : Intel(R) Core(TM) i5 CPU       M 540  @ 2.53GHz
+
+glxinfo:
+    Device: Mesa DRI Intel(R) Ironlake Mobile  (0x46)
+
+https://en.wikipedia.org/wiki/List_of_Intel_graphics_processing_units#Fifth_generation
+https://en.wikipedia.org/wiki/Arrandale
+https://en.wikipedia.org/wiki/Intel_HD_and_Iris_Graphics
+
+
