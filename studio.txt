@@ -664,3 +664,74 @@ https://en.wikipedia.org/wiki/Arrandale
 https://en.wikipedia.org/wiki/Intel_HD_and_Iris_Graphics
 
 
+Entry: A sender and a receiver
+Date: Sun Aug 13 21:08:05 EDT 2017
+
+So I want to think about making this easier.
+
+I have a sender, say a midi knob plugged into a PC somewhere in the
+distributed network, and I want to use it as an input to some process.
+
+How to tell the knob to send its data?
+
+- Register the pid to the controller's parent
+- Have the parent do filtering
+
+how to make this work with "midi learn?"
+
+this only works if all the controls can be left silent, or at least to
+filter out those controls that do not yet have an assignment.
+
+
+where is this actually coming in?
+EDIT: arch uses a hub
+
+to receive a port's messages, register a filter for its address to the
+midi_hub
+
+what this can't do is midi learn.
+
+hub would need to implement that.
+
+
+
+Entry: current jack arch
+Date: Sun Aug 13 21:21:28 EDT 2017
+
+jackd, wraps the daemon. listens to stdout for connect events.
+
+jack_control, wraps port process to do things like jack_connect().
+
+jack_midi, wraps port process
+has currently 16 in, 16 out which are connected to the physical ports
+sends everything to midi hub
+
+midi hub is serv:hub
+
+%% Midi in. Translate to symbolic form.
+jack_midi_handle({Port,{data,<<MidiPort,Data/binary>>}}, Port) ->
+    lists:foreach(
+      fun(Msg) -> serv:hub_send(midi_hub, {{jack,MidiPort},Msg}) end,
+      decode(Data)),
+    Port;
+
+
+TODO: hub needs to register processes, so if they die it can remove
+them from the list.  It was determined to do filtering at the source
+-- that's always a good idea.
+
+
+
+Entry: Implementing midi learn, improving hub
+Date: Sun Aug 13 21:34:04 EDT 2017
+
+Send message to hub: I want to subscribe a part
+
+- add registry (probably already in newer erl_tools) to avoid stale pids.
+
+- midi hub should use sets as filters, so a filter can easily be
+  added.
+
+- midi learn requires "quiet".  otherwise, do it for things that are
+  not yet assigned.
+
