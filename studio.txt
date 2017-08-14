@@ -664,6 +664,57 @@ https://en.wikipedia.org/wiki/Arrandale
 https://en.wikipedia.org/wiki/Intel_HD_and_Iris_Graphics
 
 
+
+Entry: pick up?
+Date: Mon Jul 31 15:27:49 EDT 2017
+
+Still working, and a bit more Erlang experience.
+What next?
+
+- simple wave editor
+- STM32F4 + RAI (Axoloti)
+
+
+But first: organization.
+
+- Going to have zoe as dedicated host for this since it has all the
+  hardware wired permanently.  It makes no sense to set this up as an
+  LXC container, so maybe delete the "studio" lxc.
+
+- Set up backups.  Looks like this is a new one: zoe_20170731_1533_zoe
+  Probably safe to delete old ones.
+
+- To run on laptop, install it locally there as well.  Maybe have a
+  dedicated disk for it.  Laptop will use roland UA-30 USB.
+
+- Studio will be always running.  Run it inside of emacs.
+
+- Checked the fasttrack as main 2track recorder.  Seems to work ok.
+
+- Do editing using tramp from core.  Figure out a way to merge the
+  subprojects properly.
+
+- Make a web interface?  E.g. drum computer, routing
+
+- Set up ssh into studio image
+
+
+
+Entry: Setting up emacs for new project
+Date: Mon Jul 31 16:11:58 EDT 2017
+
+- erl ssh access
+- distel
+- incremental build + load
+
+
+Entry: ssh
+Date: Mon Jul 31 20:24:31 EDT 2017
+
+I really don't want to waste time on this.  It's not working well.
+Maybe just use distribution on VPN, since distel needs that anyway.
+
+
 Entry: A sender and a receiver
 Date: Sun Aug 13 21:08:05 EDT 2017
 
