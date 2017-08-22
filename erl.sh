@@ -1,4 +1,10 @@
 #!/bin/bash
+
+# if [ $HOSTNAME != zoe ]; then
+#     echo REMOTE
+#     exec $(dirname $0)/remsh.sh
+# fi
+
 cd $(dirname $0)
 export ERL_LIBS=$(readlink -f .)
 exec erl \
