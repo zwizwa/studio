@@ -786,3 +786,9 @@ Send message to hub: I want to subscribe a part
 - midi learn requires "quiet".  otherwise, do it for things that are
   not yet assigned.
 
+
+
+Entry: So I had some time to practice GUI work
+Date: Tue Sep  5 23:26:45 EDT 2017
+
+Now it's time to make a sound editor!
