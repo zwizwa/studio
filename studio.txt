@@ -792,3 +792,17 @@ Entry: So I had some time to practice GUI work
 Date: Tue Sep  5 23:26:45 EDT 2017
 
 Now it's time to make a sound editor!
+
+
+
+Entry: Simplify channel codes
+Date: Sat Sep  9 16:21:02 EDT 2017
+
+1 white
+2 red
+3 yellow
+4 green
+5 blue
+6 black
+7 grey
+8 browngrey
