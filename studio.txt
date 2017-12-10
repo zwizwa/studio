@@ -806,3 +806,13 @@ Date: Sat Sep  9 16:21:02 EDT 2017
 6 black
 7 grey
 8 browngrey
+
+
+Entry: Next
+Date: Sun Dec 10 18:12:39 EST 2017
+
+- set up staapl synth and connect to midi + mixer channel 8
+- looper controller
+- midi control of 4 synths
+- midi learn
+
