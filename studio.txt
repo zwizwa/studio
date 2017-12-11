@@ -816,3 +816,13 @@ Date: Sun Dec 10 18:12:39 EST 2017
 - midi control of 4 synths
 - midi learn
 
+
+Entry: Midi learn + patch
+Date: Sun Dec 10 18:40:25 EST 2017
+
+Simplest way to get this set up is to automate all the ad-hoc binding
+that needs to be done.
+
+E.g patch main midi controller to synth and record.
+
+
