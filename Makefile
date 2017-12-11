@@ -16,7 +16,7 @@ pkg_erl_tools_description = Misc Erlang tools
 pkg_erl_tools_homepage = https://zwizwa.be/git/erl_tools
 pkg_erl_tools_fetch = git
 pkg_erl_tools_repo = https://zwizwa.be/git/erl_tools.git
-pkg_erl_tools_commit = master
+pkg_erl_tools_commit = 387e8461868f53222750d89e4531c0a29d90b673
 
 PACKAGES += erl_sqlite3
 pkg_erl_sqlite3_name = erl_sqlite3
@@ -24,7 +24,7 @@ pkg_erl_sqlite3_description = Minimalistic SQLite3 Erlang Port
 pkg_erl_sqlite3_homepage = https://github.com/zwizwa/erl_sqlite3
 pkg_erl_sqlite3_fetch = git
 pkg_erl_sqlite3_repo = https://github.com/zwizwa/erl_sqlite3.git
-pkg_erl_sqlite3_commit = master
+pkg_erl_sqlite3_commit = ad71ece83c33f9087e30a427da0fe24e968a0577
 
 include erlang.mk
 
