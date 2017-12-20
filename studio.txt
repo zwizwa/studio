@@ -826,3 +826,88 @@ that needs to be done.
 E.g patch main midi controller to synth and record.
 
 
+
+
+Entry: staapl synth
+Date: Sun Dec 10 17:53:42 EST 2017
+
+Just keep it as-is.  It's good enough.  It needs analog filtering, but
+it can go into the microbrute.  No extra filters needed.
+
+
+
+
+Entry: Looper
+Date: Sun Dec 10 18:01:49 EST 2017
+
+That little USB mixer is the looper.
+
+Knob:   mix-in ratio
+Slider: playback volume
+Button: record
+
+Ok, so:
+{{jack,8},{on,0,60,38}}
+
+Needs to go to some synth.  I need an abstraction for a cable.
+
+A cable is a pid that registers to the midi task, and sends it to
+another one.
+
+
+This is for receiving:
+
+whereis(midi_hub).
+
+serv:hub_add(Hub, Pred, Pid).
+
+
+
+This is for sending:
+
+
+%% Midi out
+jack_midi_handle({midi,Mask,Data}, Port) ->
+    Bin = ?IF(is_binary(Data), Data, encode(Data)),
+    Port ! {self(), {command, <<Mask:32/little, Bin/binary>>}},
+    Port.
+
+
+Which is more low level.
+
+midi_jack doesn't seem to be registered to anything.  actually that's the daemon.
+
+midi needs to be sent through a client.
+
+i need to write down how the processes are set up.
+
+I think the jack daemon is hard-linked to midi_hub.  That is bad
+practice.  Fix this to not used registry, but use an application
+namespace.
+
+Yeah this needs to be cleaned up a little.
+
+Get dialyzer + typer up then refactor.
+
+But make it work first.  That is busywork.
+
+
+
+Ok, now I get it.
+
+To connect midi ports, use a jack client.  Routing through Erlang
+maybe has too much delay?
+
+midi:jack_midi(Client,NI,NO,ClockMask).
+
+
+I believe the idea has always been to allow this to be an "os" for
+components that are tighter and can communicate at the jack level.
+
+
+Ok.  Now get something working.
+
+Lot appetite..  Time to go to bed probably.
+
+
+
