@@ -229,6 +229,7 @@ jackd_need_client(#{control := Client}=State) ->
 jackd_need_client(State) ->
     tools:info("starting client~n"),
     ClockMask = db:midiclock_mask(),
+    tools:info("ClockMask = ~p from db:midiclock_mask()~n",[ClockMask]),
     jackd_need_client(
       maps:merge(
         State,

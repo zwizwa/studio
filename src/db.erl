@@ -19,6 +19,7 @@ port_id(Name) when is_binary(Name) ->
             0
     end.
 
+%% midiclock_mask() -> 16864.
 midiclock_mask() ->
     binary_to_integer(
       hd(hd(

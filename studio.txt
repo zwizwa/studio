@@ -907,7 +907,108 @@ components that are tighter and can communicate at the jack level.
 
 Ok.  Now get something working.
 
-Lot appetite..  Time to go to bed probably.
+Lost appetite..  Time to go to bed probably.
 
 
 
+Entry: MIDI timecode not coming out
+Date: Wed Mar 21 18:54:52 EDT 2018
+
+I forgot how it works.
+Send out something on the console to indicate how it works.
+
+
+jackd_need_client(State) ->
+    ...
+    ClockMask = db:midiclock_mask(),
+    ...
+
+It's set to 14 from db
+
+
+8 + 4 + 2
+3   2   1
+
+
+connect in-hw-2-0-0-MicroBrute-MIDI-1 studio:midi_in_0
+connect in-hw-2-0-1-MicroBrute-MIDI-2 studio:midi_in_0
+
+connect studio:midi_out_0 out-hw-2-0-0-MicroBrute-MIDI-1
+connect studio:midi_out_0 out-hw-2-0-1-MicroBrute-MIDI-2
+connect studio:midi_out_0 out-hw-5-0-0-WORLDE-easy-control-MIDI-1
+
+connect studio:midi_out_5 out-hw-4-0-0-USB-Midi-4i4o-MIDI-1
+connect studio:midi_out_6 out-hw-4-0-1-USB-Midi-4i4o-MIDI-2
+connect studio:midi_out_7 out-hw-4-0-2-USB-Midi-4i4o-MIDI-3
+connect studio:midi_out_8 out-hw-4-0-3-USB-Midi-4i4o-MIDI-4
+
+connect studio:midi_out_10 out-hw-3-0-0-M-Audio-Delta-1010-MIDI
+
+connect in-hw-3-0-0-M-Audio-Delta-1010-MIDI studio:midi_in_10
+
+connect in-hw-4-0-0-USB-Midi-4i4o-MIDI-1 studio:midi_in_5
+connect in-hw-4-0-1-USB-Midi-4i4o-MIDI-2 studio:midi_in_6
+connect in-hw-4-0-2-USB-Midi-4i4o-MIDI-3 studio:midi_in_7
+connect in-hw-4-0-3-USB-Midi-4i4o-MIDI-4 studio:midi_in_8
+
+
+connect in-hw-5-0-0-WORLDE-easy-control-MIDI-1 studio:midi_in_0
+
+
+So if I understand correctly:
+studio:midi has 16 midi ports
+5,6,7,8 are connected to the analogs, and should have the time code.
+
+sqlite> .dump
+PRAGMA foreign_keys=OFF;
+BEGIN TRANSACTION;
+CREATE TABLE midiport (
+       port_id    INTEGER PRIMARY KEY NOT NULL,
+       port_name  TEXT    NOT NULL
+);
+INSERT INTO "midiport" VALUES(1,'BCR2000-MIDI-1');
+INSERT INTO "midiport" VALUES(2,'BCR2000-MIDI-2');
+INSERT INTO "midiport" VALUES(3,'BCR2000-MIDI-3');
+INSERT INTO "midiport" VALUES(5,'USB-Midi-4i4o-MIDI-1');
+INSERT INTO "midiport" VALUES(6,'USB-Midi-4i4o-MIDI-2');
+INSERT INTO "midiport" VALUES(7,'USB-Midi-4i4o-MIDI-3');
+INSERT INTO "midiport" VALUES(8,'USB-Midi-4i4o-MIDI-4');
+INSERT INTO "midiport" VALUES(9,'LPK25-MIDI-1');
+INSERT INTO "midiport" VALUES(10,'M-Audio-Delta-1010-MIDI');
+INSERT INTO "midiport" VALUES(11,'Axiom-25-MIDI-1');
+INSERT INTO "midiport" VALUES(12,'Axiom-25-MIDI-2');
+INSERT INTO "midiport" VALUES(13,'Axiom-25-MIDI-3');
+INSERT INTO "midiport" VALUES(14,'MicroBrute-MIDI-1');
+CREATE TABLE midiclock (
+       port_name  TEXT    PRIMARY KEY NOT NULL
+);
+INSERT INTO "midiclock" VALUES('USB-Midi-4i4o-MIDI-1');
+INSERT INTO "midiclock" VALUES('USB-Midi-4i4o-MIDI-2');
+INSERT INTO "midiclock" VALUES('USB-Midi-4i4o-MIDI-3');
+INSERT INTO "midiclock" VALUES('USB-Midi-4i4o-MIDI-4');
+INSERT INTO "midiclock" VALUES('MicroBrute-MIDI-1');
+CREATE VIEW midiclock_mask as
+select sum(1<<port_id) from midiclock left join midiport on midiclock.port_name = midiport.port_name;
+COMMIT;
+
+
+Clock is set to 14, which is wrong.  According to config:
+
+sqlite> select * from midiclock_mask
+   ...> ;
+16864
+
+
+I think I might have pulled in erl_tools, which then breaks sql?
+
+
+Ok, so it's starting the other one.
+;;(defun my-start-studio      () (interactive) (my-start-erl-prj "studio"))
+(defun my-start-studio      () (interactive) (my-start-erl "studio" "/i/tom/studio/erl.sh"))
+
+I don't even know which is the correct one.
+
+The one on /i/tom/studio has a different database.
+Resolved.  Needed to do db_init.sh again.  
+
+Maybe just get rid of studio directory on zoe then?
