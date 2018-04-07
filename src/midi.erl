@@ -7,7 +7,8 @@
          decode/2,decode/1,encode/1,
          port_start_link/1, port_handle/2,
          hub_start_link/0,
-         trigger_start/2, trigger_cc/1]).
+         trigger_start/2, trigger_cc/1,
+         db/0,sql/1,port_id/1,midiclock_mask/0]).
 %% Original idea was to route messages over broadcast, but that works
 %% horribly over wifi.  It seems best to make a translation to erlang
 %% on the host the device is plugged into, and then distribute it
@@ -80,7 +81,7 @@ encode(_) -> <<>>.
 %% Only a single listener is necessary: distinguish based on source addr.
 %% E.g. use aconnect in udev?
 alsa_open(Client) ->
-    open_port({spawn,"priv/studio alsa_seq_in " ++ Client},
+    open_port({spawn, studio_elf() ++ " alsa_seq_in " ++ Client},
               [{packet,1},binary,exit_status]).
 alsa_seq_in(Client, Sink) ->
     serv:start({handler,
@@ -102,13 +103,16 @@ alsa_seq_ev(10,S,<<C,_,_,_,K:32/little,V:32/signed-little,_/binary>>,Sink) -> Si
 alsa_seq_ev(Type,S,Data,Sink) -> Sink({S,{Type,Data}}).
     
 
+studio_elf() ->
+    code:priv_dir(studio) ++ "/studio.elf".
 
 %% JACK midi client. Preferred as it has better timing properties.
 %% Supports midi in/out, clock generation, and jack client connection.
 -define(JACK_MIDI_CMD_MIDI,0).
 -define(JACK_MIDI_CMD_CONNECT,1).
 jack_midi_open(Client,NI,NO,ClockMask) ->
-    Cmd = tools:format("priv/studio jack_midi ~s ~p ~p ~p", [Client, NI, NO, ClockMask]),
+    tools:info("FIXME: jack_midi_open~n"),
+    Cmd = tools:format("~s jack_midi ~s ~p ~p ~p", [studio_elf(), Client, NI, NO, ClockMask]),
     open_port({spawn,Cmd},[{packet,1},binary,exit_status]).
 jack_midi(Client,NI,NO,ClockMask) ->
     serv:start({handler,
@@ -121,9 +125,14 @@ jack_midi_handle({Port,{exit_status,_}=E},Port) ->
     exit(E);
 %% Midi in. Translate to symbolic form.
 jack_midi_handle({Port,{data,<<MidiPort,Data/binary>>}}, Port) ->
-    lists:foreach(
-      fun(Msg) -> serv:hub_send(midi_hub, {{jack,MidiPort},Msg}) end,
-      decode(Data)),
+    case whereis(midi_hub) of
+        undefined ->
+            ok;
+        MidiHub ->
+            lists:foreach(
+              fun(Msg) -> serv:hub_send(MidiHub, {{jack,MidiPort},Msg}) end,
+              decode(Data))
+    end,
     Port;
 
 %% Midi out
@@ -137,8 +146,7 @@ jack_midi_handle({midi,Mask,Data}, Port) ->
 %% Jack control client
 -define(JACK_CONTROL_CMD_CONNECT,1).
 jack_control_open(Client) ->
-    Cmd = tools:format("~s/studio jack_control ~s",
-                       [code:priv_dir(studio),Client]),
+    Cmd = tools:format("~s jack_control ~s", [studio_elf(), Client]),
     open_port({spawn,Cmd},[{packet,1},binary,exit_status]).
 jack_control(Client) ->
     serv:start({body, 
@@ -206,7 +214,7 @@ jackd_handle(Msg, State) ->
     obj:handle(Msg, State).
 jackd_connect(PortAlias, Dir, Name, State) ->
     {C,S} = jackd_need_client(State),
-    N = integer_to_binary(db:port_id(Name)),
+    N = integer_to_binary(port_id(Name)),
     %% tools:info("~p~n",[[PortAlias,Dir,Name,N]]),
     Connect = fun(Src,Dst) ->
                       spawn(
@@ -228,8 +236,7 @@ jackd_need_client(#{control := Client}=State) ->
     {Client, State};
 jackd_need_client(State) ->
     tools:info("starting client~n"),
-    ClockMask = db:midiclock_mask(),
-    tools:info("ClockMask = ~p from db:midiclock_mask()~n",[ClockMask]),
+    ClockMask = midiclock_mask(),
     jackd_need_client(
       maps:merge(
         State,
@@ -242,7 +249,9 @@ jackd_need_client(State) ->
 %% Alternatively, use: socat EXEC:$JACKD TCP-CONNECT:localhost:13000
 %% in combination with linemon.erl
 jackd_open() ->
-    open_port({spawn, code:priv_dir(studio) ++ "/start_jackd.sh"},
+    SH = code:priv_dir(studio) ++ "/start_jackd.sh",
+    tools:info("jackd_open: ~s~n",[SH]),
+    open_port({spawn, SH},
               [{line,1024}, binary, use_stdio, exit_status]).
 jackd_port_start_link() ->
     {ok, serv:start(
@@ -310,3 +319,37 @@ trigger_start(Pred, Cont) ->
                    
 trigger_cc({_,{cc,_,_,_}}) -> true;
 trigger_cc(_) -> false.
+
+
+
+
+db() -> 
+    sqlite3:db(db, fun db_file/0, fun db_init/1).
+db_file() ->
+    DbFile = code:priv_dir(studio) ++ "/db.sqlite3",
+    log:info("db file = ~p~n", [DbFile]),
+    DbFile.
+db_init(_) ->
+    ok.
+sql(Queries) ->
+    sqlite3:sql(fun db/0, Queries).
+
+
+port_id(Name) when is_binary(Name) ->
+    case sql([{<<"select port_id from midiport where port_name = ?">>,[Name]}]) of
+        [[[PortId]]] ->
+            binary_to_integer(PortId);
+        _ ->
+            tools:info("WARNING: unknown port_id ~p~n",[Name]),
+            0
+    end.
+midiclock_mask() ->
+    [[[Mask]]] = sql([{<<"select * from midiclock_mask">>,[]}]),
+    binary_to_integer(Mask).
+
+%% %% midiclock_mask() -> 16864.
+%% midiclock_mask() ->
+%%     binary_to_integer(
+%%       hd(hd(
+%%            sqlite3:query(
+%%              db,select,[midiclock_mask,all])))).

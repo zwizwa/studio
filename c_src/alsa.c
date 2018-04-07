@@ -24,7 +24,7 @@ void s_u8(uint8_t c) {putchar(c);}
 
 int alsa_seq_in(int argc, char **argv) {
     const char *name = "exo";
-    if (argc >= 2); name = argv[1];
+    if (argc >= 2) { name = argv[1]; }
 
     ASSERT_NN(snd_seq_open(&seq_handle, "default", SND_SEQ_OPEN_INPUT, 0));
 

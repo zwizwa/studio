@@ -8,7 +8,8 @@ ssize_t raw_write(int fd, const void *buf, size_t count) {
 
 int main(int argc, char **argv) {
     // erlang.mk seems to insist on building a single binary, so let's
-    // just stick to that and delagate here.
+    // just stick to that and delegate here.
+    // FIXME: build separate binaries now under rebar?
     if (argc < 2) {
         ERROR("usage: %s <program> [args...]\n", argv[0]);
     }

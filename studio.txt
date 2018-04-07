@@ -1012,3 +1012,9 @@ The one on /i/tom/studio has a different database.
 Resolved.  Needed to do db_init.sh again.  
 
 Maybe just get rid of studio directory on zoe then?
+
+
+
+Entry: Convert to rebar and incorporate in exo
+Date: Sat Apr  7 15:41:56 EDT 2018
+
