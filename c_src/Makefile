@@ -35,7 +35,7 @@ LIB_O := alsa.o jack_control.o jack_midi.o
 
 $(STUDIO_BIN_DIR)/%.elf: %.o $(LIB_O)
 	mkdir -p $(STUDIO_BIN_DIR)
-	. ./default.env ; $(CC) $(LDFLAGS) -o $@ $< $(LIB_O) -lsqlite3
+	. ./default.env ; $(CC) $(LDFLAGS) -o $@ $< $(LIB_O)
 	file $@
 
 
