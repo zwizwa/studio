@@ -324,7 +324,15 @@ trigger_cc(_) -> false.
 
 
 db() -> 
-    sqlite3:db(db, fun db_file/0, fun db_init/1).
+    maps:merge(
+      sqlite3:db_registered(
+        db,
+        fun db_file/0,
+        fun db_init/1),
+      %% when process is dead, call will fail. otherwise wait forever.
+      %% 3 seconds seems quite normal, so only warn every 10 seconds.
+      #{ timeout => {warn, 10000} }).
+
 db_file() ->
     DbFile = code:priv_dir(studio) ++ "/db.sqlite3",
     log:info("db file = ~p~n", [DbFile]),
@@ -332,7 +340,7 @@ db_file() ->
 db_init(_) ->
     ok.
 sql(Queries) ->
-    sqlite3:sql(fun db/0, Queries).
+    sqlite3:sql(db(), Queries).
 
 
 port_id(Name) when is_binary(Name) ->
