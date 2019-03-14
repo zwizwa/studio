@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Jackd is started as a port program to monitor its output messages,
-# but is not listening on stdin, so won't die when beam dies.  Work
-# around this by killing old instance on start.
+# Kill old instance, if any.  Is this still needed?
 killall jackd
 exec 2>&1
-exec jackd.local
+# socat sends jack a TERM signal when stdin closes
+exec socat - EXEC:jackd.local
+

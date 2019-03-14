@@ -22,3 +22,9 @@ init([]) ->
                   [worker(permanent, midi_jack, midi, jackd_port_start_link,[])
                   ,worker(permanent, midi_hub,  midi, hub_start_link,[])]}}
     end.
+
+
+%% likely jack and pulseaudio don't mix.  depends on host.
+%% turn jack on and off and on like this:
+%% supervisor:terminate_child(studio_sup, midi_jack).
+%% supervisor:restart_child(studio_sup, midi_jack).
