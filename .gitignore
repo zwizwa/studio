@@ -1,0 +1,6 @@
+*.o
+*.a
+*.env.sh
+*.elf
+*.sqlite3
+out.list

@@ -1212,4 +1212,12 @@ Assume the list of ports is known.  Add code to just do a connection?
 
 
 
+Entry: Studio c build appears to be broken
+Date: Tue Apr 23 18:47:07 EDT 2019
+
+Change it to redo.
+
+Then make it support fast reload, so the C code becomes easy to
+change.  For glue code Rust likely will be overkill.  Rust is for
+data-heavy applications that need speed and memory efficiency.
 
