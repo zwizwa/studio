@@ -1018,3 +1018,198 @@ Maybe just get rid of studio directory on zoe then?
 Entry: Convert to rebar and incorporate in exo
 Date: Sat Apr  7 15:41:56 EDT 2018
 
+EDIT: 2019/4/18 this happened somewhere in the past.  See exo log.
+
+
+Entry: Midi patterns
+Date: Thu Apr 18 17:39:01 EDT 2019
+
+So what if I have a pattern. How do I play it back?  Now that I now
+how to properly do reloads, this might be a lot easier to use.
+
+EDIT: I completely forgot.  This needs to be discoverable.  At
+startup, it needs to play a pattern on one of the synths.
+
+EDIT: Reverse engineering.  jack_midi is not registered.  Get pid from
+studio_sup.  That process supports message:
+
+{midi,Mask,Data}
+
+P ! {midi, -1, midi:encode({on, 0, 64, 100})}.
+
+That crashed it.
+
+Probably the -1.  It also takes symbolic midi.
+
+This now works:
+
+f(P),{ok,P}=studio_sup:find(midi_jack).
+obj:get(P,midi) ! {midi, -1, {on, 0, 64, 100}}.
+obj:get(P,midi) ! {midi, -1, {off, 0, 64, 100}}.
+
+But it seems it is missing a whole lot of infrastructure.
+
+
+Entry: Sqlite
+Date: Thu Apr 18 17:51:14 EDT 2019
+
+So basically, all that can be replaced by code, because it is
+integration code.  A module save is going to be just as fast as a DB
+save.
+
+
+
+Entry: Review?
+Date: Thu Apr 18 19:55:21 EDT 2019
+
+This was written when I did not have a whole lot of experience yet
+with some Erlang corner cases.  Do a review, and client it up a bit.
+
+EDIT: I'm afraid that the timing won't be good enough.  To do
+something good, do it at the C end at Jack frame rate.  Or change the
+jackd daemon to Rust to have a less hacky dev experience.
+
+
+
+Entry: Synths
+Date: Thu Apr 18 21:35:12 EDT 2019
+
+64  bass
+128 keys
+
+I can't find the drums though.
+Ok they are just under different keys.
+
+So it's clear what this needs: something that can do midi routing,
+midi recording and midi playback with perfect timing.  So run it
+inside jack, and run the soft synths, midi and sampler all in the same
+core.
+
+This is not for Erlang.  What erlang is good for is to connect the
+midi to other shit on the network, or vice versa.  Act as a bridge,
+but don't let it do timing-sensitive things.
+
+
+Entry: A recording format.
+Date: Thu Apr 18 22:09:29 EDT 2019
+
+It really needs to go just in RAM, so it doesn't matter all that much.
+Saving it to disk will need time stamps for midi.  Maybe just midi
+files?
+
+
+
+Entry: A recorder
+Date: Mon Apr 22 11:50:19 EDT 2019
+
+It's clear that doing midi in Erlang is not going to cut it, so do it
+in Jack instead.  Extend the current Jack code to do midi, and then
+replace the existing C code.
+
+What I want: something that's continuously recording, but can take
+snapshots.
+
+Basically, there is no reason not to record continuously these days.
+Just use a circular buffer, and create an interface to go back and
+find things.
+
+So I already have a format for this.  It just needs to be chunked to
+also do audio.  Let's reserve a drive for it.  This can just be USB.
+
+EDIT: 
+34e6aa85-8440-4d19-ac76-5646a856443e 500GB Seagate USB2
+
+Record jack in/out and all midi in/out.
+
+Jack client can do the chunking and send a message to erlang.  This is
+48kHz * 2 * 8 * 2 or (* 48000 2 8 2) 1.5MByte/sec _+ MIDI.
+
+That should not be an issue.
+The disk is 500GB, so about 90 hours:
+
+(/ (* 500.0 1000 1000 1000)
+   (* 60 60 (* 48000 2 8 2)))
+90.42245370370371
+
+Use a global start/stop knob.
+Start a new file as with the video recorder.
+
+Remount r/o on stop.
+
+What is the next step?
+- instantiate recorder
+- create jack client to tap the busses
+
+
+
+Entry: Recorder
+Date: Mon Apr 22 13:45:26 EDT 2019
+
+Bulk it up into one second chunks?  Jack with a frame size of 64,
+which is a lot of pressure on Erlang without any good reason for it.
+Midi can be left as is, but the audio should probably be reduced.
+Maybe pick something that can easily resolve 20Hz so FFTs can be used
+in place on the data to scan for frequency content.
+
+Say 10Hz is the block rate, that is about 4K sample blocks which is
+128K frames for 16x16bit channels.
+
+This is reasonable.  On par with cameras.  Studio could also record a
+camera feed.
+
+
+Entry: TODO
+Date: Mon Apr 22 14:13:47 EDT 2019
+
+- jack audio client, bulks up a number of channels into 4K time
+  samples, and sends it out to the recorder.
+
+  this can be done inside a single Rust core application that ties
+  into Erlang.  the recorder can be Erlang
+
+  i already have this client somewhere, so next step is to put it in
+  studio.
+
+- the process that starts the jack daemon and sets up connections can
+  just be kept as is for now.  later incorporate in Rust once it
+  becomes easy to do.
+
+
+
+Entry: Next
+Date: Tue Apr 23 15:08:51 EDT 2019
+
+Rust code is currently in exo.  It's fine there for now.  Once context
+is active, moving it will be easy.
+
+It starts on the studio node:
+exo:start(exo_rs).
+
+exo_rs:call({open,{jack_client,<<"test">>}}).
+<0.617.0>: Unknown source port in attempted (dis)connection src_name [rust_jack_sine:sine_out] dst_name [system:playback_1]
+{ok,0}
+
+First issue: connecting ports.  I've install qjackctl but it doesn't
+see the running jack instance.  EDIT: It works.  I was using patchbay,
+not connect..
+
+Wanted:
+- Get a list of ports
+- Connect command for ports
+- A "connect daemon" : restore connections on restart
+- Store connections in a db?
+- MIDI learn
+
+Basically, I want it to remember how it was last set up, and possibly
+restore it as well.  Maybe also use version numbers of code.
+
+This needs some refactoring.  The code is set up in weird ways.  It
+would fare better with a flat supervisor structure.
+
+I don't find a good starting point.
+
+Assume the list of ports is known.  Add code to just do a connection?
+
+
+
+
