@@ -1254,6 +1254,36 @@ And just manage dependencies with links.
 
 EDIT: Rust code builds.
 
+EDIT: Rust code is integrated into erlang code and supervisor.
 
+(exo@10.1.3.12)3> {ok,P}=studio_sup:find(studio_rs).
+{ok,<0.698.0>}
+(exo@10.1.3.12)5> studio_rs:call(P, count).
+{ok,1}
+(exo@10.1.3.12)6> studio_rs:call(P, count).
+{ok,2}
+
+
+The Rust jack code can now just be moved maybe?
+EDIT: Done.  It is part of studio_rs now.
+
+
+
+Entry: Recorder
+Date: Wed Apr 24 12:55:36 EDT 2019
+
+C or Rust?
+
+Let's assume it's ok to handle the saving in Erlang, then only audio
+channels need to be recorded, as the midi client can already dump its
+data to the recorder daemon.
+
+Take jack_midi.c as a template.  It's just dumping the data on stdout
+in the jack loop.  Is that a good idea?  Mabe a condition variable
+together with double buffering is a better idea.
+
+Actually, a semaphore is better suited.
+
+https://www.geeksforgeeks.org/use-posix-semaphores-c/
 
 

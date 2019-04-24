@@ -7,7 +7,7 @@ CFLAGS="$CFLAGS_ERL_TOOLS -I../include -Wall -DMAIN=main -DREAD=read -DWRITE=wri
 LDFLAGS="-lasound -ljack"
 
 # C sources for static library
-C_LIB="alsa.c	jack_control.c	jack_midi.c"
+C_LIB="alsa.c jack_control.c jack_midi.c jack_audio.c"
 
 # C sources for application binaries
 C_APP="studio.c"

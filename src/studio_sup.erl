@@ -16,17 +16,19 @@ jackd() ->
 init([]) ->
     %% use .erlang.cookie instead
     %% set_cookie(),
+    Shared = [worker(permanent, midi_hub,  midi, start_link,[])],
     case jackd() of
         [] ->
             tools:info("WARNING: no local jackd config\n"),
-            {ok, {{one_for_one, 1, 5},
-                  [worker(permanent, midi_hub,  midi, start_link,[])]}};
+            {ok, {{one_for_one, 1, 5}, Shared}};
+             
         _ ->
             {ok, {{one_for_one, 1, 5},
-                  [worker(permanent, midi_hub,  midi, start_link,[]),
-                   %% Note that the main process here is a wrapper
+                  Shared ++
+                  [%% Note that the main process here is a wrapper
                    %% around jackd, which spawns jack client process
                    %% wrappers as children once jackd is up.
+                   worker(permanent, studio_rs, studio_rs, start_link, []),
                    worker(permanent, midi_jack, jack_daemon, start_link,[])
                   ]}}
     end.

@@ -15,10 +15,10 @@ extern crate jack;
 use eetf::{Term,Atom};
 use std::process;
 
-//mod etflog;
+mod etflog;
 //mod timeseries;
-//mod samplestore;
-//mod jack_client;
+mod samplestore;
+mod jack_client;
 //mod pulse;
 
 
@@ -47,10 +47,10 @@ fn main() {
    resoureces on restart. */
 
 pub enum Object {
-    Empty
-    //,EtfLog      { obj: Box<etflog::EtfLog> },
-    //,SampleStore { obj: Box<samplestore::SampleStore> },
-    //,JackClient  { obj: Box<jack_client::JackClient /* Trait object */> }
+    Empty,
+    EtfLog      { obj: Box<etflog::EtfLog> },
+    SampleStore { obj: Box<samplestore::SampleStore> },
+    JackClient  { obj: Box<jack_client::JackClient /* Trait object */> }
 } 
 pub struct Context {
     count: u32,
@@ -77,16 +77,16 @@ fn as_slot<'a,'b>(ctx: &'a mut Context, term: &'b Term) -> Option<&'a mut Object
     let index = as_i32(term)?;
     ctx.cache.get_mut(index as usize)
 }
-//fn as_etflog<'a,'b> (ctx: &'a mut Context, term: &'b Term) -> Option<&'a etflog::EtfLog> {
-//    match as_slot(ctx, term)? {
-//        Object::EtfLog { obj: rl } => Some(rl), _ => None
-//    }
-//} 
-//fn as_samplestore<'a,'b> (ctx: &'a mut Context, term: &'b Term) -> Option<&'a samplestore::SampleStore> {
-//    match as_slot(ctx, term)? {
-//        Object::SampleStore { obj: rl } => Some(rl), _ => None
-//    }
-//}
+fn as_etflog<'a,'b> (ctx: &'a mut Context, term: &'b Term) -> Option<&'a etflog::EtfLog> {
+   match as_slot(ctx, term)? {
+       Object::EtfLog { obj: rl } => Some(rl), _ => None
+   }
+} 
+fn as_samplestore<'a,'b> (ctx: &'a mut Context, term: &'b Term) -> Option<&'a samplestore::SampleStore> {
+   match as_slot(ctx, term)? {
+       Object::SampleStore { obj: rl } => Some(rl), _ => None
+   }
+}
 
 fn dispatch(ctx: &mut Context,
             cmd: &Term) -> Option<Term> {
@@ -110,31 +110,25 @@ fn dispatch(ctx: &mut Context,
             let cmd = as_str(&v[0])?;
             let arg = &v[1];
             match cmd { // {atom(), _}
-                // "test_plus" => {
-                //     let arg = as_vec(arg, Some(2))?;
-                //     let a   = as_i32(&arg[0])?;
-                //     let b   = as_i32(&arg[1])?;
-                //     ok_i32(a+b)
-                // },
                 "open" => {
                     let arg = as_vec(arg, Some(2))?;
                     let typ = as_str(&arg[0])?;
                     let arg = &arg[1] ;
                     match typ {
-//                        "etflog" => {
-//                            let filename  = as_str(&arg)?.to_string();
-//                            let log = etflog::EtfLog::open(&filename)?;
-//                            ok_obj(ctx, Object::EtfLog { obj: Box::new(log) })
-//                        },
-//                        "samplestore" => {
-//                            let filename  = as_str(&arg)?.to_string();
-//                            let store = samplestore::SampleStore::open(&filename)?;
-//                            ok_obj(ctx, Object::SampleStore { obj: Box::new(store) })
-//                        },
-//                        "jack_client" => {
-//                            let client = jack_client::start(as_str(&arg)?);
-//                            ok_obj(ctx, Object::JackClient { obj: Box::new(client) })
-//                        },
+                       "etflog" => {
+                           let filename  = as_str(&arg)?.to_string();
+                           let log = etflog::EtfLog::open(&filename)?;
+                           ok_obj(ctx, Object::EtfLog { obj: Box::new(log) })
+                       },
+                       "samplestore" => {
+                           let filename  = as_str(&arg)?.to_string();
+                           let store = samplestore::SampleStore::open(&filename)?;
+                           ok_obj(ctx, Object::SampleStore { obj: Box::new(store) })
+                       },
+                       "jack_client" => {
+                           let client = jack_client::start(as_str(&arg)?);
+                           ok_obj(ctx, Object::JackClient { obj: Box::new(client) })
+                       },
                         _ => None
                     }
                 }
