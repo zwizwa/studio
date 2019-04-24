@@ -14,21 +14,44 @@
 %% Supports midi in/out, clock generation, and jack client connection.
 -define(JACK_MIDI_CMD_MIDI,0).
 -define(JACK_MIDI_CMD_CONNECT,1).
-jack_midi_open(Client,NI,NO,ClockMask) ->
-    tools:info("FIXME: jack_midi_open~n"),
-    Cmd = tools:format("~s jack_midi ~s ~p ~p ~p", [code:priv_dir(studio) ++ "/studio.elf", Client, NI, NO, ClockMask]),
-    open_port({spawn,Cmd},[{packet,1},binary,exit_status]).
 
 start_link(Client,NI,NO,ClockMask) ->
-    serv:start({handler,
-                fun() -> #{ port => jack_midi_open(Client,NI,NO,ClockMask) } end,
-                fun ?MODULE:handle/2}).
+    serv:start(
+      {handler,
+       fun() ->
+               Cmd = 
+                   tools:format(
+                     "~s jack_midi ~s ~p ~p ~p",
+                     [studio_sup:studio_elf(), Client, NI, NO, ClockMask]),
+               OpenPort =
+                   [{spawn,Cmd},[{packet,1},binary,exit_status]],
+               log:set_info_name({jack_midi,Client}),
+               handle(restart_port, #{ open_port => OpenPort })
+       end,
+       fun ?MODULE:handle/2}).
+
+%% See studio_sup:restart_port/1
+handle(restart_port, State = #{open_port := Args}) ->
+    case maps:find(port, State) of
+        {ok, Port} ->
+            Port ! {self(), {command, <<>>}},
+            receive {Port, {exit_status, _}}=_E -> ok
+            after 3000 -> exit({restart_port_timeout, Args})
+            end;
+        _ ->
+            ok
+    end,
+    tools:info("start: ~p~n", [Args]),
+    maps:put(port, apply(erlang,open_port,Args), State);
+            
 
 handle(exit, #{ port := Port } = State) ->
     Port ! {self(), {command, <<>>}},
     State;
+
 handle({Port,{exit_status,_}=E}, #{ port := Port } = _State) ->
     exit(E);
+
 %% Midi in. Translate to symbolic form.
 handle({Port,{data,<<MidiPort,Data/binary>>}}, #{ port := Port } = State) ->
     case whereis(midi_hub) of

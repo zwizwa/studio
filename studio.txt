@@ -1221,3 +1221,11 @@ Then make it support fast reload, so the C code becomes easy to
 change.  For glue code Rust likely will be overkill.  Rust is for
 data-heavy applications that need speed and memory efficiency.
 
+EDIT: Redo works and it produces c_src/studio.host.elf 
+
+Next step is to make it use the same upload mechanism as the other
+exo binaries.  EDIT: It already works:
+
+<0.30665.2>: update via erlang: {'exo@10.1.3.12',<<"studio.host.elf">>,"/home/tom/bin/studio.elf"}
+
+

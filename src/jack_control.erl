@@ -10,7 +10,7 @@ start_link(Client) ->
 %% Jack control client
 -define(JACK_CONTROL_CMD_CONNECT,1).
 jack_control_open(Client) ->
-    Cmd = tools:format("~s jack_control ~s", [code:priv_dir(studio) ++ "/studio.elf", Client]),
+    Cmd = tools:format("~s jack_control ~s", [studio_sup:studio_elf(), Client]),
     open_port({spawn,Cmd},[{packet,1},binary,exit_status]).
 loop(#{port := Port}=State) ->
     NextState =
