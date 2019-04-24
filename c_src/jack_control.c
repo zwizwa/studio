@@ -5,7 +5,10 @@
 #include <sys/mman.h>
 
 /* Control interface is separate from midi to allow flow control and
-   return values. */
+   return values.
+
+   http://jackaudio.org/api/
+*/
 
 #define CMD_CONNECT 1
 struct {
