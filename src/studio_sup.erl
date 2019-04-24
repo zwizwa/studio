@@ -56,7 +56,8 @@ restart_port(BaseName) ->
     log:info("studio_sup:restart_port: ~p~n", [BaseName]),
     case BaseName of
         <<"studio">> ->
-            obj:gets(midi_jack(),[midi]) ! restart_port
+            obj:gets(midi_jack(),[midi])    ! restart_port,
+            obj:gets(midi_jack(),[control]) ! restart_port
     end.
     
 
