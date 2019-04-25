@@ -20,7 +20,7 @@ jack_nframes_t clock_sub_state = 0;
 
 
 int frames = 0;
-unsigned int read_buf = 0, write_buf = 0;
+static volatile unsigned int read_buf = 0, write_buf = 0;
 
 #define NB_CMD_BUFS 8
 #define CMD_BUF_SIZE 8
@@ -32,6 +32,10 @@ struct command {
     mask_t  mask;
     uint8_t midibytes[0];
 } __attribute__((__packed__));
+
+
+// static uint8_t reply_buf[REPLY_BUF_SIZE];
+
 
 
 // TODO:
@@ -67,7 +71,7 @@ static int process (jack_nframes_t nframes, void *arg) {
                 }
             }
             /* Reset clock on start */
-            for (int i=0; i<nb_bytes; i++) {
+            for (int i=0; i<nb_bytes; i++) {https://www.youtube.com/channel/UCPGsXiY89TnYfqaEZBuETHQ
                 if (cmd->midibytes[i] == 0xFA) clock_sub_state = 0;
             }
             cmd_offset += cmd->size+1;
@@ -97,20 +101,53 @@ static int process (jack_nframes_t nframes, void *arg) {
     /* Account for this frame */
     clock_time -= nframes;
 
-    /* Forward incoming midi. */
+    /* Forward incoming midi.
+
+       Note: I'm not exactly sure whether it is a good idea to perform
+       the write() call from this thread, but it seems the difference
+       between a single semaphore system call and a single write to an
+       Erlang port pipe is not going to be big.  So revisit if it ever
+       becomes a problem.
+
+       As compared to a previous implementation, this will now buffer
+       all midi meassages and perform only a single write() call.
+
+       // FIXME: add time stamps?
+    */
+
+    static uint8_t buf[4096];
+    size_t buf_bytes = 0;
+
     for (int in=0; in<nb_in; in++) {
         void *in_buf  = jack_port_get_buffer(midi_in[in], nframes);
         jack_nframes_t n = jack_midi_get_event_count(in_buf);
         for (jack_nframes_t i = 0; i < n; i++) {
             jack_midi_event_t event;
             jack_midi_event_get(&event, in_buf, i);
-            uint8_t msg[event.size+2];
-            msg[0] = event.size+1;
-            msg[1] = in;
-            memcpy(msg+2, event.buffer, event.size);
-            assert_write(1, msg, event.size+2);
+
+            size_t msg_size = event.size + 3;
+
+            if (buf_bytes + msg_size > sizeof(buf)) {
+                LOG("midi buffer overflow\n");
+                goto do_write;
+            }
+
+            uint8_t *msg = &buf[buf_bytes];
+            msg[0] = msg_size - 1;  // {packet,1}
+            msg[1] = in;            // this jack client's midi port number
+            msg[2] = frames;        // rolling time stamp
+            memcpy(msg+3, event.buffer, event.size);
+
+            buf_bytes += msg_size;
         }
     }
+
+  do_write:
+    if (buf_bytes) {
+        // LOG("buf_bytes = %d\n", buf_bytes);
+        assert_write(1, buf, buf_bytes);
+    }
+
     frames++;
     return 0;
 }

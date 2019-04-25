@@ -10,7 +10,8 @@
          decode/2,decode/1,encode/1,
          %% port_start_link/1, port_handle/2,
          start_link/0,
-         trigger_start/2, trigger_cc/1
+         trigger_start/2, trigger_cc/1,
+         not_tc/1
          %%,db/0,sql/1,port_id/1,midiclock_mask/0
         ]).
 %% Original idea was to route messages over broadcast, but that works
@@ -93,14 +94,17 @@ encode(Unknown) -> throw({midi_encode,Unknown}).
 
         
 
-not_tc({_,Msg}) -> Msg =/= tc.
+not_tc({midi,_,_,tc}) -> false;
+not_tc(_) -> true.
+    
 
 %% Midi hub.  serv:hub object filters at the source
 start_link() ->
-    Pid = serv:hub_start(), 
-    register(midi_hub, Pid),
-    serv:hub_add(Pid, fun not_tc/1, serv:info_start()),
-    {ok, Pid}.
+    BC = serv:bc_start(), 
+    register(midi_hub, BC),
+    Info = serv:info_start(),
+    BC ! {subscribe, {Info, fun ?MODULE:not_tc/1}},
+    {ok, BC}.
 
 
 %% Event trigger, e.g. for midi learn.
@@ -108,7 +112,7 @@ trigger_start(Pred, Cont) ->
     serv:start(
       {body,
        fun() -> 
-               serv:hub_add(midi_hub, Pred, self()),
+               midi_hub ! {subscribe, {self(), Pred}},
                receive Msg -> Cont(Msg) end
        end}).
                    

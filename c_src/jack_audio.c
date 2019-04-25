@@ -9,17 +9,17 @@
 
 sem_t sema;
 
-int nb_in;  static jack_port_t **audio_in  = NULL;
+static int nb_in;  static jack_port_t **audio_in  = NULL;
 static jack_client_t *client = NULL;
 
-int write_buf = 0;
-int read_buf  = 0;
+static int write_buf = 0;
+static int read_buf  = 0;
 
 #define CHUNK_FRAMES 4096
 
-jack_default_audio_sample_t buf[2][CHUNK_FRAMES];
+static jack_default_audio_sample_t buf[2][CHUNK_FRAMES];
 
-unsigned int frames = 0;
+static unsigned int frames = 0;
 
 static int process (jack_nframes_t nframes, void *arg) {
 

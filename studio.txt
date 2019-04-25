@@ -1286,4 +1286,57 @@ Actually, a semaphore is better suited.
 
 https://www.geeksforgeeks.org/use-posix-semaphores-c/
 
+EDIT: Basic skeleton is coded.  Test it only when integrated.
+
+Next?  Automatically connect client?  Not needed.  For now it can be
+done manually.
+
+I think it's all there now to make a recorder.  Create the start/stop
+functions.
+
+EDIT: Get rid of the midi hub?  Use the broadcaster instead.
+
+EDIT: Done: serv hub is deleted.
+
+
+
+Entry: Buffering
+Date: Thu Apr 25 08:08:18 EDT 2019
+
+It's currently not done properly.
+
+1. write() is called inside the realtime thread.  This is not a good
+idea.
+
+2. is the update to write_buf variable actually atomic?  Yes it
+probably is ok.
+
+
+Entry: time stamps
+Date: Thu Apr 25 08:56:27 EDT 2019
+
+These are going to be rolling anyway, so let's just embrace that and
+encode the phase using only 8 bits.  This gives ambiguity of:
+
+(/ 48000.0 (* 64 256))      2.92 Hz  for 8 bit
+
+(/ 48000.0 (* 64 256 256))  0.01 Hz  for 16 bit
+
+Let's leave it at 8 bit for now.  It's probably enough.
+
+(/ 48000.0 64) 750 Hz is the control rate.
+
+Midi is 31250 baud or 3150 bytes/sec, or about 1000 note messages per
+second.  The jack rate is in the same ballpark.
+
+Problem is how to synchronize the clocks of the midi and audio
+clients?  The trick is to not do this at all maybe?  Use a single
+daemon for both audio and midi -- just extend the midi one, with the
+following constraints:
+
+- send out midi once per jack frame (64 audio samples) to keep the
+  latency low.
+
+- bundle up audio, and send it out in a single block every 4095 audio
+  frames.
 

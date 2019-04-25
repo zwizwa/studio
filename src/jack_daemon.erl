@@ -93,10 +93,13 @@ need_clients(State = #{ control := _, midi := _ }) ->
 need_clients(State) ->
     tools:info("starting clients~n"),
     ClockMask = midiclock_mask(),
+    {ok, Audio} = jack_audio:start_link("studio_audio", 8),
     maps:merge(
       State,
       #{control => jack_control:start_link("studio_control"),
-        midi    => jack_midi:start_link("studio",16,16,ClockMask)}).
+        midi    => jack_midi:start_link("studio",16,16,ClockMask),
+        audio   => Audio
+       }).
 
 
 port_id(Name) when is_binary(Name) ->

@@ -26,7 +26,11 @@ start_link(Client,NI,NO,ClockMask) ->
                OpenPort =
                    [{spawn,Cmd},[{packet,1},binary,exit_status]],
                log:set_info_name({jack_midi,Client}),
-               handle(restart_port, #{ open_port => OpenPort })
+               BC = whereis(midi_hub),
+               _Ref = erlang:monitor(process, BC),
+               handle(restart_port,
+                      #{ open_port => OpenPort,
+                         bc => BC })
        end,
        fun ?MODULE:handle/2}).
 
@@ -53,15 +57,16 @@ handle({Port,{exit_status,_}=E}, #{ port := Port } = _State) ->
     exit(E);
 
 %% Midi in. Translate to symbolic form.
-handle({Port,{data,<<MidiPort,Data/binary>>}}, #{ port := Port } = State) ->
-    case whereis(midi_hub) of
-        undefined ->
-            ok;
-        MidiHub ->
-            lists:foreach(
-              fun(Msg) -> serv:hub_send(MidiHub, {{jack,MidiPort},Msg}) end,
-              midi:decode(Data))
-    end,
+%%
+%% The time stamp is the jack frame number modulo 256.  It should be
+%% enough to recover from any jitter that is encountered between the
+%% jack midi receive and the writing to disk, since midi and audio
+%% take different paths.
+handle({Port,{data,<<MidiPort,TimeStamp,Data/binary>>}}, 
+       #{ port := Port, bc := BC } = State) ->
+    lists:foreach(
+      fun(Msg) -> BC ! {broadcast, {midi, TimeStamp, {jack, MidiPort}, Msg}} end,
+      midi:decode(Data)),
     State;
 
 %% Midi out

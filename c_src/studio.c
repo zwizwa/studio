@@ -16,6 +16,7 @@ int main(int argc, char **argv) {
     argc--;argv++;
     char *program = argv[0];
     APP(jack_midi);
+    APP(jack_audio);
     APP(jack_control);
     APP(alsa_midi_in);
     APP(alsa_midi_out);
