@@ -18,6 +18,13 @@ start_link(Client) ->
 %% Jack control client
 -define(JACK_CONTROL_CMD_CONNECT,1).
 
+fmt_port(Bin) when is_binary(Bin) ->
+    Bin;
+fmt_port({C,P}) ->
+    tools:format("~s:~s",[C,P]).
+
+     
+
 handle(restart_port, State = #{ open_port := Args }) ->
     case maps:find(port, State) of
         {ok, Port} ->
@@ -34,8 +41,10 @@ handle(restart_port, State = #{ open_port := Args }) ->
 %% Protocol is asynchronous.  This makes it easier to use the return
 %% pipe for jack events.
 
-handle({connect, Src, Dst} = _Msg, State = #{ port := Port }) ->
+handle({connect, Src0, Dst0} = _Msg, State = #{ port := Port }) ->
     log:info("~999p~n", [_Msg]),
+    Src = fmt_port(Src0),
+    Dst = fmt_port(Dst0),
     Cmd = <<?JACK_CONTROL_CMD_CONNECT,Src/binary,0,Dst/binary,0>>,
     Port ! {self(), {command, Cmd}},
     State;
@@ -44,7 +53,9 @@ handle({Port,{exit_status,_}=E}, _State = #{ port := Port }) ->
     exit(E);
 
 handle({Port,{data, Data}}, State = #{ port := Port }) ->
-    %% Protocol is a string embedded in {packet,1}.
+    %% Protocol is a string embedded in {packet,1}, which is easy to
+    %% generate in C and easy to massage here into nested data
+    %% structures.
     Reg = fun(<<"1">>) -> true;
              (<<"0">>) -> false end,
     Parsed =
@@ -54,6 +65,13 @@ handle({Port,{data, Data}}, State = #{ port := Port }) ->
             [<<"connect">>,R,CA,PA,CB,PB] -> {connect, Reg(R), {CA,PA}, {CB,PB}};
             Split -> {error, Split}
         end,
+    case Parsed of
+        {connect, true,  A, B} -> studio_db:connect(A, B);
+        %% FIXME: Distinguish between disconnect due to client exit
+        %% and intentional, manual disconnect?
+        %% {connect, false, A, B} -> studio_db:disconnect(A, B);
+        _ -> ok
+    end,
     log:info("~999p~n", [Parsed]),
     State;
 

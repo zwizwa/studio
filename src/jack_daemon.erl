@@ -1,6 +1,11 @@
 %% Jack Daemon wrapper.  Note that this insists on managing the
 %% daemon.  I.e. it is "framework-y".
 
+%% FIXME: The output parsing can now be removed and replaced with
+%% jack_control event-based functionality, but first, save the
+%% contents of the databas.
+
+
 -module(jack_daemon).
 -export([start_link/0, handle/2]).
 
@@ -63,7 +68,7 @@ handle_connect(PortAlias, Dir, Name, State) ->
     %% Client can be started only after daemon is up, so do it lazily.
     {Control, State1} = control_client(State),
 
-    N = integer_to_binary(port_id(Name)),
+    N = integer_to_binary(studio_db:port_id(Name)),
     %% tools:info("~p~n",[[PortAlias,Dir,Name,N]]),
     Connect =
         fun(Src,Dst) ->
@@ -101,7 +106,7 @@ start_client(Name) ->
     {ok, Pid} = 
         case Name of
             control -> jack_control:start_link("studio_control");
-            midi    -> jack_midi:start_link("studio",16,16,midiclock_mask());
+            midi    -> jack_midi:start_link("studio",16,16,studio_db:midiclock_mask());
             audio   -> jack_audio:start_link("studio_audio", 8)
         end,
     Pid.
@@ -109,39 +114,7 @@ start_client(Name) ->
                     
 
 
-port_id(Name) when is_binary(Name) ->
-    case sql([{<<"select port_id from midiport where port_name = ?">>,[Name]}]) of
-        [[[PortId]]] ->
-            binary_to_integer(PortId);
-        _ ->
-            tools:info("WARNING: unknown port_id ~p~n",[Name]),
-            0
-    end.
 
-
-
-db() -> 
-    maps:merge(
-      sqlite3:db_registered(
-        db,
-        fun db_file/0,
-        fun db_init/1),
-      %% when process is dead, call will fail. otherwise wait forever.
-      %% 3 seconds seems quite normal, so only warn every 10 seconds.
-      #{ timeout => {warn, 10000} }).
-
-db_file() ->
-    DbFile = code:priv_dir(studio) ++ "/db.sqlite3",
-    log:info("db file = ~p~n", [DbFile]),
-    DbFile.
-db_init(_) ->
-    ok.
-sql(Queries) ->
-    sqlite3:sql(db(), Queries).
-
-midiclock_mask() ->
-    [[[Mask]]] = sql([{<<"select * from midiclock_mask">>,[]}]),
-    binary_to_integer(Mask).
 
 %% %% midiclock_mask() -> 16864.
 %% midiclock_mask() ->

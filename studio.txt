@@ -1514,3 +1514,33 @@ Or this could be done using nested supervisors.
 EDIT: This is for later.  Getting bored with it.  Maybe solve it at
 another time?
 
+
+Entry: jack events
+Date: Sat Apr 27 18:13:01 EDT 2019
+
+It seems to work now:
+
+(exo@10.1.3.12)33> studio_rs:call(studio_rs, {open, {jack_client, <<"rust_jack_sine">>}}).
+studio_rs:call(studio_rs, {open, {jack_client, <<"rust_jack_sine">>}}).
+{jack_control,"studio_control"}: {client,true,<<"rust_jack_sine">>}
+{jack_control,"studio_control"}: {port,true,{<<"rust_jack_sine">>,<<"sine_out">>}}
+{jack_control,"studio_control"}: {client,true,<<"connector">>}
+{jack_control,"studio_control"}: {connect,true,{<<"rust_jack_sine">>,<<"sine_out">>},{<<"system">>,<<"playback_1">>}}
+{jack_control,"studio_control"}: {client,false,<<"connector">>}
+{ok,0}
+(exo@10.1.3.12)34> studio_rs:call(studio_rs, {close, 0}).
+studio_rs:call(studio_rs, {close, 0}).
+{jack_control,"studio_control"}: {connect,false,{<<"rust_jack_sine">>,<<"sine_out">>},{<<"system">>,<<"playback_1">>}}
+{jack_control,"studio_control"}: {port,false,{<<"rust_jack_sine">>,<<"sine_out">>}}
+{jack_control,"studio_control"}: {client,false,<<"rust_jack_sine">>}
+{ok,0}
+
+This is the basic code reload infrastructure:
+- wrap any DSP / synth code in a jack client
+- keep track of connections
+- restore connections when ports are created
+
+
+
+
+

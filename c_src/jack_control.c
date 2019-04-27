@@ -20,11 +20,6 @@
 */
 
 #define CMD_CONNECT 1
-struct {
-    uint8_t len;
-    uint8_t cmd;
-    uint8_t data[255];
-} cmd;
 
 static jack_client_t          *client = NULL;
 
@@ -79,22 +74,20 @@ int jack_control(int argc, char **argv) {
 
     ASSERT(!jack_activate(client));
     for(;;) {
-        ssize_t len;
-        if ((len = read(0,&cmd,sizeof(cmd))) < 1) exit(len);
-        if (!cmd.len) exit(0);
-        switch(cmd.cmd) {
+        char buf[255];
+        int len = assert_read_packet1(0, &buf);
+        ASSERT(len > 0);
+        switch(buf[0]) {
             case CMD_CONNECT: {
-                char *src = (char*)(cmd.data);
+                char *src = &buf[1];
                 char *dst = src + strlen(src) + 1;
                 // LOG("connect %s %s\n", src, dst);
                 jack_connect(client, src, dst);
-                cmd.len = 0;
                 break;
             }
             default:
-                LOG("unknown %d (%d)\n", cmd.cmd, cmd.len);
-                cmd.len = 0;
-                break;
+                LOG("unknown %d (%d)\n", buf[0], len);
+                exit(1);
         }
     }
 }

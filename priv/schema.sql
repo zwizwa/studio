@@ -13,3 +13,9 @@ select sum(1<<port_id) from midiclock left join midiport on midiclock.port_name 
 -- Simpler? Just record all the connections and aliases?
 -- create table connect (a TEXT NOT NULL, b TEXT NOT NULL);
 
+create table connect (
+       client_a TEXT NOT NULL, port_a TEXT NOT NULL,
+       client_b TEXT NOT NULL, port_b TEXT NOT NULL,
+       unique(client_a, port_a, client_b, port_b)
+);
+
