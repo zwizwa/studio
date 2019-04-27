@@ -1427,4 +1427,78 @@ Rust.
 Entry: Recorder is up
 Date: Sat Apr 27 10:07:39 EDT 2019
 
+What I want is basically to use the wall clock to find a particular
+sequence, or some other kind of marker.
+
+I need:
+
+- Winding and start/stop via midi controller
+- Some graphical multi-level display
+
+
+First, maybe solve some issues with the recorder.  Especially deleting
+old chunks based on disk free.
+
+EDIT: Not using disk free, but using sum of data and index files to
+trigger deletion.
+
+
+
+Entry: mlockall
+Date: Sat Apr 27 14:05:38 EDT 2019
+
+Should loops be rendered into non-mmapped RAM?
+
+I can't do mlockall.  So the architecture should definitely split the
+mmapped disk read process from the real-time sample playback process.
+
+
+
+Entry: Jack: multiple clients?
+Date: Sat Apr 27 14:07:59 EDT 2019
+
+Should I rely on fine jack client granularity?  It seems the only
+reason to use jack is to use already existing applications.  For my
+own DSP code I can just as well run it all in one client, or use Pd as
+a host.
+
+
+Entry: Connectivity
+Date: Sat Apr 27 14:11:44 EDT 2019
+
+So let's revisit the notification mechanism.  It might be easier now
+to :
+
+- get notified when clients (dis)appear
+- query port lists
+- restore connections from db
+
+
+
+
+Entry: registration callbacks
+Date: Sat Apr 27 15:02:57 EDT 2019
+
+These tap points are enough
+
+    ASSERT(0 == jack_set_port_registration_callback(client, port_register, NULL));
+    ASSERT(0 == jack_set_port_connect_callback(client, port_connect, NULL));
+    ASSERT(0 == jack_set_client_registration_callback(client, client_registration, NULL));
+
+- port_connect studio:midi_out_12 system:midi_playback_14 1
+
+An external application can be used to connect ports, but we can keep
+track of connections in the database.
+
+
+- client_registration studio 1
+- port_register studio:midi_out_0 1
+
+Client registration isn't so useful, but port registration can be used
+to look up connections in the database and restore them.
+
+
+I do not see a way to get notifications of midi ports being plugged
+in, i.e. USB devices.
+
 

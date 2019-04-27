@@ -16,27 +16,28 @@
 -define(JACK_MIDI_CMD_CONNECT,1).
 
 start_link(Client,MidiNI,MidiNO,ClockMask) ->
-    serv:start(
-      {handler,
-       fun() ->
-               register(jack_midi, self()),
-               Cmd = 
-                   tools:format(
-                     "~s jack_midi ~s ~p ~p ~p",
-                     [studio_sup:studio_elf(),
-                      Client, MidiNI, MidiNO, ClockMask]),
-               OpenPort =
-                   [{spawn,Cmd},
-                    [{packet,4}
-                    ,binary,exit_status]],
-               log:set_info_name({jack_midi,Client}),
-               BC = whereis(midi_hub),
-               _Ref = erlang:monitor(process, BC),
-               handle(restart_port,
-                      #{ open_port => OpenPort,
-                         bc => BC })
-       end,
-       fun ?MODULE:handle/2}).
+    {ok,
+     serv:start(
+       {handler,
+        fun() ->
+                register(jack_midi, self()),
+                Cmd = 
+                    tools:format(
+                      "~s jack_midi ~s ~p ~p ~p",
+                      [studio_sup:studio_elf(),
+                       Client, MidiNI, MidiNO, ClockMask]),
+                OpenPort =
+                    [{spawn,Cmd},
+                     [{packet,4}
+                     ,binary,exit_status]],
+                log:set_info_name({jack_midi,Client}),
+                BC = whereis(midi_hub),
+                _Ref = erlang:monitor(process, BC),
+                handle(restart_port,
+                       #{ open_port => OpenPort,
+                          bc => BC })
+        end,
+        fun ?MODULE:handle/2})}.
 
 %% See studio_sup:restart_port/1
 handle(restart_port, State = #{open_port := Args}) ->
