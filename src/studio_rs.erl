@@ -13,7 +13,7 @@ start_link(Host) ->
 %% If it runs on localhost, register the process.
 start_link() ->
     {ok, Pid} = start_link(home_bin),
-    register(exo_rs, Pid),
+    register(studio_rs, Pid),
     {ok, Pid}.
 
 
@@ -27,7 +27,7 @@ handle(restart, State = #{ host := Host }) ->
     %% All port processes for exo go through a SSH layer.  This makes
     %% it simpler to decouple the Erlang side from the binary side.
     Opts = [use_stdio, binary, exit_status,{packet,4}],
-    NewPort = exo:exo_open_port(Host, "exo_rs", Opts),
+    NewPort = exo:exo_open_port(Host, "studio_rs", Opts),
     Pid = self(),
     spawn_link(
       fun() -> 

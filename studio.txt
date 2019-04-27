@@ -1499,6 +1499,18 @@ to look up connections in the database and restore them.
 
 
 I do not see a way to get notifications of midi ports being plugged
-in, i.e. USB devices.
+in, i.e. USB devices.  Actually, this might work but it would go via
+port aliases.
 
+EDIT: ok, got it.  api is just weird.
+
+This should now be placed in a db.
+
+Also, jack_daemon process should serve as a supervisor, restarting its
+clients.
+
+Or this could be done using nested supervisors.
+
+EDIT: This is for later.  Getting bored with it.  Maybe solve it at
+another time?
 

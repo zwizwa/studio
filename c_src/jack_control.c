@@ -8,6 +8,14 @@
 /* Control interface is separate from midi to allow flow control and
    return values.
 
+   Both ends of the pipe are asynchronous.  This makes it easier to
+   write directly to stdout from the jack callbacks.
+
+   Protocol is ad-hoc, whatever is easier to parse/generate here.
+
+   Erl -> C is binary
+   C -> Erl uses strings
+
    http://jackaudio.org/api/
 */
 
@@ -21,14 +29,27 @@ struct {
 static jack_client_t          *client = NULL;
 
 
-//http://jackaudio.org/api/group__ClientCallbacks.html
-
-// FIXME: Send these back to erlang and remove the parsing of jackd output.
+#define SEND(fmt, ...) {\
+        char buf[256];                                                 \
+        buf[0] = snprintf(buf+1, sizeof(buf)-1,fmt, __VA_ARGS__);      \
+        assert_write(1, (void*)buf, buf[0] + 1);                       \
+    }
 
 static void port_register(jack_port_id_t a, int reg, void *arg) {
     jack_port_t *pa = jack_port_by_id(client, a);
     const char *na = jack_port_name(pa);
-    LOG("port_register %s %d\n", na, reg);
+
+    //LOG("port_register %s %d\n", na, reg);
+    SEND("port:%d:%s", reg, na);
+
+    char alias0[jack_port_name_size()];
+    char alias1[jack_port_name_size()];
+    char *const alias[2] = {alias0, alias1};
+    int nb_alias = jack_port_get_aliases(pa, alias);
+    for (int i = 0; i<nb_alias; i++) {
+        //LOG(" - alias: %s\n", alias[i]);
+        SEND("alias:%s:%s", na, alias[i]);
+    }
 }
 
 static void port_connect(jack_port_id_t a, jack_port_id_t b, int connect, void *arg) {
@@ -36,14 +57,13 @@ static void port_connect(jack_port_id_t a, jack_port_id_t b, int connect, void *
     jack_port_t *pb = jack_port_by_id(client, b);
     const char *na = jack_port_name(pa);
     const char *nb = jack_port_name(pb);
-    LOG("port_connect %s %s %d\n", na, nb, connect);
+    //LOG("port_connect %s %s %d\n", na, nb, connect);
+    SEND("connect:%d:%s:%s",connect,na,nb);
 }
 static void client_registration(const char *name, int reg, void *arg) {
-    LOG("client_registration %s %d\n", name, reg);
+    //LOG("client_registration %s %d\n", name, reg);
+    SEND("client:%d:%s", reg, name);
 }
-
-// FIXME: There doesn't seem to be a way to catch "scan" events for
-// midi devices, that appear on the jackd output.
 
 int jack_control(int argc, char **argv) {
     ASSERT(argc == 2);
@@ -75,7 +95,6 @@ int jack_control(int argc, char **argv) {
                 LOG("unknown %d (%d)\n", cmd.cmd, cmd.len);
                 cmd.len = 0;
                 break;
-            }
-        assert_write(1,(void*)&cmd,1+cmd.len);
+        }
     }
 }

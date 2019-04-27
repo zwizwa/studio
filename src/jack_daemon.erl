@@ -61,7 +61,7 @@ handle(Msg, State) ->
 handle_connect(PortAlias, Dir, Name, State) ->
 
     %% Client can be started only after daemon is up, so do it lazily.
-    {C,State1} = control_client(State),
+    {Control, State1} = control_client(State),
 
     N = integer_to_binary(port_id(Name)),
     %% tools:info("~p~n",[[PortAlias,Dir,Name,N]]),
@@ -73,7 +73,7 @@ handle_connect(PortAlias, Dir, Name, State) ->
                           %% logged to the console.  Can't sync, so
                           %% add a workaround timeout.
                           timer:sleep(500),
-                          obj:call(C,{connect,Src,Dst})
+                          Control ! {connect,Src,Dst}
                   end)
         end,
                       
@@ -92,16 +92,21 @@ need_clients(State = #{ control := _, midi := _ }) ->
     State;
 need_clients(State) ->
     tools:info("starting clients~n"),
-    ClockMask = midiclock_mask(),
-    {ok, Control} = jack_control:start_link("studio_control"),
-    {ok, Midi}    = jack_midi:start_link("studio",16,16,ClockMask),
-    {ok, Audio}   = jack_audio:start_link("studio_audio", 8),
     maps:merge(
       State,
-      #{control => Control,
-        midi    => Midi,
-        audio   => Audio
-       }).
+      maps:from_list(
+        [{Name,start_client(Name)} || Name <- [control, midi, audio]])).
+
+start_client(Name) ->
+    {ok, Pid} = 
+        case Name of
+            control -> jack_control:start_link("studio_control");
+            midi    -> jack_midi:start_link("studio",16,16,midiclock_mask());
+            audio   -> jack_audio:start_link("studio_audio", 8)
+        end,
+    Pid.
+                
+                    
 
 
 port_id(Name) when is_binary(Name) ->
