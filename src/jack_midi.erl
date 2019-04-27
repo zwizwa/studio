@@ -6,7 +6,7 @@
 %% only for convenience.
 
 -module(jack_midi).
--export([start_link/4, handle/2]).
+-export([start_link/5, handle/2]).
 
 -define(IF(C,A,B), (case (C) of true -> (A); false -> (B) end)).
 
@@ -15,16 +15,19 @@
 -define(JACK_MIDI_CMD_MIDI,0).
 -define(JACK_MIDI_CMD_CONNECT,1).
 
-start_link(Client,NI,NO,ClockMask) ->
+start_link(Client,MidiNI,MidiNO,ClockMask,AudioNI) ->
     serv:start(
       {handler,
        fun() ->
                Cmd = 
                    tools:format(
-                     "~s jack_midi ~s ~p ~p ~p",
-                     [studio_sup:studio_elf(), Client, NI, NO, ClockMask]),
+                     "~s jack_midi ~s ~p ~p ~p ~p",
+                     [studio_sup:studio_elf(),
+                      Client, MidiNI, MidiNO, ClockMask, AudioNI]),
                OpenPort =
-                   [{spawn,Cmd},[{packet,1},binary,exit_status]],
+                   [{spawn,Cmd},
+                    [{packet,4}
+                    ,binary,exit_status]],
                log:set_info_name({jack_midi,Client}),
                BC = whereis(midi_hub),
                _Ref = erlang:monitor(process, BC),
@@ -62,11 +65,16 @@ handle({Port,{exit_status,_}=E}, #{ port := Port } = _State) ->
 %% enough to recover from any jitter that is encountered between the
 %% jack midi receive and the writing to disk, since midi and audio
 %% take different paths.
-handle({Port,{data,<<MidiPort,TimeStamp,Data/binary>>}}, 
+handle({Port,_Msg={data,<<MidiPort,TimeStamp,Data/binary>>}}, 
        #{ port := Port, bc := BC } = State) ->
+    %% log:info("~p~n",[_Msg]),
     lists:foreach(
       fun(Msg) -> BC ! {broadcast, {midi, TimeStamp, {jack, MidiPort}, Msg}} end,
       midi:decode(Data)),
+    State;
+
+handle({Port,_Msg={data,Data}}, #{ port := Port } = State) ->
+    log:info("bad proto: ~p~n",[Data]),
     State;
 
 %% Midi out

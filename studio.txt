@@ -1337,6 +1337,29 @@ following constraints:
 - send out midi once per jack frame (64 audio samples) to keep the
   latency low.
 
-- bundle up audio, and send it out in a single block every 4095 audio
+- bundle up audio, and send it out in a single block every 4096 audio
   frames.
+
+
+
+Entry: Next?
+Date: Fri Apr 26 17:12:07 EDT 2019
+
+Unify jack audio and midi.  First clean up the jack_midi client?
+
+What about this: use the semaphore to just send a "ping" to the
+low-prioirity thread for each message that needs to be sent out.
+
+Packet size needs to change to {packet,4} (* 8 2 4096)
+
+So do that first.
+
+EDIT: ok I managed to get stuck in some weird corner, likely build
+system bug.  I'm too tired to debug this right now..
+
+But the general idea should work: use {packet,4} messages so audio
+frames can be sent as well.  One write call for midi, and one for
+audio bundled to 4096 samples per channel.
+
+
 

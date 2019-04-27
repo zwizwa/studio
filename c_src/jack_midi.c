@@ -4,34 +4,43 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
-int nb_out; static jack_port_t **midi_out = NULL;
-int nb_in;  static jack_port_t **midi_in  = NULL;
+static int nb_midi_out; static jack_port_t **midi_out = NULL;
+static int nb_midi_in;  static jack_port_t **midi_in  = NULL;
+static int nb_audio_in; static jack_port_t **audio_in  = NULL;
 static jack_client_t          *client = NULL;
 
 #define BPM_TO_PERIOD(sr,bpm) ((sr*60)/(bpm*24))
 
 typedef uint32_t mask_t;
 
-jack_nframes_t clock_period = BPM_TO_PERIOD(48000, 120);
-jack_nframes_t clock_time;
-mask_t clock_mask = 0;
-jack_nframes_t clock_sub_period = 6;
-jack_nframes_t clock_sub_state = 0;
+static jack_nframes_t clock_period = BPM_TO_PERIOD(48000, 120);
+static jack_nframes_t clock_time;
+static mask_t clock_mask = 0;
+static jack_nframes_t clock_sub_period = 6;
+static jack_nframes_t clock_sub_state = 0;
 
 
-int frames = 0;
+static uint8_t blocks = 0;  // rolling time stamp
 static volatile unsigned int read_buf = 0, write_buf = 0;
 
 #define NB_CMD_BUFS 8
 #define CMD_BUF_SIZE 8
 
-ssize_t cmd_size[NB_CMD_BUFS];
-uint8_t cmd_buf[NB_CMD_BUFS][CMD_BUF_SIZE];
+static ssize_t cmd_size[NB_CMD_BUFS];
+static uint8_t cmd_buf[NB_CMD_BUFS][CMD_BUF_SIZE];
 struct command {
-    uint8_t size; // {packet,1} size = sizeof(struct header) + midi data size
+    uint32_t size; // {packet,4} size
     mask_t  mask;
     uint8_t midibytes[0];
 } __attribute__((__packed__));
+
+
+
+//static int write_buf = 0;
+//static int read_buf  = 0;
+#define CHUNK_FRAMES 4096
+// static jack_default_audio_sample_t buf[2][CHUNK_FRAMES];
+
 
 
 // static uint8_t reply_buf[REPLY_BUF_SIZE];
@@ -52,10 +61,10 @@ static inline void send_midi(void *out_buf, jack_nframes_t time,
 
 
 static int process (jack_nframes_t nframes, void *arg) {
-    void *out_buf[nb_out];
-    for (int out=0; out<nb_out; out++) {
-        out_buf[out] = jack_port_get_buffer(midi_out[out], nframes);
-        jack_midi_clear_buffer(out_buf[out]);
+    void *midi_out_buf[nb_midi_out];
+    for (int out=0; out<nb_midi_out; out++) {
+        midi_out_buf[out] = jack_port_get_buffer(midi_out[out], nframes);
+        jack_midi_clear_buffer(midi_out_buf[out]);
     }
     /* Jack requires us to sort the events, so send the async data
        first using time stamp 0. */
@@ -65,13 +74,13 @@ static int process (jack_nframes_t nframes, void *arg) {
             struct command *cmd = (void*)&cmd_buf[read_buf][cmd_offset];
             size_t nb_bytes = cmd->size - sizeof(mask_t);
             /* Send to selected outputs */
-            for (int out=0; out<nb_out; out++) {
+            for (int out=0; out<nb_midi_out; out++) {
                 if (cmd->mask & (1 << out)) {
-                    send_midi(out_buf[out], 0/*time*/, cmd->midibytes, nb_bytes);
+                    send_midi(midi_out_buf[out], 0/*time*/, cmd->midibytes, nb_bytes);
                 }
             }
             /* Reset clock on start */
-            for (int i=0; i<nb_bytes; i++) {https://www.youtube.com/channel/UCPGsXiY89TnYfqaEZBuETHQ
+            for (int i=0; i<nb_bytes; i++) {
                 if (cmd->midibytes[i] == 0xFA) clock_sub_state = 0;
             }
             cmd_offset += cmd->size+1;
@@ -82,16 +91,16 @@ static int process (jack_nframes_t nframes, void *arg) {
     /* Send out the clock bytes at the designated time slots */
     while(clock_time < nframes) {
         /* Clock pulse fits in current frame. */
-        for (int out=0; out<nb_out; out++) {
+        for (int out=0; out<nb_midi_out; out++) {
             if (clock_mask & (1 << out)) {
                 //LOG("F8 on %d\n", out);
                 const uint8_t clock[] = {0xF8};
-                send_midi(out_buf[out], clock_time, clock, sizeof(clock));
+                send_midi(midi_out_buf[out], clock_time, clock, sizeof(clock));
             }
         }
         /* Send subsampled clock to Erlang. */
         if (clock_sub_state == 0) {
-            const uint8_t msg[] = {2,0xFF,0xF8};
+            const uint8_t msg[] = {0,0,0,2,0xFF,0xF8};
             assert_write(1, msg, sizeof(msg));
         }
         /* Advance clock */
@@ -115,40 +124,64 @@ static int process (jack_nframes_t nframes, void *arg) {
        // FIXME: add time stamps?
     */
 
-    static uint8_t buf[4096];
-    size_t buf_bytes = 0;
+    static uint8_t to_erl_buf[4096];
+    size_t to_erl_buf_bytes = 0;
 
-    for (int in=0; in<nb_in; in++) {
-        void *in_buf  = jack_port_get_buffer(midi_in[in], nframes);
-        jack_nframes_t n = jack_midi_get_event_count(in_buf);
+    // test
+    if (blocks == 0) {
+        uint8_t *msg = &to_erl_buf[to_erl_buf_bytes];
+        set_u32be(msg, 1);
+        msg[4] = 123;
+    }
+
+    for (int in=0; in<nb_midi_in; in++) {
+        void *midi_in_buf  = jack_port_get_buffer(midi_in[in], nframes);
+        jack_nframes_t n = jack_midi_get_event_count(midi_in_buf);
         for (jack_nframes_t i = 0; i < n; i++) {
             jack_midi_event_t event;
-            jack_midi_event_get(&event, in_buf, i);
+            jack_midi_event_get(&event, midi_in_buf, i);
 
-            size_t msg_size = event.size + 3;
+            size_t msg_size = 4 + 1 + 1 + event.size;
 
-            if (buf_bytes + msg_size > sizeof(buf)) {
+            if (to_erl_buf_bytes + msg_size > sizeof(to_erl_buf)) {
                 LOG("midi buffer overflow\n");
-                goto do_write;
+                goto to_erl_write;
             }
 
-            uint8_t *msg = &buf[buf_bytes];
-            msg[0] = msg_size - 1;  // {packet,1}
-            msg[1] = in;            // this jack client's midi port number
-            msg[2] = frames;        // rolling time stamp
-            memcpy(msg+3, event.buffer, event.size);
+            uint8_t *msg = &to_erl_buf[to_erl_buf_bytes];
+            set_u32be(msg, msg_size - 4); // {packet,4}
+            msg[4] = in;                  // this jack client's midi port number
+            msg[5] = blocks;              // rolling time stamp
+            memcpy(msg+6, event.buffer, event.size);
 
-            buf_bytes += msg_size;
+            //LOG("msg n=%d\n", (int)msg_size);
+
+            to_erl_buf_bytes += msg_size;
         }
     }
 
-  do_write:
-    if (buf_bytes) {
-        // LOG("buf_bytes = %d\n", buf_bytes);
-        assert_write(1, buf, buf_bytes);
+  to_erl_write:
+    if (to_erl_buf_bytes) {
+        //LOG("buf_bytes = %d\n", (int)to_erl_buf_bytes);
+        assert_write(1, to_erl_buf, to_erl_buf_bytes);
     }
 
-    frames++;
+#if 0
+    /* Copy incoming audio. */
+    for (int in=0; in<nb_audio_in; in++) {
+        jack_default_audio_sample_t *src =
+            jack_port_get_buffer(audio_in[in], nframes);
+        jack_default_audio_sample_t *dst =
+            &buf[write_buf][frames];
+
+        ASSERT(frames + nframes <= CHUNK_FRAMES);
+        memcpy(dst, src, sizeof(*src) * nframes);
+    }
+    frames += nframes;
+    /* Write out buffer when ready. */
+#endif
+
+    blocks++;
     return 0;
 }
 
@@ -156,35 +189,46 @@ static int process (jack_nframes_t nframes, void *arg) {
 
 
 int jack_midi(int argc, char **argv) {
-    ASSERT(argc == 5);
+    ASSERT(argc == 6);
     const char *client_name = argv[1];
-    nb_in  = atoi(argv[2]);  midi_in  = calloc(nb_in,sizeof(void*));
-    nb_out = atoi(argv[3]);  midi_out = calloc(nb_out,sizeof(void*));
-    clock_mask = atoi(argv[4]);
+    nb_midi_in  = atoi(argv[2]);  midi_in  = calloc(nb_midi_in,sizeof(void*));
+    nb_midi_out = atoi(argv[3]);  midi_out = calloc(nb_midi_out,sizeof(void*));
+    clock_mask  = atoi(argv[4]);
+    nb_audio_in = atoi(argv[5]);  audio_in  = calloc(nb_audio_in,sizeof(void*));
     LOG("clock_mask = %d\n", clock_mask);
     jack_status_t status;
     client = jack_client_open (client_name, JackNullOption, &status);
     char port_name[32] = {};
-    for (int in = 0; in < nb_in; in++) {
+    for (int in = 0; in < nb_midi_in; in++) {
         snprintf(port_name,sizeof(port_name)-1,"midi_in_%d",in);
         ASSERT(midi_in[in] = jack_port_register(
                    client, port_name,
                    JACK_DEFAULT_MIDI_TYPE, JackPortIsInput, 0));
     }
-    for (int out = 0; out < nb_out; out++) {
+    for (int out = 0; out < nb_midi_out; out++) {
         snprintf(port_name,sizeof(port_name)-1,"midi_out_%d",out);
         ASSERT(midi_out[out] = jack_port_register(
                    client, port_name,
                    JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0));
     }
-
+    for (int in = 0; in < nb_audio_in; in++) {
+        snprintf(port_name,sizeof(port_name)-1,"audio_in_%d",in);
+        ASSERT(audio_in[in] = jack_port_register(
+                   client, port_name,
+                   JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0));
+    }
     jack_set_process_callback (client, process, 0);
     ASSERT(!mlockall(MCL_CURRENT | MCL_FUTURE));
     ASSERT(!jack_activate(client));
     for(;;) {
-        if ((cmd_size[write_buf] =
-             read(0,cmd_buf[write_buf],CMD_BUF_SIZE)) < sizeof(struct command)) exit(1);
-        write_buf = (write_buf + 1) % NB_CMD_BUFS;
+        uint32_t n = assert_read_u32(0);
+        ASSERT(n + 4 < sizeof(struct command));
+        struct command *cmd = (void*)&cmd_buf[write_buf];
+        cmd->size = n;
+        cmd_size[write_buf] = n;
+        assert_read(0, &cmd_buf[write_buf][4], n - 4);
+        LOG("msg: n=%d\n", n);
+        write_buf = (write_buf + 1) % NB_CMD_BUFS;  // FIXME: req: atomic write!
     }
     return 0;
 }

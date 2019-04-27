@@ -26,10 +26,10 @@ clean:
 DEFS := -DMAIN=main -DREAD=read -DWRITE=write
 
 CFLAGS  += -std=c99 -I$(shell readlink -f ../../erl_tools/include)  # FIXME
-LDFLAGS += -lasound -ljack
+LDFLAGS += -lasound -ljack -lpthread
 
 # Default target build
-LIB_O := alsa.o jack_control.o jack_midi.o
+LIB_O := alsa.o jack_control.o jack_midi.o jack_audio.o
 %.o: %.c
 	. ./default.env ; $(CC) $(CFLAGS) -I../include -Wall -c $< -o $@ $(DEFS)
 
