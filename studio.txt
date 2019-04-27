@@ -1361,5 +1361,11 @@ But the general idea should work: use {packet,4} messages so audio
 frames can be sent as well.  One write call for midi, and one for
 audio bundled to 4096 samples per channel.
 
+EDIT: Still buggy, but it's already clear that a 132kbyte write is not
+going to work from the real-time thread.
 
+It's looks like keeping midi and audio separate might be a better
+idea.  But how to synchronize?  Is there a global jack time stamp?
+
+Yes there is.  Read this with a clear head.
 

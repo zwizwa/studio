@@ -59,12 +59,19 @@ handle(exit, #{ port := Port } = State) ->
 handle({Port,{exit_status,_}=E}, #{ port := Port } = _State) ->
     exit(E);
 
+
+handle({Port,_Msg={data,<<255,_/binary>>}}, State = #{ port := Port }) ->
+    log:info("audio: ~p~n", [size(_Msg)]),
+    State;
+
+
 %% Midi in. Translate to symbolic form.
 %%
 %% The time stamp is the jack frame number modulo 256.  It should be
 %% enough to recover from any jitter that is encountered between the
 %% jack midi receive and the writing to disk, since midi and audio
 %% take different paths.
+
 handle({Port,_Msg={data,<<MidiPort,TimeStamp,Data/binary>>}}, 
        #{ port := Port, bc := BC } = State) ->
     %% log:info("~p~n",[_Msg]),

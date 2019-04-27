@@ -96,8 +96,8 @@ need_clients(State) ->
     %% {ok, Audio} = jack_audio:start_link("studio_audio", 8),
     maps:merge(
       State,
-      #{control => jack_control:start_link("studio_control"),
-        midi    => jack_midi:start_link("studio",16,16,ClockMask,8)
+      #{control => jack_control:start_link("studio_control")
+        %%midi    => jack_midi:start_link("studio",16,16,ClockMask,8)
         %%audio   => Audio
        }).
 
