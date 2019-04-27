@@ -1367,5 +1367,64 @@ going to work from the real-time thread.
 It's looks like keeping midi and audio separate might be a better
 idea.  But how to synchronize?  Is there a global jack time stamp?
 
-Yes there is.  Read this with a clear head.
+Yes there is.  Read this with a clear head.  There are several
+routines.
+
+EDIT: Using this:
+
+jack_nframes_t f = jack_last_frame_time(client);
+audio_buf[write_buf].stamp = f / nframes;
+
+
+Entry: recorder
+Date: Fri Apr 26 22:17:59 EDT 2019
+
+So the midi and audio clients are working.  Recording is easy from
+this point on.  Start thinking about what to do with the recorded
+data.
+
+
+Entry: Random samples
+Date: Sat Apr 27 08:42:24 EDT 2019
+
+So I have a bunch of midi keys accessible now.  Map those to random
+samples?
+
+
+Entry: Looping the recording?
+Date: Sat Apr 27 08:57:37 EDT 2019
+
+But first, find a proper way to play back and loop a previous
+recording.  Input is the loop length.  It needs crossover at the audio
+stitch point.
+
+The main problem is to create a data structure that is easily
+accessed.  It would be an index into a mmapped log file.
+
+BTW does mlockall interfere with regular memory mapping?
+
+
+Entry: Manifold music
+Date: Sat Apr 27 09:07:13 EDT 2019
+
+I have 24 knobs in incremental mode.  These could be used to make
+local excursions in a 24-dimensional control manifold.  How to make
+this idea concrete?
+
+
+Entry: Recording midi
+Date: Sat Apr 27 09:43:01 EDT 2019
+
+So I've added midi clock F8 data.
+
+I'm starting to worry that this is getting a little too verbose.
+Probably best to store it in binary, and keep it chunked?  Chunking is
+likely not neccesary, but binary would make it easier to handle in
+Rust.
+
+
+
+Entry: Recorder is up
+Date: Sat Apr 27 10:07:39 EDT 2019
+
 

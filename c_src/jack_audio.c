@@ -1,5 +1,3 @@
-// FIXME: untested skeleton
-
 #include "lib.h"
 #include <jack/jack.h>
 #include <jack/midiport.h>
@@ -15,28 +13,42 @@ static jack_client_t *client = NULL;
 static int write_buf = 0;
 static int read_buf  = 0;
 
-#define CHUNK_FRAMES 4096
+#define CHUNK_FRAMES_LOG 12
+#define CHUNK_FRAMES (1 << CHUNK_FRAMES_LOG)
 
-static jack_default_audio_sample_t buf[2][CHUNK_FRAMES];
+
+struct audio {
+    uint8_t type;
+    uint8_t stamp;
+    uint8_t nb_channels;
+    uint8_t nb_frames_log;
+    jack_default_audio_sample_t chunk[CHUNK_FRAMES];
+};
+
+
+static struct audio audio_buf[2];
 
 static unsigned int frames = 0;
 
 static int process (jack_nframes_t nframes, void *arg) {
+
+    ASSERT(frames + nframes <= CHUNK_FRAMES);
 
     /* Copy incoming audio. */
     for (int in=0; in<nb_in; in++) {
         jack_default_audio_sample_t *src =
             jack_port_get_buffer(audio_in[in], nframes);
         jack_default_audio_sample_t *dst =
-            &buf[write_buf][frames];
+            &audio_buf[write_buf].chunk[frames];
 
-        ASSERT(frames + nframes <= CHUNK_FRAMES);
         memcpy(dst, src, sizeof(*src) * nframes);
     }
     frames += nframes;
 
     /* Swap buffers when ready */
     if (frames >= CHUNK_FRAMES) {
+        jack_nframes_t f = jack_last_frame_time(client);
+        audio_buf[write_buf].stamp = f / nframes;
         write_buf ^= 1;
         frames = 0;
         sem_post(&sema);
@@ -46,11 +58,6 @@ static int process (jack_nframes_t nframes, void *arg) {
 }
 
 #define CMD_SYNC 1
-struct {
-    uint8_t len;
-    uint8_t cmd;
-    uint8_t data[255];
-} cmd;
 
 int jack_audio(int argc, char **argv) {
     ASSERT(argc == 3);
@@ -71,17 +78,26 @@ int jack_audio(int argc, char **argv) {
     ASSERT(!mlockall(MCL_CURRENT | MCL_FUTURE));
     ASSERT(!jack_activate(client));
 
+
+    for (int i=0; i<2; i++) {
+        audio_buf[i].nb_channels = audio_in;
+        audio_buf[i].nb_frames_log = 12;
+        audio_buf[i].type = 0;
+    }
+
     for(;;) {
-        cmd.len = assert_read_port8(0, &cmd.cmd);
-        ASSERT(cmd.len > 0);
-        switch(cmd.cmd) {
+        uint32_t n = assert_read_u32(0);
+        ASSERT(n == 1);
+        uint8_t cmd;
+        assert_read(0, &cmd, 1);
+        switch(cmd) {
         case CMD_SYNC:
             ASSERT_ERRNO(sem_wait(&sema));
-            assert_write(1,(void*)&buf[read_buf][0], sizeof(buf[read_buf]));
+            assert_write_port32(1, (void*)&audio_buf[read_buf], sizeof(audio_buf[read_buf]));
             read_buf ^= 1;
             break;
         default:
-            LOG("unknown %d (%d)\n", cmd.cmd, cmd.len);
+            LOG("unknown command %d\n", cmd);
             exit(2);
         }
     }

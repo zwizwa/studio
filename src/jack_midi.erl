@@ -6,7 +6,7 @@
 %% only for convenience.
 
 -module(jack_midi).
--export([start_link/5, handle/2]).
+-export([start_link/4, handle/2]).
 
 -define(IF(C,A,B), (case (C) of true -> (A); false -> (B) end)).
 
@@ -15,15 +15,16 @@
 -define(JACK_MIDI_CMD_MIDI,0).
 -define(JACK_MIDI_CMD_CONNECT,1).
 
-start_link(Client,MidiNI,MidiNO,ClockMask,AudioNI) ->
+start_link(Client,MidiNI,MidiNO,ClockMask) ->
     serv:start(
       {handler,
        fun() ->
+               register(jack_midi, self()),
                Cmd = 
                    tools:format(
-                     "~s jack_midi ~s ~p ~p ~p ~p",
+                     "~s jack_midi ~s ~p ~p ~p",
                      [studio_sup:studio_elf(),
-                      Client, MidiNI, MidiNO, ClockMask, AudioNI]),
+                      Client, MidiNI, MidiNO, ClockMask]),
                OpenPort =
                    [{spawn,Cmd},
                     [{packet,4}
@@ -60,11 +61,6 @@ handle({Port,{exit_status,_}=E}, #{ port := Port } = _State) ->
     exit(E);
 
 
-handle({Port,_Msg={data,<<255,_/binary>>}}, State = #{ port := Port }) ->
-    log:info("audio: ~p~n", [size(_Msg)]),
-    State;
-
-
 %% Midi in. Translate to symbolic form.
 %%
 %% The time stamp is the jack frame number modulo 256.  It should be
@@ -72,13 +68,26 @@ handle({Port,_Msg={data,<<255,_/binary>>}}, State = #{ port := Port }) ->
 %% jack midi receive and the writing to disk, since midi and audio
 %% take different paths.
 
-handle({Port,_Msg={data,<<MidiPort,TimeStamp,Data/binary>>}}, 
+handle({Port,{data, Msg}}, 
        #{ port := Port, bc := BC } = State) ->
-    %% log:info("~p~n",[_Msg]),
+    %% log:info("~p~n",[Msg]),
+    case maps:find(recorder, State) of
+        {ok, Pid} -> Pid ! Msg;
+        _ -> ok
+    end,
+    <<MidiPort,TimeStamp,BinMidi/binary>> = Msg,
     lists:foreach(
-      fun(Msg) -> BC ! {broadcast, {midi, TimeStamp, {jack, MidiPort}, Msg}} end,
-      midi:decode(Data)),
+      fun(DecMidi) -> BC ! {broadcast, {midi, TimeStamp, {jack, MidiPort}, DecMidi}} end,
+      midi:decode(BinMidi)),
     State;
+
+%% The recorder is separate from the broadcast mechanism.  Assume there is only one.
+handle({record, _}, State = #{ recorder := Pid }) ->
+    log:info("WARNING: already recording to ~p.~n", [Pid]), State;
+
+handle({record, Pid}, State) ->
+    _Ref = erlang:monitor(process, Pid),
+    maps:put(recorder, Pid, State);
 
 handle({Port,_Msg={data,Data}}, #{ port := Port } = State) ->
     log:info("bad proto: ~p~n",[Data]),

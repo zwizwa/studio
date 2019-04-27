@@ -1,7 +1,8 @@
 -module(studio_sup).
 -behaviour(supervisor).
 -export([start_link/0, init/1, jackd/0, find/1, studio_elf/0,
-         midi_hub/0, midi_jack/0, restart_port/1
+         midi_hub/0, midi_jack/0, 
+         restart_port/1
         ]).
 
 start_link() ->
@@ -42,8 +43,8 @@ find(Name,[{N,Pid,_,_}|Rest]) ->
         _ -> find(Name, Rest)
     end.
 
-midi_hub()  -> {ok, Pid} = find(midi_hub), Pid.
-midi_jack() -> {ok, Pid} = find(midi_jack), Pid.
+midi_hub()   -> {ok, Pid} = find(midi_hub), Pid.
+midi_jack()  -> {ok, Pid} = find(midi_jack), Pid.
     
             
 studio_elf() ->

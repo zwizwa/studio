@@ -4,19 +4,18 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
-/* MIDI I/O + audio in
+/* MIDI I/O
 
-Note that the Erlang side is not supposed to handle MIDI or Audio for
-synth control.  Erlang jitter is too high to be used for music, so
-MIDI is considered "data plane", and all connectivity is implemented
-inside of jack.
+Note that the Erlang side is not supposed to handle MIDI for synth
+control.  Erlang jitter is too high to be used for music, so MIDI is
+considered "data plane", and all connectivity should be set up inside
+of jack.
 
 */
 
 
 static int nb_midi_out; static jack_port_t **midi_out = NULL;
 static int nb_midi_in;  static jack_port_t **midi_in  = NULL;
-static int nb_audio_in; static jack_port_t **audio_in  = NULL;
 static jack_client_t          *client = NULL;
 
 #define BPM_TO_PERIOD(sr,bpm) ((sr*60)/(bpm*24))
@@ -46,25 +45,6 @@ static ssize_t cmd_size[NB_CMD_BUFS];
 static uint8_t cmd_buf[NB_CMD_BUFS][CMD_BUF_SIZE];
 
 
-/* Outgoing is MIDI and audio.  We send audio only in larger chunks
- * for recording.  To distinguish from midi, use port 255. */
-struct audio {
-    uint8_t  size[4];       // {packet,4}
-    uint8_t  tag;           // midi port 255 is an escape code for audio
-    uint8_t  nb_channels;   // number of actual audio channels
-    uint8_t  nb_frames_log; // log2 of nb of frames
-    uint8_t  reserved;
-    jack_default_audio_sample_t *data;
-};
-static struct audio *audio;
-static ssize_t audio_size; // message buffer size
-static int audio_frames = 0;
-
-
-
-#define CHUNK_FRAMES_LOG 12
-#define CHUNK_FRAMES (1 << CHUNK_FRAMES_LOG)
-
 
 
 // TODO:
@@ -80,7 +60,32 @@ static inline void send_midi(void *out_buf, jack_nframes_t time,
 }
 
 
+// Collect MIDI data so a single write() syscall can be used.
+static uint8_t to_erl_buf[4096];
+static size_t to_erl_buf_bytes = 0;
+
+void to_erl(uint8_t *buf, int nb, uint8_t stamp) {
+    size_t msg_size = 4 + 1 + 1 + nb;
+    if (to_erl_buf_bytes + msg_size > sizeof(to_erl_buf)) {
+        LOG("midi buffer overflow\n");
+        return;
+    }
+    uint8_t *msg = &to_erl_buf[to_erl_buf_bytes];
+    set_u32be(msg, msg_size - 4); // {packet,4}
+    msg[4] = 0xFF;                // virtual port for clock data
+    msg[5] = stamp;               // rolling time stamp  (FIXME: use clock_time?)
+    memcpy(&msg[6], buf, nb);
+    to_erl_buf_bytes += msg_size;
+}
+
 static int process (jack_nframes_t nframes, void *arg) {
+
+    to_erl_buf_bytes = 0;
+
+
+    jack_nframes_t f = jack_last_frame_time(client);
+    uint8_t stamp = (f / nframes);
+
     void *midi_out_buf[nb_midi_out];
     for (int out=0; out<nb_midi_out; out++) {
         midi_out_buf[out] = jack_port_get_buffer(midi_out[out], nframes);
@@ -108,6 +113,7 @@ static int process (jack_nframes_t nframes, void *arg) {
         read_buf = (read_buf + 1) % NB_CMD_BUFS;
     }
 
+
     /* Send out the clock bytes at the designated time slots */
     while(clock_time < nframes) {
         /* Clock pulse fits in current frame. */
@@ -118,7 +124,12 @@ static int process (jack_nframes_t nframes, void *arg) {
                 send_midi(midi_out_buf[out], clock_time, clock, sizeof(clock));
             }
         }
-        /* Send subsampled clock to Erlang. */
+
+        /* Send to Erlang for recording. */
+        uint8_t tick = {0xF8};
+        to_erl(&tick, sizeof(tick), stamp);
+
+        /* Send subsampled clock to Erlang */
         // FIXME: Still necessary?
         //if (clock_sub_state == 0) {
         //    const uint8_t msg[] = {0,0,0,2,0xFF,0xF8};
@@ -145,17 +156,6 @@ static int process (jack_nframes_t nframes, void *arg) {
        // FIXME: add time stamps?
     */
 
-    static uint8_t to_erl_buf[4096];
-    size_t to_erl_buf_bytes = 0;
-
-#if 0
-    // test
-    if (blocks == 0) {
-        uint8_t *msg = &to_erl_buf[to_erl_buf_bytes];
-        set_u32be(msg, 1);
-        msg[4] = 123;
-    }
-#endif
 
     for (int in=0; in<nb_midi_in; in++) {
         void *midi_in_buf  = jack_port_get_buffer(midi_in[in], nframes);
@@ -164,53 +164,16 @@ static int process (jack_nframes_t nframes, void *arg) {
             jack_midi_event_t event;
             jack_midi_event_get(&event, midi_in_buf, i);
 
-            size_t msg_size = 4 + 1 + 1 + event.size;
-
-            if (to_erl_buf_bytes + msg_size > sizeof(to_erl_buf)) {
-                LOG("midi buffer overflow\n");
-                goto to_erl_write;
-            }
-
-            uint8_t *msg = &to_erl_buf[to_erl_buf_bytes];
-            set_u32be(msg, msg_size - 4); // {packet,4}
-            msg[4] = in;                  // this jack client's midi port number
-            msg[5] = blocks;              // rolling time stamp
-            memcpy(msg+6, event.buffer, event.size);
-
-            //LOG("msg n=%d\n", (int)msg_size);
-
-            to_erl_buf_bytes += msg_size;
+            to_erl(event.buffer, event.size, stamp);
         }
     }
 
-  to_erl_write:
     if (to_erl_buf_bytes) {
         //LOG("buf_bytes = %d\n", (int)to_erl_buf_bytes);
         assert_write(1, to_erl_buf, to_erl_buf_bytes);
     }
 
 
-    /* Bundle up incoming audio into manageable chunks. */
-    ASSERT(audio_frames + nframes <= CHUNK_FRAMES);
-#if 1
-    for (int in=0; in<nb_audio_in; in++) {
-        jack_default_audio_sample_t *src =
-            jack_port_get_buffer(audio_in[in], nframes);
-        jack_default_audio_sample_t *dst =
-            audio->data + (in * CHUNK_FRAMES) + audio_frames;
-
-        memcpy(dst, src, sizeof(*src) * nframes);
-    }
-#endif
-    audio_frames += nframes;
-
-    /* When bundle is full, write it out to erlang pipe for
-     * recording. */
-    if (audio_frames == CHUNK_FRAMES) {
-        LOG("audio_size = %d\n", audio_size);
-        //assert_write(1, (void*)audio, audio_size);
-        audio_frames = 0;
-    }
 
     blocks++;
     return 0;
@@ -218,23 +181,13 @@ static int process (jack_nframes_t nframes, void *arg) {
 
 
 
-
 int jack_midi(int argc, char **argv) {
-    ASSERT(argc == 6);
+    ASSERT(argc == 5);
     const char *client_name = argv[1];
     nb_midi_in  = atoi(argv[2]);  midi_in  = calloc(nb_midi_in,sizeof(void*));
     nb_midi_out = atoi(argv[3]);  midi_out = calloc(nb_midi_out,sizeof(void*));
     clock_mask  = atoi(argv[4]);
-    nb_audio_in = atoi(argv[5]);  audio_in  = calloc(nb_audio_in,sizeof(void*));
     LOG("clock_mask = %d\n", clock_mask);
-
-    audio_size = sizeof(audio) + CHUNK_FRAMES * nb_audio_in * sizeof(jack_default_audio_sample_t);
-    audio = calloc(1, audio_size);
-    set_u32be(audio->size, audio_size);
-    audio->tag = 255;
-    audio->nb_channels = nb_audio_in;
-    audio->nb_frames_log = CHUNK_FRAMES_LOG;
-    ASSERT(audio);
 
     jack_status_t status;
     client = jack_client_open (client_name, JackNullOption, &status);
@@ -250,12 +203,6 @@ int jack_midi(int argc, char **argv) {
         ASSERT(midi_out[out] = jack_port_register(
                    client, port_name,
                    JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0));
-    }
-    for (int in = 0; in < nb_audio_in; in++) {
-        snprintf(port_name,sizeof(port_name)-1,"audio_in_%d",in);
-        ASSERT(audio_in[in] = jack_port_register(
-                   client, port_name,
-                   JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0));
     }
     jack_set_process_callback (client, process, 0);
     ASSERT(!mlockall(MCL_CURRENT | MCL_FUTURE));
