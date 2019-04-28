@@ -53,7 +53,7 @@ static volatile unsigned int read_buf = 0, write_buf = 0;
 static uint8_t to_erl_buf[4096];
 static size_t to_erl_buf_bytes = 0;
 
-void to_erl(uint8_t *buf, int nb, uint8_t port, uint8_t stamp) {
+void to_erl(const uint8_t *buf, int nb, uint8_t port, uint8_t stamp) {
     size_t msg_size = 4 + 1 + 1 + nb;
     if (to_erl_buf_bytes + msg_size > sizeof(to_erl_buf)) {
         LOG("midi buffer overflow\n");
@@ -106,9 +106,9 @@ static inline void queue_write(struct queue *q, const struct event *e) {
     q->buf[q->write++ & NB_EVENTS_MASK] = *e;
 }
 
-/* TODO: The sequencer is under midi control.  Each loop has an input
- * mask for port events.  Recording is gated.  Start with 9 sequences
- * mapped to cc23-cc31, corresponding to the Easycontrol 9. */
+/* The sequencer is under midi control.  Each loop has an input
+   mask for port events.  Recording is gated.  Start with 9 sequences
+   mapped to cc23-cc31, corresponding to the Easycontrol 9. */
 struct track {
     struct queue q;
     uint32_t phase;
@@ -116,21 +116,33 @@ struct track {
     uint32_t port_mask;
 };
 static inline void track_tick(struct track *t) {
+    //LOG("phase %d\n", t->phase);
     if (!t->period) return; // FIXME
     t->phase = (t->phase + 1) % t->period;
 }
-static inline int track_next(struct track *t, struct event *e) {
-    struct event *pe = queue_peek(&t->q);
-    if (!pe || (t->phase != pe->phase)) {
-        // no events (at all) or none at this phase. nothing to do.
-        return 0;
+// FIXME: this creates an infinite loop in case there is only one
+// phase recorded, so do it in two steps: get the nb of elements to
+// send out and perform this loop a number of times.  or, just make it
+// an iterator. that would remove the ambiguity.
+
+
+typedef void (*play_t)(void *ctx, uint8_t port, const void *midi, size_t nb_bytes);
+static inline void track_playback(struct track *t, play_t play, void *ctx) {
+    uint32_t endx = t->q.write;
+    for(;;) {
+        const struct event *pe = queue_peek(&t->q);
+        if (!pe || (t->phase != pe->phase)) break;
+        // don't cycle more than once
+        if (t->q.read == endx) break;
+        // there is an event left at this time phase, so cycle the queue
+        struct event e;
+        queue_read(&t->q, &e);
+        queue_write(&t->q, &e);
+        LOG("play %d %d\n", e.port, e.nb_bytes);
+        play(ctx, e.port, &e.midi[0], e.nb_bytes);
     }
-    else {
-        // there is an event, so cycle the queue
-        queue_read(&t->q, e);
-        queue_write(&t->q, e);
-        return 1;
-    }
+    /* Advance time base once per Jack frame. */
+    track_tick(t);
 }
 static inline void track_record(struct track *t, uint8_t port,
                                 uint8_t *midi, int32_t nb_bytes) {
@@ -139,17 +151,25 @@ static inline void track_record(struct track *t, uint8_t port,
         .nb_bytes = nb_bytes,
         .port = port
     };
-    memcpy(&e.midi, &midi, nb_bytes);
+    if (nb_bytes) memcpy(&e.midi, &midi, nb_bytes);
     queue_write(&t->q, &e);
 }
 
 /* If record bit is set for a particular track, and the track's
  * port_mask is valid for the current port, record the event. */
-uint32_t record_mask;
-uint32_t playback_mask;
+uint32_t record_mask = 0;
+uint32_t playback_mask = -1;
 
 #define NB_TRACKS 9
 struct track track[NB_TRACKS];
+
+void tracks_init(void) {
+    // 4 bards at 120bpm is 2 seconds
+    uint32_t period = (48000*2) / 64;
+    for(int t=0; t<NB_TRACKS; t++) {
+        track[t].period = period;
+    }
+}
 
 
 // TODO:
@@ -157,11 +177,22 @@ struct track track[NB_TRACKS];
 // - set tempo
 
 
+// Send midi data out over a jack port.
 static inline void send_midi(void *out_buf, jack_nframes_t time,
                              const void *data_buf, size_t nb_bytes) {
     //LOG("%d %d %d\n", frames, time, (int)nb_bytes);
     void *buf = jack_midi_event_reserve(out_buf, time, nb_bytes);
     if (buf) memcpy(buf, data_buf, nb_bytes);
+}
+// Lambda-lifted version to be used with track_playback
+struct play_midi_ctx {
+    void **midi_out_buf;
+    jack_nframes_t time;
+};
+static void play_midi_fun(void *ctx, uint8_t port,
+                          const void *data_buf, size_t nb_bytes) {
+    struct play_midi_ctx *x = ctx;
+    send_midi(x->midi_out_buf[port], x->time, data_buf, nb_bytes);
 }
 
 static int process (jack_nframes_t nframes, void *arg) {
@@ -195,21 +226,26 @@ static int process (jack_nframes_t nframes, void *arg) {
         read_buf = (read_buf + 1) % NB_CMD_BUFS;
     }
 
+    /* Play back sequences.  Send these at time stamp 0 as well. */
+    static struct play_midi_ctx play_midi_ctx = {};
+    play_midi_ctx.midi_out_buf = &midi_out_buf[0];
+    for (int t=0; t<NB_TRACKS; t++) {
+        track_playback(&track[t], &play_midi_fun, &play_midi_ctx);
+    }
 
     /* Send out the MIDI clock bytes at the designated time slots */
     while(clock_time < nframes) {
         /* Clock pulse fits in current frame. */
+        const uint8_t clock[] = {0xF8};
         for (int out=0; out<nb_midi_out; out++) {
             if (clock_mask & (1 << out)) {
                 //LOG("F8 on %d\n", out);
-                const uint8_t clock[] = {0xF8};
                 send_midi(midi_out_buf[out], clock_time, clock, sizeof(clock));
             }
         }
 
         /* Send to Erlang for recording. */
-        uint8_t tick = {0xF8};
-        to_erl(&tick, sizeof(tick), 0xff, stamp);
+        to_erl(&clock[0], sizeof(clock), 0xff, stamp);
 
         /* Advance clock */
         clock_time += clock_period;
@@ -218,17 +254,6 @@ static int process (jack_nframes_t nframes, void *arg) {
     clock_time -= nframes;
 
 
-    /* Play back sequences */
-    for (int t=0; t<NB_TRACKS; t++) {
-        if (playback_mask & (1 << t)) {
-            struct event e;
-            while (track_next(&track[t], &e)) {
-                // Send the event out
-            }
-        }
-        /* Advance time base once per Jack frame. */
-        track_tick(&track[t]);
-    }
 
 
     /* Forward incoming midi.
@@ -251,15 +276,33 @@ static int process (jack_nframes_t nframes, void *arg) {
             jack_midi_event_t event;
             jack_midi_event_get(&event, midi_in_buf, i);
 
+            /* Record if enabled */
             for (int t=0; t<NB_TRACKS; t++) {
                 if (record_mask & (1 << t)) {
-                    // queue_push event FIXME
+                    LOG("record t=%d, in=%d, n=%d\n", t, in, (int)event.size);
+                    track_record(&track[t], in, event.buffer, event.size);
                 }
             }
+
+            /* Forward to Erlang */
             to_erl(event.buffer, event.size, in, stamp);
 
-            /* Interpret event for local control, e.g. set recorder
-             * masks. */
+            /* Local control: track record masks. */
+            const uint8_t *msg = event.buffer;
+            if (in == 0 &&
+                event.size == 3 &&
+                msg[0] == 0xB0 && // CC channel 0
+                (msg[1] >= 23) && // CC num on Easycontrol 9
+                (msg[1] <= 31)) {
+                uint32_t t = msg[1]-23;
+                if (msg[2]) {
+                    record_mask |= (1<<t);
+                }
+                else {
+                    record_mask &= ~(1<<t);
+                }
+                LOG("record %d %d\n", t, msg[2]);
+            }
         }
     }
 
@@ -281,6 +324,8 @@ int jack_midi(int argc, char **argv) {
     clock_mask  = atoi(argv[4]);
     LOG("clock_mask = %d\n", clock_mask);
 
+    tracks_init();
+
     jack_status_t status;
     client = jack_client_open (client_name, JackNullOption, &status);
     char port_name[32] = {};
@@ -299,6 +344,8 @@ int jack_midi(int argc, char **argv) {
     jack_set_process_callback (client, process, 0);
     ASSERT(!mlockall(MCL_CURRENT | MCL_FUTURE));
     ASSERT(!jack_activate(client));
+
+
     for(;;) {
         uint32_t n = assert_read_u32(0);
         ASSERT(n + 4 < sizeof(struct command));

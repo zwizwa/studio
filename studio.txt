@@ -1612,3 +1612,21 @@ then, optionally, if enqueue causes overrun, reallocate
 Design them as byte or word queues.
 
 EDIT: Implemented the data structure draft in jack_midi.c
+
+EDIT: Filled it in some more.  Basic structure seems to be there.
+Gaps need to be filled in and control is not clear yet.
+
+
+Entry: MIDI control
+Date: Sun Apr 28 01:00:54 EDT 2019
+
+Typical problem: how to send some more complex data structures over
+MIDI?  Maybe it is time for s-expressions.  Midi can send 0-127 in a
+sysex, so ASCII would be good.
+
+
+
+Entry: Next on sequencer
+Date: Sun Apr 28 08:11:16 EDT 2019
+
+Make the iteration over the "now" events abstract.
