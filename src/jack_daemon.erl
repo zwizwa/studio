@@ -33,7 +33,7 @@ handle({Port, {exit_status, _}=Msg}, #{port := Port}) ->
     exit(Msg);
 
 handle({line, <<"scan: ", Rest/binary>>=_Line}, State) ->
-    tools:info("~s~n",[_Line]),
+    %% tools:info("~s~n",[_Line]),
     {match,[_|[Action,_,Dir,Addr,Name]]} =
         re:run(Rest,
                <<"(\\S+) port (\\S+) (\\S+)\\-(hw\\-\\d+\\-\\d+\\-\\d+)\\-(\\S+)\n*">>,
@@ -51,7 +51,7 @@ handle({line, <<"scan: ", Rest/binary>>=_Line}, State) ->
             State
     end;
 handle({line, _Line}, State) -> 
-    tools:info("~s~n",[_Line]),
+    %% tools:info("~s~n",[_Line]),
     State;
 handle({client, Msg}, State) ->
     case Msg of

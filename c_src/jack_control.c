@@ -20,6 +20,7 @@
 */
 
 #define CMD_CONNECT 1
+#define CMD_DISCONNECT 2
 
 static jack_client_t          *client = NULL;
 
@@ -78,11 +79,19 @@ int jack_control(int argc, char **argv) {
         int len = assert_read_packet1(0, &buf);
         ASSERT(len > 0);
         switch(buf[0]) {
-            case CMD_CONNECT: {
+            case CMD_CONNECT:
+            case CMD_DISCONNECT: {
                 char *src = &buf[1];
                 char *dst = src + strlen(src) + 1;
                 // LOG("connect %s %s\n", src, dst);
-                jack_connect(client, src, dst);
+                switch(buf[0]) {
+                case CMD_CONNECT:
+                    jack_connect(client, src, dst);
+                    break;
+                case CMD_DISCONNECT:
+                    jack_disconnect(client, src, dst);
+                    break;
+                }
                 break;
             }
             default:

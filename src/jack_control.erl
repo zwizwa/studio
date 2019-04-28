@@ -16,7 +16,8 @@ start_link(Client) ->
     {ok, Pid}.
 
 %% Jack control client
--define(JACK_CONTROL_CMD_CONNECT,1).
+-define(CMD_CONNECT,1).
+-define(CMD_DISCONNECT,1).
 
 fmt_port(Bin) when is_binary(Bin) ->
     Bin;
@@ -41,11 +42,16 @@ handle(restart_port, State = #{ open_port := Args }) ->
 %% Protocol is asynchronous.  This makes it easier to use the return
 %% pipe for jack events.
 
-handle({connect, Src0, Dst0} = _Msg, State = #{ port := Port }) ->
-    log:info("~999p~n", [_Msg]),
+handle({connect, Src, Dst}, State) ->
+    handle({rewire,?CMD_CONNECT,Src,Dst}, State);
+handle({disconnect, Src, Dst}, State) ->
+    handle({rewire,?CMD_DISCONNECT,Src,Dst}, State);
+
+handle({rewire, RewireKind, Src0, Dst0} = _Msg, State = #{ port := Port }) ->
+    %% log:info("~999p~n", [_Msg]),
     Src = fmt_port(Src0),
     Dst = fmt_port(Dst0),
-    Cmd = <<?JACK_CONTROL_CMD_CONNECT,Src/binary,0,Dst/binary,0>>,
+    Cmd = <<RewireKind,Src/binary,0,Dst/binary,0>>,
     Port ! {self(), {command, Cmd}},
     State;
 
@@ -68,7 +74,10 @@ handle({Port,{data, Data}}, State = #{ port := Port }) ->
     case Parsed of
         {connect, true,  A, B} -> studio_db:connect(A, B);
         %% FIXME: Distinguish between disconnect due to client exit
-        %% and intentional, manual disconnect?
+        %% and intentional, manual disconnect?  It can be done on a
+        %% timing basis: if a port disconnect is immediately followed
+        %% by a client deregister, then don't permanently remove the
+        %% connection.
         %% {connect, false, A, B} -> studio_db:disconnect(A, B);
         _ -> ok
     end,

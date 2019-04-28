@@ -1541,6 +1541,74 @@ This is the basic code reload infrastructure:
 - restore connections when ports are created
 
 
+Entry: Next
+Date: Sat Apr 27 20:01:09 EDT 2019
+
+DB support is there.  The rest should be straightforward.  It's time
+to start making synth code.
 
 
 
+Entry: Gated MIDI recorder
+Date: Sat Apr 27 20:43:36 EDT 2019
+
+This is different from the permanent recorder, which is more for
+capturing "moments".  The gated recorder is intentional loop creation.
+
+What I need for this is a data structure.  This needs to be something
+that is easy to "advance".
+
+It seems more of a rust-like problem.
+
+So next step is to create a Rust Jack client with midi inputs.
+
+
+A simple structure would be a set of circular buffers, one for each
+cycle.  Just rebuild them on each cycle, merging incoming signals.
+This avoids the need to work with linked lists.
+
+So two approaches, per period:
+- a linked list (C)
+- a bouncing buffer (Rust)
+
+In jack, align them to the 64-sample buffer.
+
+
+To do these in C:
+- record midi events in a (growable) array
+- record the sequence in a circular list, referring to the events
+
+It's actually more convenient to think of this as a t->[e] map: time
+mapping to a set of events that happen at that time.  Recording an
+event will create a new list at t if it doesn't exist yet, otherwise
+it will append to the list.
+
+Linked lists are hard in Rust, but it seems that unless the circular
+"bounce" is used, it will be hard to do this properly.
+
+
+Note on linked lists in Rust:
+https://cglab.ca/~abeinges/blah/too-many-lists/book/README.html
+
+
+I'm just going to use circular bounce.  This will be straightforward
+in C as well.  The core is just a growable vector with iteration and
+bouncing based on the record periods.
+
+EDIT: It's pretty much just a delay line: a smaller circular buffer
+"rolled" inside a larger circular buffer of allocated space.  When
+events are added, the inner circle gets larger.
+
+For audio it is similar, but there the buffer is actually circular.
+
+So what are the primitives?
+
+- peek event (to check timestamp)
+- dequeue event
+- enqueue event
+
+then, optionally, if enqueue causes overrun, reallocate
+
+Design them as byte or word queues.
+
+EDIT: Implemented the data structure draft in jack_midi.c
