@@ -1630,3 +1630,106 @@ Entry: Next on sequencer
 Date: Sun Apr 28 08:11:16 EDT 2019
 
 Make the iteration over the "now" events abstract.
+EDIT: Got some sign of life.
+
+So it basically works.  But there is a lot of "management shit" that
+still needs to be implemented.
+
+- state marshalling
+- midi routing matrix
+
+The question is really to sysex or not.  It is not absolutely
+necessary, since there can be a more generic pipe between Erlang and
+the port program.  And it seems like a bit of a pain.  But once
+implemented, it might be useful for other things.
+
+Basically that 7-bit thing is awkward.  Text seems to be the only
+non-awkward way to deal with it.
+
+Yeah I don't want to do this with s-expressions.  Use binaries, and
+use a bit stream.
+
+https://blogs.bl0rg.net/netzstaub/2008/08/14/encoding-8-bit-data-in-midi-sysex/
+7 bytes + byte with msb
+
+Send the top bit byte first.  This avoids the need for adding a length
+spec.
+
+EDIT: I put some stub code there, but I need a test routine for these..
+
+So assume the enc/dec problem is soved pending bugs.  The remainder is
+then to allow for larger messages to be transferred.  I can't quite do
+this kind of work right now.
+
+
+
+Entry: Better control
+Date: Mon Apr 29 08:40:21 EDT 2019
+
+This needs some synchronization between high and low priority threads.
+Maybe try a new architecture?
+
+- low pri input thread
+- high pri processing thread
+- low pri output thread
+
+This way any state snapshotting can be done in the high pri thread,
+and communication delays can be handled in the low pri output thread.
+
+As for the queues: don't do any allocation.  For larger messages, add
+some form of round-trip acknowledgement.  This allows performing
+transactions over time.
+
+This is possible because the larger messages do not have any
+low-latency requirements, i.e. they are state save/restore.
+
+EDIT: Cleaned it up a bit, and made the buffers bigger to allow for
+64*8 encoded / 64*7 decoded sysex chunks to be transferred.
+
+
+
+Entry: Output thread not necessary?
+Date: Mon Apr 29 10:17:11 EDT 2019
+
+For simple midi it seems fine to just send a single write() call.  But
+it seems that at some point this will break down when bulkier messages
+are sent.
+
+I can just try this to see how it goes.  E.g. fill up with a dummy
+sysex message.
+
+It is possible to poll from the real-time thread to see if the
+low-priority thread has actually sent out a buffer.  This way some
+kind of priority scheduling can be done.  E.g. don't send sysex if the
+previous buffer didn't go out yet.
+
+This is actually an interesting problem.
+
+EDIT: I've done some tests, and it doesn't really seem to be a problem
+to send out small chunks of data continuously via the process thread.
+
+
+Entry: write() to an anonymous pipe
+Date: Mon Apr 29 11:15:14 EDT 2019
+
+I wonder, what are the guarantees that this will not block?  I.e. I
+just want it to keep buffering, assuming that eventually the low
+priority thread can do some bulk read to collect a bunch at once.
+
+For now the assumption is that it is ok to do continuous writes from
+the real time thread as long as the chunk size is "small".
+
+
+Entry: sysex tests
+Date: Mon Apr 29 14:24:15 EDT 2019
+
+Weird.  Simple function sysex_dec_size, not doing what I think it does.
+
+
+
+
+
+
+
+
+

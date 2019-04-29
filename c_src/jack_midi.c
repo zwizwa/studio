@@ -1,17 +1,78 @@
 #include "lib.h"
+#include "sysex.h"
 #include <jack/jack.h>
 #include <jack/midiport.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <pthread.h>
+#include <semaphore.h>
 
 /* MIDI I/O
 
-Note that the Erlang side is not supposed to handle MIDI for synth
-control.  Erlang jitter is too high to be used for music, so MIDI is
-considered "data plane", and all connectivity should be set up inside
-of jack.
+MIDI data is considered "data plane", since Erlang has too high
+latency.  Typically we run jack at 48kHz, 64 frames, with MIDI snapped
+to the jack frame rate, giving a 750Hz control rate.
+
+However, Erlang still has access to MIDI in/out as for some specific
+controls, the 1-10ms Erlang latency might be good enough.  This leaves
+things open: MIDI (hardware) for low latency, and Erlang for any kind
+of network-connected structure.
+
+Inside the jack process we operate:
+- Clock timing
+- Sequencing
+- The low-priority "sysex channel"
+
+I'm currently evaluating 2 designs.  The first one is simpler and
+seems to work out:
+
+- low pri input thread (= main)
+- real time jack process thread (in poll, direct single write() out)
+
+I'm not exactly sure why this works.  Maybe a single short (1 page)
+write to a pipe is about the same complexity from a semaphore post.
+I've definitely seen this cause issues when the write size gets
+larger.
+
+In any case, there is a second option, with more direct control over
+buffering:
+
+- low pri input thread (= main)
+- real time jack process thread (in poll, semaphore out)
+- low pri output thread (semaphore read)
+
+
+
+The low and high priority processes communicate using using single
+reader / signle writer lock free queues with fixed memory allocation.
+
+The input thread will throttle incoming data.
+
+The real time thread will drop data that does not fit in the output
+queue.
+
+Practical tests will need to indicate what would be good buffer sizes.
+
+
+Sysex is used to provide a streaming channel between Erlang and the
+real time thread, useful for transferring chunked data.  Flow control
+is handled through the delay in the input thread, and by chunking data
+in the real time thread.
 
 */
+
+
+
+/* Buffer specs.  FIXME: These could be made configurable at program
+   startup to allow tuning without recompilation. */
+
+/* Input */
+#define NB_FROM_ERL_BUFS 8
+#define MIDI_CMD_SIZE (4 + 64)
+
+/* Output */
+#define TO_ERL_SIZE_LOG 12
+#define TO_ERL_SIZE (1 << TO_ERL_SIZE_LOG)
 
 
 static int nb_midi_out; static jack_port_t **midi_out = NULL;
@@ -26,31 +87,84 @@ static jack_nframes_t clock_period = BPM_TO_PERIOD(48000, 120);
 static jack_nframes_t clock_time;
 static mask_t clock_mask = 0;
 
-#define NB_CMD_BUFS 8
-#define CMD_BUF_SIZE 8
 
-/* Erlang incoming is only MIDI.
+/* Erlang incoming is only MIDI.  We use sysex to tunnel any
+   non-standard data.
 
-   Data is received in blocking mode in the low-priority thread, to be
-   picked up by the process thread. */
+   As an illustration, this is the format used by Roland:
+
+   F0 sysex start
+   41 manufacturer code
+   :1 device id
+   :1 model id
+   :1 request(11) or send(12)
+   :1 address, object identifier
+   :* bulk data or number of bytes requested
+   41 checksum
+   F7 sysex end
+
+   For our purposes:
+
+   - We can use a virtual port to send/receive sysex, so the message
+     itself does not need to contain any identifiers that would be
+     used to perform further routing.
+
+   - Checksums are likely not necessary since transport between Erlang
+     and the port process is reliable.
+
+   - Any other semantics can be encoded inside the payload binary.
+
+   - It's ok to make this unidirectional, implementing the two
+     directions separately.  Any bi-directional communication can be
+     built on top of that.
+
+   - It can be assumed that all messages in a sysex stream chunk are
+     ordered and part of the same high level message.  Mutual
+     exclusion will need to be handled at the Erlang level.
+
+   This gives our simplified format:
+   F0 sysex start
+   .. manufacturer code
+   .. decoder info
+   :* bulk data in sysex.h 7<->8 byte enc/dec format
+   F7 sysex end
+
+   The decoder info tag can be used to assist assembly of multiple
+   packets.
+
+   For chunking it is convenient to use multiples of 8 bytes in the
+   bulk data, meaning the necessary buffer size is 4 + n * 8, where n
+   is the number of 8 byte packets.
+
+*/
 struct command {
     uint32_t size;  // {packet,4}
     mask_t   mask;  // Allow broadcasting
-    uint8_t  midibytes[0];
+    uint8_t  midi_bytes[MIDI_CMD_SIZE];
 } __attribute__((__packed__));
-static ssize_t cmd_size[NB_CMD_BUFS];
-static uint8_t cmd_buf[NB_CMD_BUFS][CMD_BUF_SIZE];
+static struct command from_erl_buf[NB_FROM_ERL_BUFS];
 
-static volatile unsigned int read_buf = 0, write_buf = 0;
+static volatile unsigned int from_erl_read = 0, from_erl_write = 0;
 
+static inline uint32_t command_nb_midi_bytes(struct command *c) {
+    return c->size - sizeof(mask_t);
+}
+
+#define CONTROL_PORT 31
 
 
 /* Erlang outgoing is also only MIDI.
 
-   Since this is called from the process thread, data is collected to
-   spend only a single write() syscall. */
+   All midi data is collected in a single buffer to allow spending
+   only a singlewrite() syscall in the process thread.
 
-static uint8_t to_erl_buf[4096];
+   This seems ok as long as the output size is small.  I'm guessing
+   that a single 4K page would be appropriate.  For standard 48kHz, 64
+   frame operation, that gives a 3MByte/sec transfer rate which should
+   be enough.
+*/
+
+static uint8_t to_erl_buf[TO_ERL_SIZE];
 static size_t to_erl_buf_bytes = 0;
 
 void to_erl(const uint8_t *buf, int nb, uint8_t port, uint8_t stamp) {
@@ -138,7 +252,7 @@ static inline void track_playback(struct track *t, play_t play, void *ctx) {
         struct event e;
         queue_read(&t->q, &e);
         queue_write(&t->q, &e);
-        LOG("play %d %d\n", e.port, e.nb_bytes);
+        //LOG("play %d %d\n", e.port, e.nb_bytes);
         play(ctx, e.port, &e.midi[0], e.nb_bytes);
     }
     /* Advance time base once per Jack frame. */
@@ -151,7 +265,7 @@ static inline void track_record(struct track *t, uint8_t port,
         .nb_bytes = nb_bytes,
         .port = port
     };
-    if (nb_bytes) memcpy(&e.midi, &midi, nb_bytes);
+    if (nb_bytes) memcpy(&e.midi[0], &midi[0], nb_bytes);
     queue_write(&t->q, &e);
 }
 
@@ -184,15 +298,20 @@ static inline void send_midi(void *out_buf, jack_nframes_t time,
     void *buf = jack_midi_event_reserve(out_buf, time, nb_bytes);
     if (buf) memcpy(buf, data_buf, nb_bytes);
 }
-// Lambda-lifted version to be used with track_playback
+// Lambda-lifted closure to be used with track_playback.  Data is sent
+// out over the midi ports and Erlang.  FIXME: There should be some
+// input->output routing here, as it is assumed that each instrument
+// just receives its own data back, which is not the general case.
 struct play_midi_ctx {
     void **midi_out_buf;
     jack_nframes_t time;
+    uint8_t stamp;
 };
 static void play_midi_fun(void *ctx, uint8_t port,
                           const void *data_buf, size_t nb_bytes) {
     struct play_midi_ctx *x = ctx;
     send_midi(x->midi_out_buf[port], x->time, data_buf, nb_bytes);
+    to_erl(data_buf, nb_bytes, port, x->stamp);
 }
 
 static int process (jack_nframes_t nframes, void *arg) {
@@ -210,25 +329,24 @@ static int process (jack_nframes_t nframes, void *arg) {
     }
     /* Jack requires us to sort the events, so send the async data
        first using time stamp 0. */
-    while(read_buf != write_buf) {
-        ssize_t cmd_offset = 0;
-        while (cmd_offset < cmd_size[read_buf]) {
-            struct command *cmd = (void*)&cmd_buf[read_buf][cmd_offset];
-            size_t nb_bytes = cmd->size - sizeof(mask_t);
-            /* Send to selected outputs */
-            for (int out=0; out<nb_midi_out; out++) {
-                if (cmd->mask & (1 << out)) {
-                    send_midi(midi_out_buf[out], 0/*time*/, cmd->midibytes, nb_bytes);
-                }
+    while(from_erl_read != from_erl_write) {
+        struct command *cmd = &from_erl_buf[from_erl_read];
+        /* Send to selected outputs */
+        for (int out=0; out<nb_midi_out; out++) {
+            if (cmd->mask & (1 << out)) {
+                uint32_t nb_midi_bytes = command_nb_midi_bytes(cmd);
+                // LOG("send_midi: %d\n", nb_midi_bytes);
+                send_midi(midi_out_buf[out], 0/*time*/,
+                          cmd->midi_bytes, nb_midi_bytes);
             }
-            cmd_offset += cmd->size+1;
         }
-        read_buf = (read_buf + 1) % NB_CMD_BUFS;
+        from_erl_read = (from_erl_read + 1) % NB_FROM_ERL_BUFS;
     }
 
     /* Play back sequences.  Send these at time stamp 0 as well. */
     static struct play_midi_ctx play_midi_ctx = {};
     play_midi_ctx.midi_out_buf = &midi_out_buf[0];
+    play_midi_ctx.stamp = stamp;
     for (int t=0; t<NB_TRACKS; t++) {
         track_playback(&track[t], &play_midi_fun, &play_midi_ctx);
     }
@@ -279,7 +397,7 @@ static int process (jack_nframes_t nframes, void *arg) {
             /* Record if enabled */
             for (int t=0; t<NB_TRACKS; t++) {
                 if (record_mask & (1 << t)) {
-                    LOG("record t=%d, in=%d, n=%d\n", t, in, (int)event.size);
+                    //LOG("record t=%d, in=%d, n=%d\n", t, in, (int)event.size);
                     track_record(&track[t], in, event.buffer, event.size);
                 }
             }
@@ -306,6 +424,27 @@ static int process (jack_nframes_t nframes, void *arg) {
         }
     }
 
+    if (0) {
+        /* Sysex pressure test.  This seems to not cause any issues.
+         * Trouble is I don't really understand why it works, because
+         * I've definitely seen issues when using larger messages
+         * (order of 128kByte, for audio). */
+        uint8_t sysex[] = {
+            0xF0, 55,
+            1,2,3,4,5,6,7,8,
+            1,2,3,4,5,6,7,8,
+            1,2,3,4,5,6,7,8,
+            1,2,3,4,5,6,7,8,
+            1,2,3,4,5,6,7,8,
+            1,2,3,4,5,6,7,8,
+            1,2,3,4,5,6,7,8,
+            1,2,3,4,5,6,7,8,
+            1,2,3,4,5,6,7,8,
+            0xF7};
+        to_erl(sysex, sizeof(sysex), CONTROL_PORT, stamp);
+    }
+
+
     if (to_erl_buf_bytes) {
         //LOG("buf_bytes = %d\n", (int)to_erl_buf_bytes);
         assert_write(1, to_erl_buf, to_erl_buf_bytes);
@@ -314,18 +453,29 @@ static int process (jack_nframes_t nframes, void *arg) {
     return 0;
 }
 
-
+pthread_t output_thread;
+sem_t output_sema;
+static void *output_thread_main(void *ctx) {
+    for(;;) {
+        ASSERT_ERRNO(sem_wait(&output_sema));
+    }
+}
 
 int jack_midi(int argc, char **argv) {
     ASSERT(argc == 5);
+
+    /* State init */
+    tracks_init();
+
+    /* Output thread. */
+    pthread_create(&output_thread, NULL, &output_thread_main, NULL);
+
+    /* Jack client setup */
     const char *client_name = argv[1];
     nb_midi_in  = atoi(argv[2]);  midi_in  = calloc(nb_midi_in,sizeof(void*));
     nb_midi_out = atoi(argv[3]);  midi_out = calloc(nb_midi_out,sizeof(void*));
     clock_mask  = atoi(argv[4]);
     LOG("clock_mask = %d\n", clock_mask);
-
-    tracks_init();
-
     jack_status_t status;
     client = jack_client_open (client_name, JackNullOption, &status);
     char port_name[32] = {};
@@ -345,16 +495,59 @@ int jack_midi(int argc, char **argv) {
     ASSERT(!mlockall(MCL_CURRENT | MCL_FUTURE));
     ASSERT(!jack_activate(client));
 
-
+    /* Input loop. */
     for(;;) {
-        uint32_t n = assert_read_u32(0);
-        ASSERT(n + 4 < sizeof(struct command));
-        struct command *cmd = (void*)&cmd_buf[write_buf];
-        cmd->size = n;
-        cmd_size[write_buf] = n;
-        assert_read(0, &cmd_buf[write_buf][4], n - 4);
-        LOG("msg: n=%d\n", n);
-        write_buf = (write_buf + 1) % NB_CMD_BUFS;  // FIXME: req: atomic write!
+        while (((from_erl_write - from_erl_read) % NB_FROM_ERL_BUFS) 
+               == (NB_FROM_ERL_BUFS - 1)) {
+            /* Not much that can be done here except for polling until
+               there is am available slot.  Tune buffer sizes such
+               that this won't happen. */
+            LOG("input stall\n");
+            usleep(1000);
+        }
+        struct command *cmd = &from_erl_buf[from_erl_write];
+        memset(cmd, 0, sizeof(*cmd));
+        assert_read_packet4_static(0, cmd, sizeof(*cmd));
+
+
+        // (exo@10.1.3.12)2> jack_midi ! {midi,16#80000000,<<16#F0,1,2,3,4,16#F7>>}.
+        if (cmd->mask & (1 << CONTROL_PORT)) {
+            uint8_t *midi = &cmd->midi_bytes[0];
+            uint32_t nb_midi = command_nb_midi_bytes(cmd);
+            if (nb_midi > 3             &&
+                midi[0]         == 0xF0 &&
+                // manufacturer.  what to do here?  using 0x60 (reserved)
+                // use this? https://www.midi.org/specifications-old/item/manufacturer-id-numbers
+                midi[1]          == 0x60  &&
+                midi[nb_midi-1] == 0xF7) {
+                // Framing is ok.  Interpret the data.
+                uint32_t nb_enc = nb_midi - 3;
+                int32_t nb_dec = sysex_dec_size(nb_enc);
+                LOG("control port sysex: %d -> %d\n", nb_enc, nb_dec);
+                ASSERT(nb_dec >= 0);
+
+                uint8_t dec[nb_dec];
+                memset(dec, 0, sizeof(dec));
+                sysex_dec(midi + 2, nb_enc, dec);
+                for (int i=0; i<nb_dec; i++) {
+                    LOG(" %02x", dec[i]);
+                }
+                LOG("\n");
+
+                uint8_t enc[nb_enc];
+                memset(enc, 0, sizeof(enc));
+                sysex_enc(dec, nb_dec, enc);
+                for (int i=0; i<nb_enc; i++) {
+                    LOG(" %02x", enc[i]);
+                }
+                LOG("\n");
+
+            }
+        }
+
+
+        // LOG("msg: n=%d\n", cmd->size);
+        from_erl_write = (from_erl_write + 1) % NB_FROM_ERL_BUFS;
     }
     return 0;
 }

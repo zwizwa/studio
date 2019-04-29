@@ -76,10 +76,18 @@ handle({Port,{data, Msg}},
         {ok, Pid} -> Pid ! Msg;
         _ -> ok
     end,
-    <<MidiPort,TimeStamp,BinMidi/binary>> = Msg,
-    lists:foreach(
-      fun(DecMidi) -> BC ! {broadcast, {midi, TimeStamp, {jack, MidiPort}, DecMidi}} end,
-      midi:decode(BinMidi)),
+    case Msg of
+        <<255,_,16#F0,_/binary>>=_Sysex ->
+            %% Note that MIDI spec allows real-time messages to be
+            %% mixed with sysex messages, but what comes from
+            %% jack_midi.c will be clean sysex.
+            %% log:info("sysex ~p~n", [size(_Sysex)]),
+            ok;
+        <<MidiPort,TimeStamp,BinMidi/binary>> ->
+            lists:foreach(
+              fun(DecMidi) -> BC ! {broadcast, {midi, TimeStamp, {jack, MidiPort}, DecMidi}} end,
+              midi:decode(BinMidi))
+    end,
     State;
 
 %% The recorder is separate from the broadcast mechanism.  Assume there is only one.
