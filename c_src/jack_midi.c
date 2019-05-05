@@ -203,14 +203,6 @@ static void to_erl(const uint8_t *buf, int nb, uint8_t port, uint8_t stamp) {
    simple to generate be it 2 to 3 times less efficient.
 */
 
-// Erlang-style
-#define DUMP_OPEN  '['
-#define DUMP_CLOSE ']'
-#define DUMP_SEP   ','
-// Lisp-style
-//#define DUMP_OPEN  '('
-//#define DUMP_CLOSE ')'
-//#define DUMP_SEP   ' '
 
 static uint8_t dump_buf[1024 * 64];
 static uint32_t dump_buf_write, dump_buf_read;
@@ -221,55 +213,19 @@ static void dump_start(void) {
 static uint32_t dump_end(void) {
     return dump_buf_write;
 }
-static void dump_char(uint8_t c) {
-    dump_buf[dump_buf_write++] = c;
-}
-static void dump(uint8_t *buf, uint32_t len) {
-    int i = 0;
-    while((dump_buf_write < sizeof(dump_buf)) && (i < len)) {
-        dump_char(buf[i++]);
-    }
-    if (i < len) {
-        LOG("dropping bytes %d %d\n", i, len);
+static void dump_byte(uint8_t c) {
+    if (dump_buf_write < sizeof(dump_buf)) {
+        dump_buf[dump_buf_write++] = c;
     }
 }
-static void dump_sep(void) {
-    /* Conditionally dump separator */
-    if (dump_buf_write == 0) return;
-    if (dump_buf[dump_buf_write-1] == DUMP_OPEN) return;
-    dump_char(DUMP_SEP);
-}
-static void dump_string(const char *buf) {
-    dump((void*)buf, strlen(buf));
+static uint8_t dump_last_byte(void) {
+    if (dump_buf_write == 0) return 0;
+    return dump_buf[dump_buf_write-1];
 }
 
-static void dump_number(uint32_t n) {
-    if (n == 0) {
-        dump_sep();
-        dump_char('0');
-        return;
-    }
-    int offset = 5;
-    char buf[5];
-    while(n) {
-        buf[--offset] = '0' + n % 10;
-        n = n / 10;
-    }
-    dump_sep();
-    dump((void*)&buf[offset], sizeof(buf)-offset);
-}
-static void dump_tag(const char *str) {
-    dump_sep();
-    dump_string(str);
-}
-static void dump_open(const char *str) {
-    dump_sep();
-    dump_char(DUMP_OPEN);
-    if (str) dump_tag(str);
-}
-static void dump_close(void) {
-    dump_char(DUMP_CLOSE);
-}
+#define NS(name) CONCAT(dump,name)
+#include "ns_dump.h"
+
 
 /* Sequencer.
 
@@ -313,11 +269,9 @@ typedef struct event_queue  event_queue_container_t;
 #include "ns_queue.h"
 
 static inline void dump_event_queue(struct event_queue *q) {
-    dump_open("q");
     for (uint32_t p = q->read; p != q->write; p = (p + 1) % NB_EVENTS) {
         dump_event(&q->buf[p]);
     }
-    dump_close();
 }
 
 
