@@ -12,7 +12,7 @@
          start_link/0,
          trigger_start/2, trigger_cc/1,
          not_tc/1,
-         sysex_encode/1, sysex_decode/1
+         sysex_encode/1, sysex_decode/1, sysex_decode_framed/1
          %%,db/0,sql/1,port_id/1,midiclock_mask/0
         ]).
 %% Original idea was to route messages over broadcast, but that works
@@ -147,4 +147,9 @@ sysex_decode(Bin) ->
       end,
       tools:nchunks(0, size(Bin), 8)).
 
-               
+%% FIXME: Untested.
+sysex_decode_framed(<<16#F0,Manufacturer,Rest/binary>>) ->
+    Size = size(Rest),
+    16#F7 = binary:at(Rest, Size-1),
+    {Manufacturer, sysex_decode(binary:part(Rest, 0, Size-1))}.
+

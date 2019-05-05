@@ -77,17 +77,24 @@ handle({Port,{data, Msg}},
         _ -> ok
     end,
     case Msg of
+        %% OLD VERSION: encoded binary
+        %% <<31,_TimeStamp,16#F0,_/binary>>=Sysex ->
+        %%     N = size(Sysex),
+        %%     Enc = binary:part(Sysex, 4, N-5),
+        %%     Dec = midi:sysex_decode(Enc),
+            
+        %%     %% Note that MIDI spec allows real-time messages to be
+        %%     %% mixed with sysex messages, but what comes from
+        %%     %% jack_midi.c will be clean sysex.
+        %%     %% log:info("sysex ~p~n", [size(_Sysex)]),
+        %%     log:info("sysex ~p~n", [Sysex]),
+        %%     log:info("sysex dec: ~p~n", [Dec]),
+        %%     ok;
+        %% New version: ASCII pterm
         <<31,_TimeStamp,16#F0,_/binary>>=Sysex ->
             N = size(Sysex),
-            Enc = binary:part(Sysex, 4, N-5),
-            Dec = midi:sysex_decode(Enc),
-            
-            %% Note that MIDI spec allows real-time messages to be
-            %% mixed with sysex messages, but what comes from
-            %% jack_midi.c will be clean sysex.
-            %% log:info("sysex ~p~n", [size(_Sysex)]),
-            log:info("sysex ~p~n", [Sysex]),
-            log:info("sysex dec: ~p~n", [Dec]),
+            PTerm = binary:part(Sysex, 4, N-5),
+            log:info("sysex pterm: ~p~n", [PTerm]),
             ok;
         <<MidiPort,TimeStamp,BinMidi/binary>> ->
             lists:foreach(

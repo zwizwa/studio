@@ -191,14 +191,26 @@ static void to_erl(const uint8_t *buf, int nb, uint8_t port, uint8_t stamp) {
 
 /* State dump.
 
-   The basic idea to structure this, is that we can send small chunks
-   of sysex data from the main thread.  It is not clear how large
-   those chunks can be, so make the chunk size programmable for now.
+   To avoid mutual exclusion issues, send it from the process thread.
+   CPU usage is not the issue, but we do need to be careful about the
+   data size sent from the process thread.  So we buffer the dump,
+   then send it out in chunks.
 
-   Since memory usage is not really an issue, snapshot the data into a
-   large(r) buffer, and send it out in chunks.
-
+   The protocol is essentially tagged s-expressions. This solves two
+   problems: no 8 bit -> 7 bit encoding is necessary, and a little
+   more robustness is created in case the protocol evolves.  Flat
+   binary formats are a pain to maintain, and s-expressions are fairly
+   simple to generate be it 2 to 3 times less efficient.
 */
+
+// Erlang-style
+#define DUMP_OPEN  '['
+#define DUMP_CLOSE ']'
+#define DUMP_SEP   ','
+// Lisp-style
+//#define DUMP_OPEN  '('
+//#define DUMP_CLOSE ')'
+//#define DUMP_SEP   ' '
 
 static uint8_t dump_buf[1024 * 64];
 static uint32_t dump_buf_write, dump_buf_read;
@@ -209,21 +221,55 @@ static void dump_start(void) {
 static uint32_t dump_end(void) {
     return dump_buf_write;
 }
-static uint32_t dump(uint8_t *buf, uint32_t len) {
+static void dump_char(uint8_t c) {
+    dump_buf[dump_buf_write++] = c;
+}
+static void dump(uint8_t *buf, uint32_t len) {
     int i = 0;
     while((dump_buf_write < sizeof(dump_buf)) && (i < len)) {
-        dump_buf[dump_buf_write++] = buf[i++];
+        dump_char(buf[i++]);
     }
     if (i < len) {
         LOG("dropping bytes %d %d\n", i, len);
     }
-    return i;
+}
+static void dump_sep(void) {
+    /* Conditionally dump separator */
+    if (dump_buf_write == 0) return;
+    if (dump_buf[dump_buf_write-1] == DUMP_OPEN) return;
+    dump_char(DUMP_SEP);
+}
+static void dump_string(const char *buf) {
+    dump((void*)buf, strlen(buf));
 }
 
-
-
-
-
+static void dump_number(uint32_t n) {
+    if (n == 0) {
+        dump_sep();
+        dump_char('0');
+        return;
+    }
+    int offset = 5;
+    char buf[5];
+    while(n) {
+        buf[--offset] = '0' + n % 10;
+        n = n / 10;
+    }
+    dump_sep();
+    dump((void*)&buf[offset], sizeof(buf)-offset);
+}
+static void dump_tag(const char *str) {
+    dump_sep();
+    dump_string(str);
+}
+static void dump_open(const char *str) {
+    dump_sep();
+    dump_char(DUMP_OPEN);
+    if (str) dump_tag(str);
+}
+static void dump_close(void) {
+    dump_char(DUMP_CLOSE);
+}
 
 /* Sequencer.
 
@@ -238,12 +284,18 @@ struct event {
     uint8_t port;
     uint8_t midi[EVENT_MIDI_SIZE];
 } __attribute__((__packed__));
-#define DUMP_VAR(var) dump((void*)(&var), sizeof(var))
+
+
 static inline void dump_event(struct event *e) {
-    DUMP_VAR(e->phase);
-    DUMP_VAR(e->nb_bytes);
-    DUMP_VAR(e->port);
-    dump(&e->midi[0], e->nb_bytes);
+    dump_open("e");
+    dump_number(e->phase);
+    dump_number(e->port);
+    dump_open("m");
+    for(int i=0;i<e->nb_bytes;i++) {
+        dump_number(e->midi[i]);
+    }
+    dump_close();
+    dump_close();
 }
 
 // Keep these a power of two, such that % can be optimized to &.
@@ -261,11 +313,11 @@ typedef struct event_queue  event_queue_container_t;
 #include "ns_queue.h"
 
 static inline void dump_event_queue(struct event_queue *q) {
-    uint16_t n = event_queue_nb_stored(q);
-    dump((void*)&n, sizeof(n));
+    dump_open("q");
     for (uint32_t p = q->read; p != q->write; p = (p + 1) % NB_EVENTS) {
         dump_event(&q->buf[p]);
     }
+    dump_close();
 }
 
 
@@ -359,12 +411,12 @@ void tracks_init(void) {
 }
 
 void dump_track(struct track *t) {
-    dump((void*) &t->period, sizeof(t->period));
+    dump_open("t");
+    dump_number(t->period);
     dump_event_queue(&t->q);
+    dump_close();
 }
-
-
-
+//  <<"[t,1500,[q,[e0,3,[m,176,5,2]],[e0,3,[m,176,5,2]]]]">>
 
 
 
@@ -636,16 +688,16 @@ static inline void process_erl_out(uint8_t stamp) {
     }
 
     /* Empty the dump buf. */
+
     uint32_t dump_buf_size = dump_buf_write - dump_buf_read;
     if (dump_buf_size) {
-        uint32_t enc_size = sysex_encode_size(dump_buf_size);
-        uint8_t *hole = to_erl_hole(enc_size + 3, CONTROL_PORT, stamp);
+        // New version: dump as ASCII s-expression
+        uint8_t *hole = to_erl_hole(dump_buf_size + 3, CONTROL_PORT, stamp);
         ASSERT(hole);
         hole[0] = 0xF0;
         hole[1] = 0x60;
-        hole[enc_size + 2] = 0xF7;
-        sysex_encode(hole + 2, &dump_buf[dump_buf_read], dump_buf_size);
-        log_buf("sysex: ", hole, enc_size+3);
+        hole[dump_buf_size + 2] = 0xF7;
+        memcpy(hole + 2, &dump_buf[dump_buf_read], dump_buf_size);
         dump_buf_read = dump_buf_write;
     }
 

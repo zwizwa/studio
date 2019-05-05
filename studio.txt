@@ -1795,7 +1795,14 @@ But I want to do this differently. It seems all a little too
 convoluted.
 
 What about providing a mechanism to swap the whole state atomically,
-and have the low priority thread process the state.
+and have the low priority thread process the state?
 
 
+Entry: Dump as text instead
+Date: Sun May  5 14:41:53 EDT 2019
+
+While it works, I think this binary format is going to give issues.
+
+It doesn't take much more effort to just dump as text.  This way the
+sysex doesn't need to be decoded.
 
