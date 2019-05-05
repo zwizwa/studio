@@ -115,6 +115,24 @@ handle({control,Bin}, State) ->
     Midi = iolist_to_binary([16#F0, 16#60, Enc, 16#F7]),
     log:info("sysex midi: ~p~n", [{Bin,Midi}]),
     handle({midi, 16#80000000, Midi}, State);
+%% jack_midi ! {edit, #{ type=>0,track=>0,phase=>0,port=>0,midi=>midi:encode({cc,0,1,2})}}.
+handle({edit,
+        #{ type := Type, track := Track, phase := Phase, port := Port,
+           midi := Midi }},
+       State) when is_binary(Midi) ->
+    NbBytes = size(Midi),
+    PaddedMidi = binary:part(<<Midi/binary, 0,0,0,0>>, 0, 4),
+    %% Map it to C struct layout.
+    handle({control,
+            <<1:32/little,  %% cmd
+              Type,
+              Track,
+              0:16/little,
+              Phase:16/little,
+              NbBytes,
+              Port,
+              PaddedMidi/binary>>},
+           State);
 
 handle({midi,PortMask,Data}, #{ port := Port } = State) ->
     Bin = ?IF(is_binary(Data), Data, midi:encode(Data)),

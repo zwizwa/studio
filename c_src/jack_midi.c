@@ -224,7 +224,7 @@ struct event {
     uint8_t nb_bytes;
     uint8_t port;
     uint8_t midi[EVENT_MIDI_SIZE];
-};
+} __attribute__((__packed__));
 #define DUMP_VAR(var) dump((void*)(&var), sizeof(var))
 static inline void dump_event(struct event *e) {
     DUMP_VAR(e->phase);
@@ -260,7 +260,7 @@ struct edit {
     uint8_t track;
     uint16_t _reserved;
     struct event event;
-};
+} __attribute__((__packed__));
 struct edit_queue {
     struct edit buf[NB_EDITS];
     uint32_t read;
@@ -380,20 +380,34 @@ static void play_midi_fun(void *ctx, uint8_t port,
     to_erl(data_buf, nb_bytes, port, x->stamp);
 }
 
+
+// FIXME: This uses asserts for protocol errors since it is more
+// convenient.  Maybe later replace them with non-fatal ignores.
 static inline void process_dec_sysex(uint8_t *buf, uint32_t nb_bytes) {
-
     LOG("sysex: "); for (int i=0; i<nb_bytes; i++) { LOG(" %02x", buf[i]); } LOG("\n");
-
-    ASSERT(nb_bytes >= 4);  // FIXME: don't crash
+    ASSERT(nb_bytes >= 4);
     uint32_t cmd = *((uint32_t*)buf);
+    buf += 4;
+    nb_bytes -= 4;
     switch(cmd) {
-        default:
-            break;
+    case 1: {
+        ASSERT(nb_bytes == sizeof(struct edit));
+        struct edit *edit = (void*)buf;
+        ASSERT(edit->event.nb_bytes <= EVENT_MIDI_SIZE);
+        LOG("writing edit/n");
+        edit_queue_write(&edit_queue, edit);
+        break;
     }
-    // uint32_t nb_sysex = nb_midi - 3;
-    // Control commands, e.g. dump request
-    // dump_track(&track[0]);
-    // LOG("control sysex %d\n", dump_buf_write);
+    case 2: {
+        // uint32_t nb_sysex = nb_midi - 3;
+        // Control commands, e.g. dump request
+        // dump_track(&track[0]);
+        // LOG("control sysex %d\n", dump_buf_write);
+        break;
+    }
+    default:
+        break;
+    }
 }
 
 static inline void process_erl_in(void **midi_out_buf) {
@@ -450,7 +464,11 @@ static inline void process_edit(void **midi_out_buf, uint8_t stamp) {
      * until next time. */
     jack_nframes_t time = 0;
 
+    //static int ignore = 0;
+
     for(;;) {
+        //if (ignore) break;
+
         const struct edit *pe = edit_queue_peek(&edit_queue);
         if (!pe) break; // no edit events
         const struct event *e = &pe->event;
@@ -468,6 +486,9 @@ static inline void process_edit(void **midi_out_buf, uint8_t stamp) {
            play it back. */
         track_record_event(t, e);
         send_midi(midi_out_buf[e->port], time, &e->midi[0], e->nb_bytes);
+        edit_queue_drop(&edit_queue);
+
+        //ignore = 1;
     }
 }
 
