@@ -416,7 +416,7 @@ static void log_buf(const char *name, uint8_t *buf, uint32_t len) {
 // convenient.  Maybe later replace them with non-fatal logging
 // ignores.
 static inline void process_dec_sysex(uint8_t *buf, uint32_t nb_bytes) {
-    //LOG("decoded sysex: "); for (int i=0; i<nb_bytes; i++) { LOG(" %02x", buf[i]); } LOG("\n");
+    // log_buf("decoded sysex: ", buf, nb_bytes);
     ASSERT(nb_bytes >= 4);
     uint32_t cmd = *((uint32_t*)buf);
     buf += 4;
@@ -454,7 +454,7 @@ static inline void process_dec_sysex(uint8_t *buf, uint32_t nb_bytes) {
         dump_start();
         dump_track(&track[track_nb]);
         uint32_t len = dump_end();
-        log_buf("dump buf: ", dump_buf, len);
+        //log_buf("dump buf: ", dump_buf, len);
         break;
     }
     default:

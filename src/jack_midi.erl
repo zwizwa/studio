@@ -35,7 +35,7 @@ start_link(Client,MidiNI,MidiNO,ClockMask) ->
                 _Ref = erlang:monitor(process, BC),
                 handle(restart_port,
                        #{ open_port => OpenPort,
-                          chunks => {0,[]},
+                          dump => idle,
                           bc => BC })
         end,
         fun ?MODULE:handle/2})}.
@@ -71,14 +71,18 @@ handle({Port,{exit_status,_}=E}, #{ port := Port } = _State) ->
 %% take different paths.
 
 handle({Port,{data, Msg}}, 
-       #{ port := Port, bc := BC, chunks := {Balance0,Chunks0} } = State) ->
+       #{ port := Port, bc := BC, dump := Dump } = State) ->
     %% log:info("~p~n",[Msg]),
     case maps:find(recorder, State) of
         {ok, Pid} -> Pid ! Msg;
         _ -> ok
     end,
     case Msg of
+        %% Sysex dump to the control port is assumed to be
+        %% s-expressions.  Message is chunked since we can't transfer
+        %% too much at once without causing real-time issues.
         <<31,_TimeStamp,16#F0,_/binary>>=Sysex ->
+            {Balance0,Chunks0,ReplyTo} = Dump,  %% Just fail on bad match.
             N = size(Sysex),
             Chunk = binary:part(Sysex, 4, N-5),
             Balance = balance(Balance0, Chunk),
@@ -87,10 +91,15 @@ handle({Port,{data, Msg}},
                 0 ->
                     %% Form is complete.
                     Bin = iolist_to_binary(lists:reverse(Chunks)),
-                    log:info("pterm:~p~n", [type:decode({pterm, Bin})]),
-                    maps:put(chunks, {0, []}, State);
+                    Term = type:decode({pterm, Bin}),
+                    %% log:info("pterm:~p~n", [Term]),
+                    case ReplyTo of
+                        no_reply -> ok;
+                        _ -> obj:reply(ReplyTo, {ok, Term})
+                    end,
+                    maps:put(dump, idle, State);
                 _ ->
-                    maps:put(chunks, {Balance, Chunks}, State)
+                    maps:put(dump, {Balance,Chunks,ReplyTo}, State)
             end;
         <<MidiPort,TimeStamp,BinMidi/binary>> ->
             lists:foreach(
@@ -153,11 +162,19 @@ handle({clear_track, N}, State) when is_number(N) ->
               N:32/little>>},
            State);
 
-handle({dump_track, N}, State) when is_number(N) ->
-    handle({control,
-            <<3:32/little,  %% cmd
-              N:32/little>>},
-           State);
+%% FIXME: Dumps should be serialized via another process.  For
+%% convenience we do implement obj:call interface here, but will need
+%% to return an error if an operation is in progress.
+handle({ReplyTo,{dump_track, N}}, State = #{ dump := Dump }) when is_number(N) ->
+    case Dump of
+        idle ->
+            handle({control,
+                    <<3:32/little,  %% cmd
+                      N:32/little>>},
+                   maps:put(dump,{0,[],ReplyTo}, State));
+        _ ->
+            obj:reply(ReplyTo, {error, busy})
+    end;
 
 handle({midi,PortMask,Data}, #{ port := Port } = State) ->
     Bin = ?IF(is_binary(Data), Data, midi:encode(Data)),
@@ -171,7 +188,7 @@ handle(Msg, State) ->
 
 %% jack_midi ! {midi,16#80000000,<<16#F0, 16#60, 63, 1,2,3,4,5,6,7, 16#F7>>}.
 
-
+%% Compute expression balance.
 balance(S0, Bin) ->
     lists:foldr(
       fun($[,S) -> S+1;
@@ -180,9 +197,6 @@ balance(S0, Bin) ->
       end,
       S0,
       binary_to_list(Bin)).
-              
-        
-
 
 %% {0,<<"[t,1500,[e,0,0,[m,176,1,2]],[e,0,0,[m,176,1,2]],[e,0,0,">>}
 %% {0,<<"[m,176,1,2]],[e,0,0,[m,176,1,2]]]">>}
