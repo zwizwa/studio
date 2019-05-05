@@ -12,7 +12,7 @@
          start_link/0,
          trigger_start/2, trigger_cc/1,
          not_tc/1,
-         sysex_encode/1
+         sysex_encode/1, sysex_decode/1
          %%,db/0,sql/1,port_id/1,midiclock_mask/0
         ]).
 %% Original idea was to route messages over broadcast, but that works
@@ -132,5 +132,19 @@ sysex_encode(Bin) ->
       end,
       tools:nchunks(0, size(Bin), 7)).
     
+
+sysex_decode(Bin) ->
+    lists:map(
+      fun({Start,Size}) ->
+              <<MSB,Chunk/binary>> = binary:part(Bin, Start, Size),
+              LSBs = binary_to_list(Chunk),
+              {MSBs,_} = lists:split(
+                           size(Chunk), 
+                           lists:reverse([V || <<V:1>> <= <<MSB>>])),
+              lists:map(
+                fun({H,L}) -> (H bsl 7) bor (L band 127) end,
+                lists:zip(MSBs,LSBs))
+      end,
+      tools:nchunks(0, size(Bin), 8)).
 
                

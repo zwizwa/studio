@@ -6,13 +6,13 @@
 
 // FIXME: untested!
 
-static inline int32_t sysex_enc_size(uint32_t dec_size) {
+static inline int32_t sysex_encode_size(uint32_t dec_size) {
     uint32_t q = dec_size / 7;
     uint32_t r = dec_size % 7;
     uint32_t nb_prefixes = q + r ? 1 : 0;
     return nb_prefixes + (7 * q) + r;
 }
-static inline int32_t sysex_dec_size(uint32_t enc_size) {
+static inline int32_t sysex_decode_size(uint32_t enc_size) {
     uint32_t q = enc_size / 8;
     uint32_t r = enc_size % 8;
     if (r == 1) r = 0; // ignore spurious MSB byte
@@ -22,7 +22,7 @@ static inline int32_t sysex_dec_size(uint32_t enc_size) {
 // Destination buffers are assumed to have correct size.  Use the two
 // routines above to obtain size for allocation purposes.
 
-static inline void sysex_dec(const uint8_t *enc_buf, uint32_t enc_len, uint8_t *dec_buf) {
+static inline void sysex_decode(uint8_t *dec_buf, const uint8_t *enc_buf, uint32_t enc_len) {
     int e = 0, d = 0;
     for(;;) {
         if (e >= enc_len) return;
@@ -33,7 +33,7 @@ static inline void sysex_dec(const uint8_t *enc_buf, uint32_t enc_len, uint8_t *
         }
     }
 }
-static inline void sysex_enc(const uint8_t *dec_buf, uint32_t dec_len, uint8_t *enc_buf) {
+static inline void sysex_encode(uint8_t *enc_buf, const uint8_t *dec_buf, uint32_t dec_len) {
     for(int d = 0; d < dec_len; d++) {
         int q = d / 7;
         int r = d % 7;

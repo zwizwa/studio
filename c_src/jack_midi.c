@@ -167,18 +167,24 @@ static inline uint32_t command_nb_midi_bytes(struct command *c) {
 static uint8_t to_erl_buf[TO_ERL_SIZE];
 static size_t to_erl_buf_bytes = 0;
 
-void to_erl(const uint8_t *buf, int nb, uint8_t port, uint8_t stamp) {
+static uint8_t *to_erl_hole(int nb, uint8_t port, uint8_t stamp) {
     size_t msg_size = 4 + 1 + 1 + nb;
     if (to_erl_buf_bytes + msg_size > sizeof(to_erl_buf)) {
         LOG("midi buffer overflow\n");
-        return;
+        return NULL;
     }
     uint8_t *msg = &to_erl_buf[to_erl_buf_bytes];
     set_u32be(msg, msg_size - 4); // {packet,4}
     msg[4] = port;                // MIDI port number
     msg[5] = stamp;               // rolling time stamp  (FIXME: use clock_time?)
-    memcpy(&msg[6], buf, nb);
     to_erl_buf_bytes += msg_size;
+    return &msg[6];
+}
+
+
+static void to_erl(const uint8_t *buf, int nb, uint8_t port, uint8_t stamp) {
+    uint8_t *hole = to_erl_hole(nb, port, stamp);
+    if (hole) { memcpy(hole, buf, nb); }
 }
 
 
@@ -196,6 +202,13 @@ void to_erl(const uint8_t *buf, int nb, uint8_t port, uint8_t stamp) {
 
 static uint8_t dump_buf[1024 * 64];
 static uint32_t dump_buf_write, dump_buf_read;
+static void dump_start(void) {
+    dump_buf_write = 0;
+    dump_buf_read = 0;
+}
+static uint32_t dump_end(void) {
+    return dump_buf_write;
+}
 static uint32_t dump(uint8_t *buf, uint32_t len) {
     int i = 0;
     while((dump_buf_write < sizeof(dump_buf)) && (i < len)) {
@@ -240,17 +253,20 @@ struct event_queue {
     uint32_t read;
     uint32_t write;
 };
-static inline void dump_event_queue(struct event_queue *q) {
-    for (uint32_t p = q->read; p != q->write; p = (p + 1) % NB_EVENTS) {
-        dump_event(&q->buf[p]);
-    }
-}
 // The queue.h module is parameterized by a NS namespace macro.
 // It requires the following types to be defined:
 #define NS(name) CONCAT(event_queue,name)
 typedef struct event        event_queue_element_t;
 typedef struct event_queue  event_queue_container_t;
 #include "ns_queue.h"
+
+static inline void dump_event_queue(struct event_queue *q) {
+    uint16_t n = event_queue_nb_stored(q);
+    dump((void*)&n, sizeof(n));
+    for (uint32_t p = q->read; p != q->write; p = (p + 1) % NB_EVENTS) {
+        dump_event(&q->buf[p]);
+    }
+}
 
 
 
@@ -381,28 +397,44 @@ static void play_midi_fun(void *ctx, uint8_t port,
 }
 
 
+static void log_buf(const char *name, uint8_t *buf, uint32_t len) {
+    LOG("%s",name); for (int i=0; i<len; i++) { LOG(" %02x", buf[i]); } LOG("\n");
+}
+
 // FIXME: This uses asserts for protocol errors since it is more
-// convenient.  Maybe later replace them with non-fatal ignores.
+// convenient.  Maybe later replace them with non-fatal logging
+// ignores.
 static inline void process_dec_sysex(uint8_t *buf, uint32_t nb_bytes) {
-    LOG("sysex: "); for (int i=0; i<nb_bytes; i++) { LOG(" %02x", buf[i]); } LOG("\n");
+    //LOG("decoded sysex: "); for (int i=0; i<nb_bytes; i++) { LOG(" %02x", buf[i]); } LOG("\n");
     ASSERT(nb_bytes >= 4);
     uint32_t cmd = *((uint32_t*)buf);
     buf += 4;
     nb_bytes -= 4;
     switch(cmd) {
-    case 1: {
+    case 1: { // edit
         ASSERT(nb_bytes == sizeof(struct edit));
         struct edit *edit = (void*)buf;
         ASSERT(edit->event.nb_bytes <= EVENT_MIDI_SIZE);
-        LOG("writing edit/n");
+        LOG("enqueue edit\n");
         edit_queue_write(&edit_queue, edit);
         break;
     }
-    case 2: {
-        // uint32_t nb_sysex = nb_midi - 3;
-        // Control commands, e.g. dump request
-        // dump_track(&track[0]);
-        // LOG("control sysex %d\n", dump_buf_write);
+    case 2: { // clear track
+        ASSERT(nb_bytes == 4);
+        uint32_t track_nb = *((uint32_t*)buf);
+        ASSERT(track_nb < NB_TRACKS);
+        LOG("clear track %d\n", track_nb);
+        event_queue_clear(&track[track_nb].q);
+        break;
+    }
+    case 3: { // dump
+        ASSERT(nb_bytes == 4);
+        uint32_t track_nb = *((uint32_t*)buf);
+        ASSERT(track_nb < NB_TRACKS);
+        dump_start();
+        dump_track(&track[track_nb]);
+        uint32_t len = dump_end();
+        log_buf("dump buf: ", dump_buf, len);
         break;
     }
     default:
@@ -440,11 +472,11 @@ static inline void process_erl_in(void **midi_out_buf) {
 
             // Framing is ok.  Interpret the data.
             uint32_t nb_enc = nb_midi - 3;
-            int32_t nb_dec = sysex_dec_size(nb_enc);
+            int32_t nb_dec = sysex_decode_size(nb_enc);
             ASSERT(nb_dec >= 0);
             uint8_t dec[nb_dec];
             memset(dec, 0, sizeof(dec));
-            sysex_dec(midi + 2, nb_enc, dec);
+            sysex_decode(dec, midi + 2, nb_enc);
             process_dec_sysex(&dec[0], nb_dec);
 
         }
@@ -464,11 +496,7 @@ static inline void process_edit(void **midi_out_buf, uint8_t stamp) {
      * until next time. */
     jack_nframes_t time = 0;
 
-    //static int ignore = 0;
-
     for(;;) {
-        //if (ignore) break;
-
         const struct edit *pe = edit_queue_peek(&edit_queue);
         if (!pe) break; // no edit events
         const struct event *e = &pe->event;
@@ -487,8 +515,6 @@ static inline void process_edit(void **midi_out_buf, uint8_t stamp) {
         track_record_event(t, e);
         send_midi(midi_out_buf[e->port], time, &e->midi[0], e->nb_bytes);
         edit_queue_drop(&edit_queue);
-
-        //ignore = 1;
     }
 }
 
@@ -589,7 +615,7 @@ static inline void process_erl_out(uint8_t stamp) {
 
     */
 
-    if (1) {
+    if (0) {
         /* Sysex pressure test.  This seems to not cause any issues
          * for small buffers.  I don't really understand why it works,
          * because I've definitely seen issues when using larger
@@ -607,6 +633,20 @@ static inline void process_erl_out(uint8_t stamp) {
             1,2,3,4,5,6,7,8,
             0xF7};
         to_erl(sysex, sizeof(sysex), CONTROL_PORT, stamp);
+    }
+
+    /* Empty the dump buf. */
+    uint32_t dump_buf_size = dump_buf_write - dump_buf_read;
+    if (dump_buf_size) {
+        uint32_t enc_size = sysex_encode_size(dump_buf_size);
+        uint8_t *hole = to_erl_hole(enc_size + 3, CONTROL_PORT, stamp);
+        ASSERT(hole);
+        hole[0] = 0xF0;
+        hole[1] = 0x60;
+        hole[enc_size + 2] = 0xF7;
+        sysex_encode(hole + 2, &dump_buf[dump_buf_read], dump_buf_size);
+        log_buf("sysex: ", hole, enc_size+3);
+        dump_buf_read = dump_buf_write;
     }
 
 
@@ -698,44 +738,6 @@ int jack_midi(int argc, char **argv) {
         struct command *cmd = &from_erl_buf[from_erl_write];
         memset(cmd, 0, sizeof(*cmd));
         assert_read_packet4_static(0, cmd, sizeof(*cmd));
-
-        // Sysex test
-        // (exo@10.1.3.12)2> jack_midi ! {midi,16#80000000,<<16#F0,1,2,3,4,16#F7>>}.
-        if (0 && (cmd->mask & (1 << CONTROL_PORT))) {
-            uint8_t *midi = &cmd->midi_bytes[0];
-            uint32_t nb_midi = command_nb_midi_bytes(cmd);
-            if (nb_midi > 3             &&
-                midi[0]         == 0xF0 &&
-                // manufacturer.  what to do here?  using 0x60 (reserved)
-                // use this? https://www.midi.org/specifications-old/item/manufacturer-id-numbers
-                midi[1]          == 0x60  &&
-                midi[nb_midi-1] == 0xF7) {
-
-                // Framing is ok.  Interpret the data.
-                uint32_t nb_enc = nb_midi - 3;
-                int32_t nb_dec = sysex_dec_size(nb_enc);
-                LOG("control port sysex: %d -> %d\n", nb_enc, nb_dec);
-                ASSERT(nb_dec >= 0);
-
-                uint8_t dec[nb_dec];
-                memset(dec, 0, sizeof(dec));
-                sysex_dec(midi + 2, nb_enc, dec);
-                for (int i=0; i<nb_dec; i++) {
-                    LOG(" %02x", dec[i]);
-                }
-                LOG("\n");
-
-                uint8_t enc[nb_enc];
-                memset(enc, 0, sizeof(enc));
-                sysex_enc(dec, nb_dec, enc);
-                for (int i=0; i<nb_enc; i++) {
-                    LOG(" %02x", enc[i]);
-                }
-                LOG("\n");
-
-            }
-        }
-
 
         // LOG("msg: n=%d\n", cmd->size);
         from_erl_write = (from_erl_write + 1) % NB_FROM_ERL_BUFS;

@@ -1785,3 +1785,17 @@ EDIT: Yes, I like this.  Move ns_queue to uc_tools.
 
 
 
+
+Entry: Dumping
+Date: Sun May  5 13:17:17 EDT 2019
+
+Edits are working.
+
+But I want to do this differently. It seems all a little too
+convoluted.
+
+What about providing a mechanism to swap the whole state atomically,
+and have the low priority thread process the state.
+
+
+

@@ -54,6 +54,10 @@ static inline NS(_element_t) *NS(_cycle)(NS(_container_t) *q) {
     if (!slot) return NULL;
     return NS(_write)(q, slot);
 }
+static inline void NS(_clear)(NS(_container_t) *q) {
+    q->write = 0;
+    q->read = 0;
+}
 
 
 

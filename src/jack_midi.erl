@@ -77,11 +77,17 @@ handle({Port,{data, Msg}},
         _ -> ok
     end,
     case Msg of
-        <<31,_,16#F0,_/binary>>=_Sysex ->
+        <<31,_TimeStamp,16#F0,_/binary>>=Sysex ->
+            N = size(Sysex),
+            Enc = binary:part(Sysex, 4, N-5),
+            Dec = midi:sysex_decode(Enc),
+            
             %% Note that MIDI spec allows real-time messages to be
             %% mixed with sysex messages, but what comes from
             %% jack_midi.c will be clean sysex.
             %% log:info("sysex ~p~n", [size(_Sysex)]),
+            log:info("sysex ~p~n", [Sysex]),
+            log:info("sysex dec: ~p~n", [Dec]),
             ok;
         <<MidiPort,TimeStamp,BinMidi/binary>> ->
             lists:foreach(
@@ -107,13 +113,14 @@ handle({Port,_Msg={data,Data}}, #{ port := Port } = State) ->
 %% jack_midi ! {midi,16#80000000,<<16#F0, 16#60, 63, 1,2,3,4,5,6,7, 16#F7>>}.
 
 
-%% Control messages are encapsulated as sysex
+%% Control messages are encapsulated as sysex.  This allows
+%% generalization later to MIDI-only links.
+
 handle({control,Bin}, State) ->
     %% Encode and wrap.
     Enc = midi:sysex_encode(Bin),
-    log:info("sysex enc: ~p~n", [Enc]),
     Midi = iolist_to_binary([16#F0, 16#60, Enc, 16#F7]),
-    log:info("sysex midi: ~p~n", [{Bin,Midi}]),
+    %% log:info("sysex midi: ~p~n", [{Bin,Midi}]),
     handle({midi, 16#80000000, Midi}, State);
 %% jack_midi ! {edit, #{ type=>0,track=>0,phase=>0,port=>0,midi=>midi:encode({cc,0,1,2})}}.
 handle({edit,
@@ -122,7 +129,7 @@ handle({edit,
        State) when is_binary(Midi) ->
     NbBytes = size(Midi),
     PaddedMidi = binary:part(<<Midi/binary, 0,0,0,0>>, 0, 4),
-    %% Map it to C struct layout.
+    %% Map it to C struct layout from jack_midi.c
     handle({control,
             <<1:32/little,  %% cmd
               Type,
@@ -132,6 +139,18 @@ handle({edit,
               NbBytes,
               Port,
               PaddedMidi/binary>>},
+           State);
+
+handle({clear_track, N}, State) when is_number(N) ->
+    handle({control,
+            <<2:32/little,  %% cmd
+              N:32/little>>},
+           State);
+
+handle({dump_track, N}, State) when is_number(N) ->
+    handle({control,
+            <<3:32/little,  %% cmd
+              N:32/little>>},
            State);
 
 handle({midi,PortMask,Data}, #{ port := Port } = State) ->
