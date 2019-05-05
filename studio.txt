@@ -1806,3 +1806,20 @@ While it works, I think this binary format is going to give issues.
 It doesn't take much more effort to just dump as text.  This way the
 sysex doesn't need to be decoded.
 
+EDIT: Ok, generalized to ns_dump.h s-expression dump module.
+
+EDIT: Still needs chunking.  How to do that?
+
+
+Entry: Sequencer on STM32
+Date: Sun May  5 16:38:22 EDT 2019
+
+The jack midi sequencer is written with full sepration between core
+and editor.  The core will run on an STM32 without malloc.
+
+This opens up an architecture of distributed sequencers, reducing MIDI
+bandwidth needs.
+
+
+
+

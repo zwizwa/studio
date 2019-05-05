@@ -72,6 +72,7 @@ in the real time thread.
 
 /* Output */
 #define TO_ERL_SIZE_LOG 12
+// #define TO_ERL_SIZE_LOG 6 // to test chunking
 #define TO_ERL_SIZE (1 << TO_ERL_SIZE_LOG)
 
 
@@ -167,8 +168,14 @@ static inline uint32_t command_nb_midi_bytes(struct command *c) {
 static uint8_t to_erl_buf[TO_ERL_SIZE];
 static size_t to_erl_buf_bytes = 0;
 
+uint32_t to_erl_room(void) {
+    uint32_t free_bytes = sizeof(to_erl_buf) - to_erl_buf_bytes;
+    if (free_bytes >= 6) return free_bytes - 6;
+    return 0;
+}
+
 static uint8_t *to_erl_hole(int nb, uint8_t port, uint8_t stamp) {
-    size_t msg_size = 4 + 1 + 1 + nb;
+    size_t msg_size = 6 + nb;
     if (to_erl_buf_bytes + msg_size > sizeof(to_erl_buf)) {
         LOG("midi buffer overflow\n");
         return NULL;
@@ -198,9 +205,10 @@ static void to_erl(const uint8_t *buf, int nb, uint8_t port, uint8_t stamp) {
 
    The protocol is essentially tagged s-expressions. This solves two
    problems: no 8 bit -> 7 bit encoding is necessary, and a little
-   more robustness is created in case the protocol evolves.  Flat
-   binary formats are a pain to maintain, and s-expressions are fairly
-   simple to generate be it 2 to 3 times less efficient.
+   more robustness is created in case the protocol evolves in the
+   future.  Flat binary formats are a pain to maintain, and
+   s-expressions are fairly simple to generate be it about 3 times
+   less efficient.
 */
 
 
@@ -370,12 +378,9 @@ void dump_track(struct track *t) {
     dump_event_queue(&t->q);
     dump_close();
 }
-//  <<"[t,1500,[q,[e0,3,[m,176,5,2]],[e0,3,[m,176,5,2]]]]">>
-
 
 
 // TODO:
-// - proper sync between threads (lock-free queue?)
 // - set tempo
 
 
@@ -417,7 +422,10 @@ static inline void process_dec_sysex(uint8_t *buf, uint32_t nb_bytes) {
     buf += 4;
     nb_bytes -= 4;
     switch(cmd) {
-    case 1: { // edit
+    case 1: {
+        /* INSERT: Insert an event in a track.  This goes through the
+         * edit queue, which will insert the event on the next cycle
+         * passing through. */
         ASSERT(nb_bytes == sizeof(struct edit));
         struct edit *edit = (void*)buf;
         ASSERT(edit->event.nb_bytes <= EVENT_MIDI_SIZE);
@@ -425,7 +433,9 @@ static inline void process_dec_sysex(uint8_t *buf, uint32_t nb_bytes) {
         edit_queue_write(&edit_queue, edit);
         break;
     }
-    case 2: { // clear track
+    case 2: {
+        /* CLEAR: Clear current track.  Individual removals are not
+         * supported.  To do so, clear and reload. */
         ASSERT(nb_bytes == 4);
         uint32_t track_nb = *((uint32_t*)buf);
         ASSERT(track_nb < NB_TRACKS);
@@ -433,10 +443,14 @@ static inline void process_dec_sysex(uint8_t *buf, uint32_t nb_bytes) {
         event_queue_clear(&track[track_nb].q);
         break;
     }
-    case 3: { // dump
+    case 3: {
+        /* DUMP: Take a state snapshot to maintain transaction
+         * semantics.  The snapshot will be transferred
+         * incrementally. */
         ASSERT(nb_bytes == 4);
         uint32_t track_nb = *((uint32_t*)buf);
         ASSERT(track_nb < NB_TRACKS);
+        ASSERT(dump_buf_read == dump_buf_write);
         dump_start();
         dump_track(&track[track_nb]);
         uint32_t len = dump_end();
@@ -476,6 +490,9 @@ static inline void process_erl_in(void **midi_out_buf) {
             (midi[0] == 0xF0) &&
             (midi[nb_midi-1] == 0xF7)) {
 
+            // FIXME: For ordinary MIDI links, the real-time messages
+            // should be stripped out.
+
             // Framing is ok.  Interpret the data.
             uint32_t nb_enc = nb_midi - 3;
             int32_t nb_dec = sysex_decode_size(nb_enc);
@@ -483,6 +500,7 @@ static inline void process_erl_in(void **midi_out_buf) {
             uint8_t dec[nb_dec];
             memset(dec, 0, sizeof(dec));
             sysex_decode(dec, midi + 2, nb_enc);
+
             process_dec_sysex(&dec[0], nb_dec);
 
         }
@@ -641,18 +659,24 @@ static inline void process_erl_out(uint8_t stamp) {
         to_erl(sysex, sizeof(sysex), CONTROL_PORT, stamp);
     }
 
-    /* Empty the dump buf. */
-
-    uint32_t dump_buf_size = dump_buf_write - dump_buf_read;
-    if (dump_buf_size) {
-        // New version: dump as ASCII s-expression
-        uint8_t *hole = to_erl_hole(dump_buf_size + 3, CONTROL_PORT, stamp);
-        ASSERT(hole);
-        hole[0] = 0xF0;
-        hole[1] = 0x60;
-        hole[dump_buf_size + 2] = 0xF7;
-        memcpy(hole + 2, &dump_buf[dump_buf_read], dump_buf_size);
-        dump_buf_read = dump_buf_write;
+    /* Empty the dump buf, sending chunks.  The data is
+     * self-delimiting and easy to parse, so don't bother framing
+     * it. */
+    uint32_t nb = dump_buf_write - dump_buf_read;
+    if (nb) {
+        uint32_t room = to_erl_room();
+        if (room > 3) { // Needs to fit framing
+            uint32_t max_nb = room - 3;
+            if (nb > max_nb) nb = max_nb;
+            // New version: dump as ASCII s-expression
+            uint8_t *hole = to_erl_hole(nb + 3, CONTROL_PORT, stamp);
+            ASSERT(hole); // We've just checked
+            hole[0] = 0xF0;
+            hole[1] = 0x60;
+            hole[nb + 2] = 0xF7;
+            memcpy(hole + 2, &dump_buf[dump_buf_read], nb);
+            dump_buf_read += nb;
+        }
     }
 
 

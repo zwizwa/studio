@@ -6,7 +6,7 @@
 %% only for convenience.
 
 -module(jack_midi).
--export([start_link/4, handle/2]).
+-export([start_link/4, handle/2, balance/2]).
 
 -define(IF(C,A,B), (case (C) of true -> (A); false -> (B) end)).
 
@@ -35,6 +35,7 @@ start_link(Client,MidiNI,MidiNO,ClockMask) ->
                 _Ref = erlang:monitor(process, BC),
                 handle(restart_port,
                        #{ open_port => OpenPort,
+                          chunks => {0,[]},
                           bc => BC })
         end,
         fun ?MODULE:handle/2})}.
@@ -70,38 +71,36 @@ handle({Port,{exit_status,_}=E}, #{ port := Port } = _State) ->
 %% take different paths.
 
 handle({Port,{data, Msg}}, 
-       #{ port := Port, bc := BC } = State) ->
+       #{ port := Port, bc := BC, chunks := {Balance0,Chunks0} } = State) ->
     %% log:info("~p~n",[Msg]),
     case maps:find(recorder, State) of
         {ok, Pid} -> Pid ! Msg;
         _ -> ok
     end,
     case Msg of
-        %% OLD VERSION: encoded binary
-        %% <<31,_TimeStamp,16#F0,_/binary>>=Sysex ->
-        %%     N = size(Sysex),
-        %%     Enc = binary:part(Sysex, 4, N-5),
-        %%     Dec = midi:sysex_decode(Enc),
-            
-        %%     %% Note that MIDI spec allows real-time messages to be
-        %%     %% mixed with sysex messages, but what comes from
-        %%     %% jack_midi.c will be clean sysex.
-        %%     %% log:info("sysex ~p~n", [size(_Sysex)]),
-        %%     log:info("sysex ~p~n", [Sysex]),
-        %%     log:info("sysex dec: ~p~n", [Dec]),
-        %%     ok;
-        %% New version: ASCII pterm
         <<31,_TimeStamp,16#F0,_/binary>>=Sysex ->
             N = size(Sysex),
-            PTerm = binary:part(Sysex, 4, N-5),
-            log:info("sysex pterm: ~p~n", [PTerm]),
-            ok;
+            Chunk = binary:part(Sysex, 4, N-5),
+            Balance = balance(Balance0, Chunk),
+            Chunks = [Chunk|Chunks0],
+            case Balance of
+                0 ->
+                    %% Form is complete.
+                    Bin = iolist_to_binary(lists:reverse(Chunks)),
+                    log:info("pterm:~p~n", [type:decode({pterm, Bin})]),
+                    maps:put(chunks, {0, []}, State);
+                _ ->
+                    maps:put(chunks, {Balance, Chunks}, State)
+            end;
         <<MidiPort,TimeStamp,BinMidi/binary>> ->
             lists:foreach(
-              fun(DecMidi) -> BC ! {broadcast, {midi, TimeStamp, {jack, MidiPort}, DecMidi}} end,
-              midi:decode(BinMidi))
-    end,
-    State;
+              fun(DecMidi) -> 
+                      BC ! {broadcast,
+                            {midi, TimeStamp,
+                             {jack, MidiPort}, DecMidi}} end,
+              midi:decode(BinMidi)),
+            State
+    end;
 
 %% The recorder is separate from the broadcast mechanism.  Assume there is only one.
 handle({record, _}, State = #{ recorder := Pid }) ->
@@ -171,3 +170,19 @@ handle(Msg, State) ->
 
 
 %% jack_midi ! {midi,16#80000000,<<16#F0, 16#60, 63, 1,2,3,4,5,6,7, 16#F7>>}.
+
+
+balance(S0, Bin) ->
+    lists:foldr(
+      fun($[,S) -> S+1;
+         ($],S) -> S-1;
+         (_, S) -> S
+      end,
+      S0,
+      binary_to_list(Bin)).
+              
+        
+
+
+%% {0,<<"[t,1500,[e,0,0,[m,176,1,2]],[e,0,0,[m,176,1,2]],[e,0,0,">>}
+%% {0,<<"[m,176,1,2]],[e,0,0,[m,176,1,2]]]">>}
