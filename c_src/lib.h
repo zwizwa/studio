@@ -25,4 +25,10 @@ int alsa_midi_in(int argc, char **argv);
 int alsa_midi_out(int argc, char **argv);
 
 
+
+#define _CONCAT(X,Y)  X##Y
+#define CONCAT(X,Y)   _CONCAT(X,Y)
+
+
+
 #endif

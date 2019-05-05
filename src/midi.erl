@@ -11,7 +11,8 @@
          %% port_start_link/1, port_handle/2,
          start_link/0,
          trigger_start/2, trigger_cc/1,
-         not_tc/1
+         not_tc/1,
+         sysex_encode/1
          %%,db/0,sql/1,port_id/1,midiclock_mask/0
         ]).
 %% Original idea was to route messages over broadcast, but that works
@@ -119,4 +120,17 @@ trigger_start(Pred, Cont) ->
 trigger_cc({_,{cc,_,_,_}}) -> true;
 trigger_cc(_) -> false.
 
+%% Encode binary as MSB-prefixed sysex.
+sysex_encode(Bin) -> 
+    lists:map(
+      fun({Start,Size}) ->
+              Chunk    = binary:part(Bin, Start, Size),
+              ChunkPad = binary:part(<<Chunk/binary, 0,0,0,0,0,0,0,0>>, 0, 7),
+              [A,B,C,D,E,F,G] = [V bsr 7 || <<V>> <= ChunkPad],
+              LSBs = [V band 127 || <<V>> <= Chunk],
+              [<<0:1,G:1,F:1,E:1,D:1,C:1,B:1,A:1>>|LSBs]
+      end,
+      tools:nchunks(0, size(Bin), 7)).
+    
 
+               

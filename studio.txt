@@ -1724,12 +1724,64 @@ Entry: sysex tests
 Date: Mon Apr 29 14:24:15 EDT 2019
 
 Weird.  Simple function sysex_dec_size, not doing what I think it does.
+EDIT: operatore precedence
 
 
 
+Entry: Protocol
+Date: Mon Apr 29 21:48:45 EDT 2019
+
+This is a pain in the ass really.  Requires a lot of ad hoc messages
+with dump & parse.  Actually dump isn't really the issue.  This could
+be done in text form actually, or ETF.
+
+For restoring patterns: it might be simpler to use individual set
+commands for this.  These can then be added to a "pending" queue,
+which is added to the playback queue when it's time.
+
+Maybe do that first.  That would make generated patterns possible.
+
+
+Basic idea: keep the C code and data structures simple.  Put all data
+shuffling at the Erlang side.
+
+That "edit queue" isn't such a bad idea.  It could also be used for
+removals.  Perform the queue edit right before playing the event.
 
 
 
+Entry: Circular buffers
+Date: Tue Apr 30 08:49:54 EDT 2019
+
+It's possible to avoid copying, but not without a lot of effort.  The
+point of the copying is to have the write pointer be at a spot where
+there is space available without the need for moving any data.
+I.e. the constant re-write ensures all operations are constant time,
+at an increased cost.  With hot caches I doubt it will be a problem.
+
+EDIT: This seems to work well.
+
+
+Entry: Queues
+Date: Sat May  4 20:30:39 EDT 2019
+
+I find myself in need for more than one type of queue, so maybe
+generalize some things such as:
+
+- wrap a void* memory block and operate on void pointers.
+
+- make it growable?
+
+- move the write / grow part to the non-rt thread?
+
+This seems to have a complexity explosion.  Let's just stick to two
+implementations of queues.  Or write the implementaiton as a macro.
+
+What about defining an ML-style module as a header file?
+
+EDIT: Yeah that's a nice side track!
+
+EDIT: Yes, I like this.  Move ns_queue to uc_tools.
 
 
 

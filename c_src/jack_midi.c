@@ -182,51 +182,108 @@ void to_erl(const uint8_t *buf, int nb, uint8_t port, uint8_t stamp) {
 }
 
 
+
+/* State dump.
+
+   The basic idea to structure this, is that we can send small chunks
+   of sysex data from the main thread.  It is not clear how large
+   those chunks can be, so make the chunk size programmable for now.
+
+   Since memory usage is not really an issue, snapshot the data into a
+   large(r) buffer, and send it out in chunks.
+
+*/
+
+static uint8_t dump_buf[1024 * 64];
+static uint32_t dump_buf_write, dump_buf_read;
+static uint32_t dump(uint8_t *buf, uint32_t len) {
+    int i = 0;
+    while((dump_buf_write < sizeof(dump_buf)) && (i < len)) {
+        dump_buf[dump_buf_write++] = buf[i++];
+    }
+    if (i < len) {
+        LOG("dropping bytes %d %d\n", i, len);
+    }
+    return i;
+}
+
+
+
+
+
+
 /* Sequencer.
 
    The sequencer is based on a collection of rolling queues, one for
    each cycle length.  Fixed size items and power of 2 buffer sizes
    are used to simplify code.
 */
+#define EVENT_MIDI_SIZE 4
 struct event {
     uint16_t phase;
     uint8_t nb_bytes;
     uint8_t port;
-    uint8_t midi[4];
+    uint8_t midi[EVENT_MIDI_SIZE];
 };
-#define NB_EVENTS_LOG 8
-#define NB_EVENTS (1<<NB_EVENTS_LOG)
-#define NB_EVENTS_MASK (NB_EVENTS-1)
-struct queue {
+#define DUMP_VAR(var) dump((void*)(&var), sizeof(var))
+static inline void dump_event(struct event *e) {
+    DUMP_VAR(e->phase);
+    DUMP_VAR(e->nb_bytes);
+    DUMP_VAR(e->port);
+    dump(&e->midi[0], e->nb_bytes);
+}
+
+// Keep these a power of two, such that % can be optimized to &.
+#define NB_EVENTS (1<<8)
+struct event_queue {
     struct event buf[NB_EVENTS];
     uint32_t read;
     uint32_t write;
 };
+static inline void dump_event_queue(struct event_queue *q) {
+    for (uint32_t p = q->read; p != q->write; p = (p + 1) % NB_EVENTS) {
+        dump_event(&q->buf[p]);
+    }
+}
+// The queue.h module is parameterized by a NS namespace macro.
+// It requires the following types to be defined:
+#define NS(name) CONCAT(event_queue,name)
+typedef struct event        event_queue_element_t;
+typedef struct event_queue  event_queue_container_t;
+#include "ns_queue.h"
 
-static inline const struct event *queue_peek(struct queue *q) {
-    if (q->read == q->write) {
-        return NULL;
-    }
-    else {
-        // FIXME: this needs to always return something useful.  needs a sentinel
-        return &q->buf[q->read & NB_EVENTS_MASK];
-    }
-}
-static inline void queue_read(struct queue *q, struct event *e) {
-    *e = q->buf[q->read++ & NB_EVENTS_MASK];
-}
-static inline void queue_write(struct queue *q, const struct event *e) {
-    // FIXME: full detect + maybe resize?
-    q->buf[q->write++ & NB_EVENTS_MASK] = *e;
-}
+
+
+#define NB_EDITS (1<<8)
+struct edit {
+    uint8_t edit_type; // add/remove
+    uint8_t track;
+    uint16_t _reserved;
+    struct event event;
+};
+struct edit_queue {
+    struct edit buf[NB_EDITS];
+    uint32_t read;
+    uint32_t write;
+};
+struct edit_queue edit_queue;
+#define NS(name) CONCAT(edit_queue,name)
+typedef struct edit       edit_queue_element_t;
+typedef struct edit_queue edit_queue_container_t;
+#include "ns_queue.h"
+
+
+
+
+
 
 /* The sequencer is under midi control.  Each loop has an input
    mask for port events.  Recording is gated.  Start with 9 sequences
    mapped to cc23-cc31, corresponding to the Easycontrol 9. */
 struct track {
-    struct queue q;
-    uint32_t phase;
-    uint32_t period;
+    struct event_queue q;
+    uint16_t phase;
+    uint16_t period;
     uint32_t port_mask;
 };
 static inline void track_tick(struct track *t) {
@@ -244,19 +301,19 @@ typedef void (*play_t)(void *ctx, uint8_t port, const void *midi, size_t nb_byte
 static inline void track_playback(struct track *t, play_t play, void *ctx) {
     uint32_t endx = t->q.write;
     for(;;) {
-        const struct event *pe = queue_peek(&t->q);
+        const struct event *pe = event_queue_peek(&t->q);
         if (!pe || (t->phase != pe->phase)) break;
         // don't cycle more than once
         if (t->q.read == endx) break;
-        // there is an event left at this time phase, so cycle the queue
-        struct event e;
-        queue_read(&t->q, &e);
-        queue_write(&t->q, &e);
-        //LOG("play %d %d\n", e.port, e.nb_bytes);
-        play(ctx, e.port, &e.midi[0], e.nb_bytes);
+        // there is an event left at this time phase, so play and cycle the queue
+        play(ctx, pe->port, &pe->midi[0], pe->nb_bytes);
+        event_queue_cycle(&t->q);
     }
     /* Advance time base once per Jack frame. */
     track_tick(t);
+}
+static inline void track_record_event(struct track *t, const struct event *e) {
+    event_queue_write(&t->q, e);
 }
 static inline void track_record(struct track *t, uint8_t port,
                                 uint8_t *midi, int32_t nb_bytes) {
@@ -266,7 +323,7 @@ static inline void track_record(struct track *t, uint8_t port,
         .port = port
     };
     if (nb_bytes) memcpy(&e.midi[0], &midi[0], nb_bytes);
-    queue_write(&t->q, &e);
+    track_record_event(t, &e);
 }
 
 /* If record bit is set for a particular track, and the track's
@@ -284,6 +341,15 @@ void tracks_init(void) {
         track[t].period = period;
     }
 }
+
+void dump_track(struct track *t) {
+    dump((void*) &t->period, sizeof(t->period));
+    dump_event_queue(&t->q);
+}
+
+
+
+
 
 
 // TODO:
@@ -314,35 +380,99 @@ static void play_midi_fun(void *ctx, uint8_t port,
     to_erl(data_buf, nb_bytes, port, x->stamp);
 }
 
-static int process (jack_nframes_t nframes, void *arg) {
+static inline void process_dec_sysex(uint8_t *buf, uint32_t nb_bytes) {
 
-    to_erl_buf_bytes = 0;
+    LOG("sysex: "); for (int i=0; i<nb_bytes; i++) { LOG(" %02x", buf[i]); } LOG("\n");
 
-
-    jack_nframes_t f = jack_last_frame_time(client);
-    uint8_t stamp = (f / nframes);
-
-    void *midi_out_buf[nb_midi_out];
-    for (int out=0; out<nb_midi_out; out++) {
-        midi_out_buf[out] = jack_port_get_buffer(midi_out[out], nframes);
-        jack_midi_clear_buffer(midi_out_buf[out]);
+    ASSERT(nb_bytes >= 4);  // FIXME: don't crash
+    uint32_t cmd = *((uint32_t*)buf);
+    switch(cmd) {
+        default:
+            break;
     }
+    // uint32_t nb_sysex = nb_midi - 3;
+    // Control commands, e.g. dump request
+    // dump_track(&track[0]);
+    // LOG("control sysex %d\n", dump_buf_write);
+}
+
+static inline void process_erl_in(void **midi_out_buf) {
+
     /* Jack requires us to sort the events, so send the async data
        first using time stamp 0. */
     while(from_erl_read != from_erl_write) {
         struct command *cmd = &from_erl_buf[from_erl_read];
+        uint32_t nb_midi = command_nb_midi_bytes(cmd);
+        uint8_t *midi = &cmd->midi_bytes[0];
+
         /* Send to selected outputs */
         for (int out=0; out<nb_midi_out; out++) {
             if (cmd->mask & (1 << out)) {
-                uint32_t nb_midi_bytes = command_nb_midi_bytes(cmd);
                 // LOG("send_midi: %d\n", nb_midi_bytes);
                 send_midi(midi_out_buf[out], 0/*time*/,
-                          cmd->midi_bytes, nb_midi_bytes);
+                          midi, nb_midi);
             }
         }
+
+        /* Handle sysex control commands.  Note that in Erlang we
+         * could easily define another protocol to send non-MIDI data.
+         * However, embedding the custom protocol in sysex allows it
+         * to be used over MIDI-only links, keeping more options open.
+         * I.e. I'd like to be able to put this code on an STM32. */
+        if ((cmd->mask & (1 << CONTROL_PORT)) &&
+            (nb_midi > 3) &&
+            (midi[0] == 0xF0) &&
+            (midi[nb_midi-1] == 0xF7)) {
+
+            // Framing is ok.  Interpret the data.
+            uint32_t nb_enc = nb_midi - 3;
+            int32_t nb_dec = sysex_dec_size(nb_enc);
+            ASSERT(nb_dec >= 0);
+            uint8_t dec[nb_dec];
+            memset(dec, 0, sizeof(dec));
+            sysex_dec(midi + 2, nb_enc, dec);
+            process_dec_sysex(&dec[0], nb_dec);
+
+        }
+
         from_erl_read = (from_erl_read + 1) % NB_FROM_ERL_BUFS;
     }
 
+}
+
+static inline void process_edit(void **midi_out_buf, uint8_t stamp) {
+    /* The sequencer queues implementation is very simple and does not
+     * not have random insert, so we delay external edits and insert
+     * them once the queue is wound to the correct time stamp.  Play
+     * them back at that time as well.  Note that this requires the
+     * events in the edit queue to be ordered relative to current time
+     * for each loop sequencer's time base, or they will be delayed
+     * until next time. */
+    jack_nframes_t time = 0;
+
+    for(;;) {
+        const struct edit *pe = edit_queue_peek(&edit_queue);
+        if (!pe) break; // no edit events
+        const struct event *e = &pe->event;
+
+        ASSERT(pe->track < NB_TRACKS);
+        struct track *t = &track[pe->track];
+
+        /* Map it into the track's time base.  If we don't do this,
+           the event will block forever. */
+        uint32_t phase = e->phase % t->period;
+
+        if (t->phase != phase) break; // edit event is in the future
+
+        /* The edit event is current, so record it into the track and
+           play it back. */
+        track_record_event(t, e);
+        send_midi(midi_out_buf[e->port], time, &e->midi[0], e->nb_bytes);
+    }
+}
+
+
+static inline void process_playback_out(void **midi_out_buf, uint8_t stamp) {
     /* Play back sequences.  Send these at time stamp 0 as well. */
     static struct play_midi_ctx play_midi_ctx = {};
     play_midi_ctx.midi_out_buf = &midi_out_buf[0];
@@ -350,7 +480,9 @@ static int process (jack_nframes_t nframes, void *arg) {
     for (int t=0; t<NB_TRACKS; t++) {
         track_playback(&track[t], &play_midi_fun, &play_midi_ctx);
     }
+}
 
+static inline void process_clock_out(void **midi_out_buf, jack_nframes_t nframes, uint8_t stamp) {
     /* Send out the MIDI clock bytes at the designated time slots */
     while(clock_time < nframes) {
         /* Clock pulse fits in current frame. */
@@ -371,20 +503,10 @@ static int process (jack_nframes_t nframes, void *arg) {
     /* Account for this frame */
     clock_time -= nframes;
 
+}
 
-
-
-    /* Forward incoming midi.
-
-       Note: I'm not exactly sure whether it is a good idea to perform
-       the write() call from this thread, but it seems the difference
-       between a single semaphore system call and a single write to an
-       Erlang port pipe accessing a single page of memory is not going
-       to be big.  So revisit if it ever becomes a problem.
-
-       As compared to a previous implementation, this will now buffer
-       all midi meassages and perform only a single write() call.
-    */
+static inline void process_midi_in(jack_nframes_t nframes, uint8_t stamp) {
+    /* Process incoming midi */
 
 
     for (int in=0; in<nb_midi_in; in++) {
@@ -394,18 +516,23 @@ static int process (jack_nframes_t nframes, void *arg) {
             jack_midi_event_t event;
             jack_midi_event_get(&event, midi_in_buf, i);
 
-            /* Record if enabled */
+            /* Record to MIDI looper track if enabled. */
             for (int t=0; t<NB_TRACKS; t++) {
                 if (record_mask & (1 << t)) {
                     //LOG("record t=%d, in=%d, n=%d\n", t, in, (int)event.size);
-                    track_record(&track[t], in, event.buffer, event.size);
+                    if (event.size < EVENT_MIDI_SIZE) {
+                        track_record(&track[t], in, event.buffer, event.size);
+                    }
                 }
             }
 
-            /* Forward to Erlang */
+            /* Send a time-stamped copy of everything to Erlang.  This
+             * is used for soft-RT events to anything that's not jack
+             * midi, and bulk recording to disk. */
             to_erl(event.buffer, event.size, in, stamp);
 
-            /* Local control: track record masks. */
+            /* Local MIDI control.  Currently this only has record
+             * enable.  FIXME: Make this programmable. */
             const uint8_t *msg = event.buffer;
             if (in == 0 &&
                 event.size == 3 &&
@@ -423,14 +550,31 @@ static int process (jack_nframes_t nframes, void *arg) {
             }
         }
     }
+}
 
-    if (0) {
-        /* Sysex pressure test.  This seems to not cause any issues.
-         * Trouble is I don't really understand why it works, because
-         * I've definitely seen issues when using larger messages
-         * (order of 128kByte, for audio). */
+
+static inline void process_erl_out(uint8_t stamp) {
+
+    /* Send to Erlang
+
+       Note: I'm not exactly sure whether it is a good idea to perform
+       the write() call from this thread, but it seems the difference
+       between a single semaphore system call and a single write to an
+       Erlang port pipe accessing a single page of memory is not going
+       to be big.  So revisit if it ever becomes a problem.
+
+       As compared to a previous implementation, this will now buffer
+       all midi meassages and perform only a single write() call.
+
+    */
+
+    if (1) {
+        /* Sysex pressure test.  This seems to not cause any issues
+         * for small buffers.  I don't really understand why it works,
+         * because I've definitely seen issues when using larger
+         * messages (order of 128kByte, for audio). */
         uint8_t sysex[] = {
-            0xF0, 55,
+            0xF0, 0x60,
             1,2,3,4,5,6,7,8,
             1,2,3,4,5,6,7,8,
             1,2,3,4,5,6,7,8,
@@ -450,6 +594,30 @@ static int process (jack_nframes_t nframes, void *arg) {
         assert_write(1, to_erl_buf, to_erl_buf_bytes);
     }
 
+}
+
+static int process (jack_nframes_t nframes, void *arg) {
+
+    /* Clear output buffers */
+    to_erl_buf_bytes = 0;
+    void *midi_out_buf[nb_midi_out];
+    for (int out=0; out<nb_midi_out; out++) {
+        midi_out_buf[out] = jack_port_get_buffer(midi_out[out], nframes);
+        jack_midi_clear_buffer(midi_out_buf[out]);
+    }
+
+    /* Erlang out is tagged with a rolling time stamp. */
+    jack_nframes_t f = jack_last_frame_time(client);
+    uint8_t stamp = (f / nframes);
+
+    /* Order is important. */
+    process_erl_in(midi_out_buf);
+    process_edit(midi_out_buf, stamp);
+    process_playback_out(midi_out_buf, stamp);
+    process_clock_out(midi_out_buf, nframes, stamp);
+    process_midi_in(nframes, stamp);
+    process_erl_out(stamp);
+
     return 0;
 }
 
@@ -462,6 +630,7 @@ static void *output_thread_main(void *ctx) {
 }
 
 int jack_midi(int argc, char **argv) {
+
     ASSERT(argc == 5);
 
     /* State init */
@@ -475,7 +644,7 @@ int jack_midi(int argc, char **argv) {
     nb_midi_in  = atoi(argv[2]);  midi_in  = calloc(nb_midi_in,sizeof(void*));
     nb_midi_out = atoi(argv[3]);  midi_out = calloc(nb_midi_out,sizeof(void*));
     clock_mask  = atoi(argv[4]);
-    LOG("clock_mask = %d\n", clock_mask);
+    LOG("jack_midi.c: clock_mask = %d\n", clock_mask);
     jack_status_t status;
     client = jack_client_open (client_name, JackNullOption, &status);
     char port_name[32] = {};
@@ -497,7 +666,7 @@ int jack_midi(int argc, char **argv) {
 
     /* Input loop. */
     for(;;) {
-        while (((from_erl_write - from_erl_read) % NB_FROM_ERL_BUFS) 
+        while (((from_erl_write - from_erl_read) % NB_FROM_ERL_BUFS)
                == (NB_FROM_ERL_BUFS - 1)) {
             /* Not much that can be done here except for polling until
                there is am available slot.  Tune buffer sizes such
@@ -509,9 +678,9 @@ int jack_midi(int argc, char **argv) {
         memset(cmd, 0, sizeof(*cmd));
         assert_read_packet4_static(0, cmd, sizeof(*cmd));
 
-
+        // Sysex test
         // (exo@10.1.3.12)2> jack_midi ! {midi,16#80000000,<<16#F0,1,2,3,4,16#F7>>}.
-        if (cmd->mask & (1 << CONTROL_PORT)) {
+        if (0 && (cmd->mask & (1 << CONTROL_PORT))) {
             uint8_t *midi = &cmd->midi_bytes[0];
             uint32_t nb_midi = command_nb_midi_bytes(cmd);
             if (nb_midi > 3             &&
@@ -520,6 +689,7 @@ int jack_midi(int argc, char **argv) {
                 // use this? https://www.midi.org/specifications-old/item/manufacturer-id-numbers
                 midi[1]          == 0x60  &&
                 midi[nb_midi-1] == 0xF7) {
+
                 // Framing is ok.  Interpret the data.
                 uint32_t nb_enc = nb_midi - 3;
                 int32_t nb_dec = sysex_dec_size(nb_enc);
