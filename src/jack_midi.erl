@@ -6,7 +6,9 @@
 %% only for convenience.
 
 -module(jack_midi).
--export([start_link/4, handle/2, balance/2]).
+-export([start_link/4, handle/2
+        %% ,balance/2
+        ]).
 
 -define(IF(C,A,B), (case (C) of true -> (A); false -> (B) end)).
 
@@ -80,27 +82,33 @@ handle({Port,{data, Msg}},
     case Msg of
         %% Sysex dump to the control port is assumed to be
         %% s-expressions.  Message is chunked since we can't transfer
-        %% too much at once without causing real-time issues.
-        <<31,_TimeStamp,16#F0,_/binary>>=Sysex ->
-            {Balance0,Chunks0,ReplyTo} = Dump,  %% Just fail on bad match.
+        %% too much at once without causing real-time issues.  FIXME:
+        %% What's a good way to tag this? A reserved manufacturer
+        %% field is used.
+        <<31,_TimeStamp, 16#F0, 16#60, Type, _/binary>>=Sysex ->
+            %% This reply must have come from a request, which will
+            %% set the dump state.  Just fail on bad match.
+            {Chunks0,ReplyTo} = Dump,  
             N = size(Sysex),
-            Chunk = binary:part(Sysex, 4, N-5),
-            Balance = balance(Balance0, Chunk),
+            Chunk = binary:part(Sysex, 5, N-6),
             Chunks = [Chunk|Chunks0],
-            case Balance of
+            case Type of
+                1 -> 
+                    %% log:info("pterm: incomplete~n"),
+                    maps:put(dump, {Chunks, ReplyTo}, State);
                 0 ->
-                    %% Form is complete.
                     Bin = iolist_to_binary(lists:reverse(Chunks)),
                     Term = type:decode({pterm, Bin}),
-                    %% log:info("pterm:~p~n", [Term]),
-                    case ReplyTo of
-                        no_reply -> ok;
-                        _ -> obj:reply(ReplyTo, {ok, Term})
-                    end,
+                    %% log:info("pterm: ~p~n", [Term]),
+                    obj:reply(ReplyTo, {ok, Term}),
                     maps:put(dump, idle, State);
                 _ ->
-                    maps:put(dump, {Balance,Chunks,ReplyTo}, State)
+                    log:info("bad sysex type ~p~n",[Type]),
+                    State
             end;
+        <<31,_/binary>> ->
+            log:info("bad control port message ~p~n",[Msg]),
+            State;
         <<MidiPort,TimeStamp,BinMidi/binary>> ->
             lists:foreach(
               fun(DecMidi) -> 
@@ -162,16 +170,16 @@ handle({clear_track, N}, State) when is_number(N) ->
               N:32/little>>},
            State);
 
-%% FIXME: Dumps should be serialized via another process.  For
-%% convenience we do implement obj:call interface here, but will need
-%% to return an error if an operation is in progress.
+%% FIXME: Dumps should be serialized through another process.  For
+%% convenience we do implement the obj:call interface here, but will
+%% need to return an error if an operation is in progress.
 handle({ReplyTo,{dump_track, N}}, State = #{ dump := Dump }) when is_number(N) ->
     case Dump of
         idle ->
             handle({control,
                     <<3:32/little,  %% cmd
                       N:32/little>>},
-                   maps:put(dump,{0,[],ReplyTo}, State));
+                   maps:put(dump,{[],ReplyTo}, State));
         _ ->
             obj:reply(ReplyTo, {error, busy})
     end;
@@ -188,15 +196,15 @@ handle(Msg, State) ->
 
 %% jack_midi ! {midi,16#80000000,<<16#F0, 16#60, 63, 1,2,3,4,5,6,7, 16#F7>>}.
 
-%% Compute expression balance.
-balance(S0, Bin) ->
-    lists:foldr(
-      fun($[,S) -> S+1;
-         ($],S) -> S-1;
-         (_, S) -> S
-      end,
-      S0,
-      binary_to_list(Bin)).
+%% %% Compute expression balance.
+%% balance(S0, Bin) ->
+%%     lists:foldr(
+%%       fun($[,S) -> S+1;
+%%          ($],S) -> S-1;
+%%          (_, S) -> S
+%%       end,
+%%       S0,
+%%       binary_to_list(Bin)).
 
 %% {0,<<"[t,1500,[e,0,0,[m,176,1,2]],[e,0,0,[m,176,1,2]],[e,0,0,">>}
 %% {0,<<"[m,176,1,2]],[e,0,0,[m,176,1,2]]]">>}

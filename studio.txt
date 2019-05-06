@@ -1810,6 +1810,11 @@ EDIT: Ok, generalized to ns_dump.h s-expression dump module.
 
 EDIT: Still needs chunking.  How to do that?
 
+EDIT: Done. Chunks are reassembled based on paren balance.
+
+EDIT: Using explicit more/done marker to avoid paren balance count.
+
+
 
 Entry: Sequencer on STM32
 Date: Sun May  5 16:38:22 EDT 2019
@@ -1822,4 +1827,55 @@ bandwidth needs.
 
 
 
+Entry: Pool the events
+Date: Sun May  5 19:47:12 EDT 2019
 
+Tracks will likely get out of balance (power law), so it makes sense
+to pool events.  Though that will break some cache locality, and will
+make it impossible to erase tracks separately.  Maybe not then?
+
+
+
+
+Entry: Next?
+Date: Sun May  5 21:04:17 EDT 2019
+
+All the hard stuff is implemented.  Add some convenience, such as
+changing midi clock tempo, sequence tempo changes.
+
+
+Entry: Relative time stamps
+Date: Sun May  5 21:06:32 EDT 2019
+
+I just realized there is no simple way to speed up the sequences, so
+maybe it would be good to represent the event time stamps
+fractionally, using some kind of highly composite denominator.
+
+This is for polyrythm.  What do we need?
+
+(* 2 2 2 2 2 2 2
+   3 3 3 3 
+   5 5 5
+   7 7
+   11
+   13)
+9081072000
+
+It might not be enough.  This might need to approximate fractions in a
+different way.
+
+It's not actually necessary to have high resolution in the small time
+scales, so powers of two will do.  But it is necessary to have a bunch
+of prime numbers to make it possible to have exactly locked sequences.
+
+
+(* 2 2 2 2 2 3 5 7 11 13 17 19 23)
+3569485920
+
+I'm looking at it the wrong way.  Subdivision doesn't matter.  It is
+only in the way that the period is represented that we need to ensure
+perfect locking.
+
+But it is going to be necessary to use relative indexing.
+
+I need to do this when I'm awake..

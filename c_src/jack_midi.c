@@ -72,7 +72,7 @@ in the real time thread.
 
 /* Output */
 #define TO_ERL_SIZE_LOG 12
-// #define TO_ERL_SIZE_LOG 6 // to test chunking
+//#define TO_ERL_SIZE_LOG 6 // to test chunking
 #define TO_ERL_SIZE (1 << TO_ERL_SIZE_LOG)
 
 
@@ -449,7 +449,7 @@ static inline void process_dec_sysex(uint8_t *buf, uint32_t nb_bytes) {
          * incrementally. */
         ASSERT(nb_bytes == 4);
         uint32_t track_nb = *((uint32_t*)buf);
-        ASSERT(track_nb < NB_TRACKS);
+        track_nb = track_nb % NB_TRACKS;
         ASSERT(dump_buf_read == dump_buf_write);
         dump_start();
         dump_track(&track[track_nb]);
@@ -511,13 +511,13 @@ static inline void process_erl_in(void **midi_out_buf) {
 }
 
 static inline void process_edit(void **midi_out_buf, uint8_t stamp) {
-    /* The sequencer queues implementation is very simple and does not
-     * not have random insert, so we delay external edits and insert
-     * them once the queue is wound to the correct time stamp.  Play
-     * them back at that time as well.  Note that this requires the
-     * events in the edit queue to be ordered relative to current time
-     * for each loop sequencer's time base, or they will be delayed
-     * until next time. */
+    /* The sequencer queue implementation does not not have random
+     * insert, so we delay external edits and insert them once the
+     * queue is wound to the correct time stamp.  Play them back at
+     * that time as well.  Note that this requires the events in the
+     * edit queue to be ordered relative to current time for each loop
+     * sequencer's time base, or they will be delayed until next
+     * time. */
     jack_nframes_t time = 0;
 
     for(;;) {
@@ -644,38 +644,27 @@ static inline void process_erl_out(uint8_t stamp) {
          * for small buffers.  I don't really understand why it works,
          * because I've definitely seen issues when using larger
          * messages (order of 128kByte, for audio). */
-        uint8_t sysex[] = {
-            0xF0, 0x60,
-            1,2,3,4,5,6,7,8,
-            1,2,3,4,5,6,7,8,
-            1,2,3,4,5,6,7,8,
-            1,2,3,4,5,6,7,8,
-            1,2,3,4,5,6,7,8,
-            1,2,3,4,5,6,7,8,
-            1,2,3,4,5,6,7,8,
-            1,2,3,4,5,6,7,8,
-            1,2,3,4,5,6,7,8,
-            0xF7};
-        to_erl(sysex, sizeof(sysex), CONTROL_PORT, stamp);
+        uint8_t m[100] = {};
+        m[0] = 0xF0, m[1]=0x60, m[sizeof(m)-1]=0xF7;
+        to_erl(&m[0], sizeof(m), CONTROL_PORT, stamp);
     }
 
-    /* Empty the dump buf, sending chunks.  The data is
-     * self-delimiting and easy to parse, so don't bother framing
-     * it. */
+    /* Empty the dump buf, sending chunks. */
     uint32_t nb = dump_buf_write - dump_buf_read;
     if (nb) {
         uint32_t room = to_erl_room();
-        if (room > 3) { // Needs to fit framing
-            uint32_t max_nb = room - 3;
+        if (room > 4) { // Needs to fit framing
+            uint32_t max_nb = room - 4;
             if (nb > max_nb) nb = max_nb;
             // New version: dump as ASCII s-expression
-            uint8_t *hole = to_erl_hole(nb + 3, CONTROL_PORT, stamp);
-            ASSERT(hole); // We've just checked
+            uint8_t *hole = to_erl_hole(nb + 4, CONTROL_PORT, stamp);
             hole[0] = 0xF0;
-            hole[1] = 0x60;
-            hole[nb + 2] = 0xF7;
-            memcpy(hole + 2, &dump_buf[dump_buf_read], nb);
+            hole[1] = 0x60;  // Manufacturer (from reserved space)
+            hole[nb + 3] = 0xF7;
+            memcpy(hole + 3, &dump_buf[dump_buf_read], nb);
             dump_buf_read += nb;
+            // 0=last, 1=remaining
+            hole[2] = !!(dump_buf_write - dump_buf_read);
         }
     }
 
