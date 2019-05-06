@@ -4,3 +4,8 @@
 *.elf
 *.sqlite3
 out.list
+*~
+Cargo.lock
+Cargo.toml
+rs/target
+
