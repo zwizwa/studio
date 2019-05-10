@@ -243,16 +243,18 @@ static uint8_t dump_last_byte(void) {
 */
 #define EVENT_MIDI_SIZE 4
 struct event {
-    uint16_t phase;
+    uint16_t rel_phase;
     uint8_t nb_bytes;
     uint8_t port;
     uint8_t midi[EVENT_MIDI_SIZE];
 } __attribute__((__packed__));
 
 
+
+
 static inline void dump_event(struct event *e) {
     dump_open("e");
-    dump_number(e->phase);
+    dump_number(e->rel_phase);
     dump_number(e->port);
     dump_open("m");
     for(int i=0;i<e->nb_bytes;i++) {
@@ -312,14 +314,28 @@ typedef struct edit_queue edit_queue_container_t;
    mapped to cc23-cc31, corresponding to the Easycontrol 9. */
 struct track {
     struct event_queue q;
-    uint16_t phase;
+    uint16_t abs_phase;
     uint16_t period;
     uint32_t port_mask;
 };
+
+/* Event time base is relative to the loop length using 16-bit
+ * subdivision of the loop.  This makes it easier to change loop sizes
+ * on-the-fly.  Tracks currently use absolute units expressed in jack
+ * frames.  These functions perform the conversion and keeps the
+ * definition of the relation in one place. */
+static inline uint32_t abs_phase(const struct track *t, uint16_t rel_phase) {
+    return (t->period * rel_phase) >> 16;
+}
+static inline uint32_t rel_phase(const struct track *t, uint16_t abs_phase) {
+    return  (((uint32_t)abs_phase) << 16) / ((uint32_t)t->period);
+}
+
+
 static inline void track_tick(struct track *t) {
     //LOG("phase %d\n", t->phase);
     if (!t->period) return; // FIXME
-    t->phase = (t->phase + 1) % t->period;
+    t->abs_phase = (t->abs_phase + 1) % t->period;
 }
 // FIXME: this creates an infinite loop in case there is only one
 // phase recorded, so do it in two steps: get the nb of elements to
@@ -332,7 +348,7 @@ static inline void track_playback(struct track *t, play_t play, void *ctx) {
     uint32_t endx = t->q.write;
     for(;;) {
         const struct event *pe = event_queue_peek(&t->q);
-        if (!pe || (t->phase != pe->phase)) break;
+        if (!pe || (t->abs_phase != abs_phase(t, pe->rel_phase))) break;
         // don't cycle more than once
         if (t->q.read == endx) break;
         // there is an event left at this time phase, so play and cycle the queue
@@ -348,7 +364,7 @@ static inline void track_record_event(struct track *t, const struct event *e) {
 static inline void track_record(struct track *t, uint8_t port,
                                 uint8_t *midi, int32_t nb_bytes) {
     struct event e = {
-        .phase = t->phase,
+        .rel_phase = rel_phase(t, t->abs_phase),
         .nb_bytes = nb_bytes,
         .port = port
     };
@@ -380,8 +396,6 @@ void dump_track(struct track *t) {
 }
 
 
-// TODO:
-// - set tempo
 
 
 // Send midi data out over a jack port.
@@ -421,6 +435,7 @@ static inline void process_dec_sysex(uint8_t *buf, uint32_t nb_bytes) {
     uint32_t cmd = *((uint32_t*)buf);
     buf += 4;
     nb_bytes -= 4;
+    uint32_t *arg = (void*)buf;
     switch(cmd) {
     case 1: {
         /* INSERT: Insert an event in a track.  This goes through the
@@ -437,8 +452,7 @@ static inline void process_dec_sysex(uint8_t *buf, uint32_t nb_bytes) {
         /* CLEAR: Clear current track.  Individual removals are not
          * supported.  To do so, clear and reload. */
         ASSERT(nb_bytes == 4);
-        uint32_t track_nb = *((uint32_t*)buf);
-        ASSERT(track_nb < NB_TRACKS);
+        uint32_t track_nb = arg[0] % NB_TRACKS;
         LOG("clear track %d\n", track_nb);
         event_queue_clear(&track[track_nb].q);
         break;
@@ -448,13 +462,21 @@ static inline void process_dec_sysex(uint8_t *buf, uint32_t nb_bytes) {
          * semantics.  The snapshot will be transferred
          * incrementally. */
         ASSERT(nb_bytes == 4);
-        uint32_t track_nb = *((uint32_t*)buf);
-        track_nb = track_nb % NB_TRACKS;
+        uint32_t track_nb = arg[0] % NB_TRACKS;
         ASSERT(dump_buf_read == dump_buf_write);
         dump_start();
         dump_track(&track[track_nb]);
         uint32_t len = dump_end();
         //log_buf("dump buf: ", dump_buf, len);
+        break;
+    }
+    case 4: {
+        /* SET LOOP PERIOID */
+        ASSERT(nb_bytes == 8);
+        uint32_t track_nb = arg[0] % NB_TRACKS;
+        uint32_t period   = arg[1];
+        ASSERT(period > 0);
+        track[track_nb].period = period;
         break;
     }
     default:
@@ -528,11 +550,9 @@ static inline void process_edit(void **midi_out_buf, uint8_t stamp) {
         ASSERT(pe->track < NB_TRACKS);
         struct track *t = &track[pe->track];
 
-        /* Map it into the track's time base.  If we don't do this,
-           the event will block forever. */
-        uint32_t phase = e->phase % t->period;
+        uint32_t phase = abs_phase(t, e->rel_phase);
 
-        if (t->phase != phase) break; // edit event is in the future
+        if (t->abs_phase != phase) break; // edit event is in the future
 
         /* The edit event is current, so record it into the track and
            play it back. */

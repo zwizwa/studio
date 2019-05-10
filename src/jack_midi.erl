@@ -170,6 +170,13 @@ handle({clear_track, N}, State) when is_number(N) ->
               N:32/little>>},
            State);
 
+handle({track_period, N, T}, State) when is_number(N) ->
+    handle({control,
+            <<4:32/little,  %% cmd
+              N:32/little,
+              T:32/little>>},
+           State);
+
 %% FIXME: Dumps should be serialized through another process.  For
 %% convenience we do implement the obj:call interface here, but will
 %% need to return an error if an operation is in progress.

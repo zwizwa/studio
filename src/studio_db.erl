@@ -1,7 +1,7 @@
 -module(studio_db).
 -export([connect/2, disconnect/2, connections/0,
          midiclock_mask/0,
-         port_id/1,
+         port_id/1, port_pair/1,
          db/0, sql/1]).
 
 db() -> 
@@ -27,11 +27,22 @@ midiclock_mask() ->
     [[[Mask]]] = sql([{<<"select * from midiclock_mask">>,[]}]),
     binary_to_integer(Mask).
 
-connect({CA,PA},{CB,PB}) when 
-      is_binary(CA) and is_binary(PA) and
-      is_binary(CB) and is_binary(PB) ->
-    Q = <<"insert or ignore into connect (client_a, port_a, client_b, port_b) values (?,?,?,?)">>,
-    sql([{Q, [CA,PA,CB,PB]}]).
+port_pair({C,P}) when is_binary(C) and is_binary(P) ->
+    {C,P};
+port_pair(Str) ->
+    [C,P] = binary:split(iolist_to_binary(Str),<<":">>,[global]),
+    {C,P}.
+    
+connect(A,B) ->
+    try
+        {CA,PA} = port_pair(A),
+        {CB,PB} = port_pair(B),
+        Q = <<"insert or ignore into connect (client_a, port_a, client_b, port_b) values (?,?,?,?)">>,
+        sql([{Q, [CA,PA,CB,PB]}])
+    catch
+        C:E ->
+            log:info("WARNING: ~p~n",[{C,E}])
+    end.
 
 disconnect({CA,PA},{CB,PB}) when 
       is_binary(CA) and is_binary(PA) and

@@ -36,7 +36,7 @@ static void port_register(jack_port_id_t a, int reg, void *arg) {
     const char *na = jack_port_name(pa);
 
     //LOG("port_register %s %d\n", na, reg);
-    SEND("port:%d:%s", reg, na);
+    SEND("{port,%s,\"%s\"}", reg ? "true" : "false", na);
 
     char alias0[jack_port_name_size()];
     char alias1[jack_port_name_size()];
@@ -44,9 +44,10 @@ static void port_register(jack_port_id_t a, int reg, void *arg) {
     int nb_alias = jack_port_get_aliases(pa, alias);
     for (int i = 0; i<nb_alias; i++) {
         //LOG(" - alias: %s\n", alias[i]);
-        SEND("alias:%s:%s", na, alias[i]);
+        SEND("{alias,\"%s\",\"%s\"}", na, alias[i]);
     }
 }
+
 
 static void port_connect(jack_port_id_t a, jack_port_id_t b, int connect, void *arg) {
     jack_port_t *pa = jack_port_by_id(client, a);
@@ -54,11 +55,11 @@ static void port_connect(jack_port_id_t a, jack_port_id_t b, int connect, void *
     const char *na = jack_port_name(pa);
     const char *nb = jack_port_name(pb);
     //LOG("port_connect %s %s %d\n", na, nb, connect);
-    SEND("connect:%d:%s:%s",connect,na,nb);
+    SEND("{connect,%s,\"%s\",\"%s\"}",connect  ? "true" : "false", na, nb);
 }
 static void client_registration(const char *name, int reg, void *arg) {
     //LOG("client_registration %s %d\n", name, reg);
-    SEND("client:%d:%s", reg, name);
+    SEND("{client,%s,\"%s\"}", reg  ? "true" : "false", name);
 }
 
 int jack_control(int argc, char **argv) {

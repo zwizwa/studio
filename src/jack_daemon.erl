@@ -83,8 +83,8 @@ handle_connect(PortAlias, Dir, Name, State) ->
         end,
                       
     case Dir of
-        <<"in">>  -> Connect(PortAlias,<<"studio:midi_in_",N/binary>>);
-        <<"out">> -> Connect(<<"studio:midi_out_",N/binary>>,PortAlias)
+        <<"in">>  -> Connect(PortAlias,<<"studio_midi:midi_in_",N/binary>>);
+        <<"out">> -> Connect(<<"studio_midi:midi_out_",N/binary>>,PortAlias)
     end,
     State1.
 
@@ -106,7 +106,7 @@ start_client(Name) ->
     {ok, Pid} = 
         case Name of
             control -> jack_control:start_link("studio_control");
-            midi    -> jack_midi:start_link("studio",16,16,studio_db:midiclock_mask());
+            midi    -> jack_midi:start_link("studio_midi",16,16,studio_db:midiclock_mask());
             audio   -> jack_audio:start_link("studio_audio", 8)
         end,
     Pid.

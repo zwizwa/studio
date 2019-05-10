@@ -1,5 +1,6 @@
 -module(jack_control).
--export([start_link/1, handle/2]).
+-export([start_link/1, handle/2,
+        ports/0, ports/1, clients/0]).
 
 start_link(Client) ->
     Pid = 
@@ -58,33 +59,55 @@ handle({rewire, RewireKind, Src0, Dst0} = _Msg, State = #{ port := Port }) ->
 handle({Port,{exit_status,_}=E}, _State = #{ port := Port }) ->
     exit(E);
 
+
+handle({Pid, ports}, State) ->
+    %% This is a little messy, but currently works
+    obj:reply(Pid, [P || {_,_}=P <- maps:keys(State)]),
+    State;
+
+
 handle({Port,{data, Data}}, State = #{ port := Port }) ->
-    %% Protocol is a string embedded in {packet,1}, which is easy to
-    %% generate in C and easy to massage here into nested data
-    %% structures.
-    Reg = fun(<<"1">>) -> true;
-             (<<"0">>) -> false end,
-    Parsed =
-        case binary:split(Data,<<":">>,[global]) of
-            [<<"client">>,R,C] -> {client, Reg(R), C};
-            [<<"port">>,R,C,P] -> {port, Reg(R), {C, P}};
-            [<<"connect">>,R,CA,PA,CB,PB] -> {connect, Reg(R), {CA,PA}, {CB,PB}};
-            Split -> {error, Split}
-        end,
+    %% Protocol is pterm wrapped in {packet,1}, which is easy to
+    %% generate in C and easy to parse here.  FIXME: probably best to
+    %% switch to {packet,2} or {packet,4}
+    Parsed = type:decode({pterm, Data}),
+    log:info("~999p~n", [Parsed]),
     case Parsed of
-        {connect, true,  A, B} -> studio_db:connect(A, B);
+        {connect, true,  A, B} ->
+            studio_db:connect(A, B),
+            State;
         %% FIXME: Distinguish between disconnect due to client exit
         %% and intentional, manual disconnect?  It can be done on a
         %% timing basis: if a port disconnect is immediately followed
         %% by a client deregister, then don't permanently remove the
         %% connection.
         %% {connect, false, A, B} -> studio_db:disconnect(A, B);
-        _ -> ok
-    end,
-    log:info("~999p~n", [Parsed]),
-    State;
+        {port,Active,CP} ->
+            {C,P} = studio_db:port_pair(CP),
+            maps:put({C,P},Active,State);
+        %% {alias,"system:midi_playback_4","out-hw-4-0-2-USB-Midi-4i4o-MIDI-3"} -> ok;
+        %% {port,true,"system:midi_playback_5"} -> ok;
+        _ ->
+            State
+    end;
 
 handle(Msg, State) ->
     obj:handle(Msg, State).
 
 
+%% Absence of daemon can be mapped to empty collections.
+call_default(Msg,Dflt) ->
+    case whereis(?MODULE) of
+        undefined -> Dflt;
+        Pid -> obj:call(Pid, Msg)
+    end.
+
+ports() ->
+    call_default(ports, []).
+ports(C) ->
+    lists:filter(fun({C0,_}) -> C0 == C end, ports()).
+clients() ->
+    tools:unique([C || {C,_} <- ports()]).
+
+
+             

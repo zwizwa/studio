@@ -1879,3 +1879,57 @@ perfect locking.
 But it is going to be necessary to use relative indexing.
 
 I need to do this when I'm awake..
+
+
+
+Entry: Relative event time?
+Date: Tue May  7 13:21:55 EDT 2019
+
+This is only necessary in the case that edits are too expensive.  They
+might not be.  Otoh loop speed change is something I would like to
+have midi-controlled since it is so basic, so let's do relative events.
+
+Once thing I worried about is that high resolution relative events
+take up more bits when dumping patches.  But maybe 16 bits is enough?
+That will give exact positioning for the more common power-of-two forms.
+
+EDIT: Phase resets are still difficult to do in that they would be
+O(N).  Maybe that is really not an issue, but it does show that the
+setup might be a little too simple.  Slow phase morphs are possible
+though, by changing the period.
+
+
+
+Entry: Map all the synths
+Date: Tue May  7 20:46:14 EDT 2019
+
+Basically everything is  there now to start making  some pattern music
+from Erlang.  Put it all in one module.
+
+Start doing this by making a port/channel/transpose knob set that will
+determine where the keyboard midi notes are going.  Then add some
+learn functionality that records a tag in a database.
+
+
+
+Entry: Connecting midi
+Date: Thu May  9 17:53:46 EDT 2019
+
+This should be a single functioon.
+
+I want a list of clients and ports.
+
+
+
+Entry: RAI
+Date: Fri May 10 13:10:33 EDT 2019
+
+Is connected to exo.
+The doodle.rkt is set up as a task on broom.
+
+Changing params will send on the pd messages.
+
+It's now set up such that:
+- panda will forward to whichever it finds
+
+
