@@ -80,7 +80,7 @@ int jack_audio(int argc, char **argv) {
 
 
     for (int i=0; i<2; i++) {
-        audio_buf[i].nb_channels = audio_in;
+        audio_buf[i].nb_channels = nb_in;
         audio_buf[i].nb_frames_log = 12;
         audio_buf[i].type = 0;
     }

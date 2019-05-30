@@ -7,7 +7,7 @@
 
 
 -module(jack_daemon).
--export([start_link/0, handle/2]).
+-export([start_link/1, handle/2, studio_elf/0, start_client/2]).
 
 
 %% Wrap the daemon and listen on its stdout as a simple way to get
@@ -16,7 +16,7 @@
 %% Once midi port aliases are known, connect them to a specified port
 %% number on the jack client.
 
-start_link() ->
+start_link(Init = #{ hubs := _}) ->
     {ok, serv:start(
            {handler,
             fun() -> 
@@ -24,10 +24,12 @@ start_link() ->
                     tools:info("jackd_open: ~s~n",[SH]),
                     Port = open_port({spawn, SH},
                                       [{line,1024}, binary, use_stdio, exit_status]),
-                    #{port => Port} end,
+                    maps:merge(Init, #{port => Port})
+            end,
             fun ?MODULE:handle/2})}.
 
 handle({Port, {data, {eol, Line}}}, #{port := Port} = State) ->
+    log:info("~s~n", [Line]),
     handle({line, Line}, State);
 handle({Port, {exit_status, _}=Msg}, #{port := Port}) ->
     exit(Msg);
@@ -100,19 +102,27 @@ need_clients(State) ->
     maps:merge(
       State,
       maps:from_list(
-        [{Name,start_client(Name)} || Name <- [control, midi, audio]])).
+        [{Name,start_client(Name, State)}
+         || Name <- [control, midi, audio]])).
 
-start_client(Name) ->
+start_client(Name, #{ hubs := Hubs}) ->
     {ok, Pid} = 
         case Name of
             control -> jack_control:start_link("studio_control");
-            midi    -> jack_midi:start_link("studio_midi",16,16,studio_db:midiclock_mask());
+            midi    -> jack_midi:start_link(
+                         #{ hubs => Hubs,
+                            client => "studio_midi",
+                            midi_ni => 16, 
+                            midi_no => 16,
+                            clock_mask => studio_db:midiclock_mask() });
             audio   -> jack_audio:start_link("studio_audio", 8)
         end,
     Pid.
                 
                     
 
+%% jackd() ->
+%%     os:cmd("echo -n $(which jackd.$(hostname))").
 
 
 
@@ -125,3 +135,8 @@ start_client(Name) ->
 
 
 
+studio_elf() ->
+    %% Old style
+    %% code:priv_dir(studio) ++ "/studio.elf".
+    %% New style: exo build deploys here:
+    os:getenv("HOME") ++ "/bin/studio.elf".

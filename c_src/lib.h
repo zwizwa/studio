@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdint.h>
 #include "port.h"
+#include "macros.h"
 
 #define CT_ASSERT(name, pred) \
     typedef char nct_assert_##name[(pred) ? 1 : -1]
@@ -24,10 +25,6 @@ int alsa_seq_out(int argc, char **argv);
 int alsa_midi_in(int argc, char **argv);
 int alsa_midi_out(int argc, char **argv);
 
-
-
-#define _CONCAT(X,Y)  X##Y
-#define CONCAT(X,Y)   _CONCAT(X,Y)
 
 
 

@@ -353,7 +353,7 @@ static inline void track_playback(struct track *t, play_t play, void *ctx) {
         if (t->q.read == endx) break;
         // there is an event left at this time phase, so play and cycle the queue
         play(ctx, pe->port, &pe->midi[0], pe->nb_bytes);
-        event_queue_cycle(&t->q);
+        event_queue_shift(&t->q);
     }
     /* Advance time base once per Jack frame. */
     track_tick(t);
@@ -422,7 +422,7 @@ static void play_midi_fun(void *ctx, uint8_t port,
 }
 
 
-static void log_buf(const char *name, uint8_t *buf, uint32_t len) {
+void log_buf(const char *name, uint8_t *buf, uint32_t len) {
     LOG("%s",name); for (int i=0; i<len; i++) { LOG(" %02x", buf[i]); } LOG("\n");
 }
 

@@ -8,7 +8,7 @@
 %% Only a single listener is necessary: distinguish based on source addr.
 %% E.g. use aconnect in udev?
 alsa_open(Client) ->
-    open_port({spawn, studio_sup:studio_elf() ++ " alsa_seq_in " ++ Client},
+    open_port({spawn, jack_daemon:studio_elf() ++ " alsa_seq_in " ++ Client},
               [{packet,1},binary,exit_status]).
 alsa_seq_in(Client, Sink) ->
     serv:start({handler,

@@ -8,12 +8,11 @@ start_link(Client) ->
           {handler, 
            fun() ->
                    %% log:set_info_name({jack_control, Client}),
-                   Cmd = tools:format("~s jack_control ~s", [studio_sup:studio_elf(), Client]),
+                   Cmd = tools:format("~s jack_control ~s", [jack_daemon:studio_elf(), Client]),
                    Args = [{spawn,Cmd},[{packet,1},binary,exit_status]],
                    handle(restart_port, #{ open_port => Args })
            end,
            fun ?MODULE:handle/2}),
-    register(jack_control, Pid),
     {ok, Pid}.
 
 %% Jack control client

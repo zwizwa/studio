@@ -6,7 +6,7 @@
 %% only for convenience.
 
 -module(jack_midi).
--export([start_link/4, handle/2
+-export([start_link/1, handle/2
         %% ,balance/2
         ]).
 
@@ -17,7 +17,11 @@
 -define(JACK_MIDI_CMD_MIDI,0).
 -define(JACK_MIDI_CMD_CONNECT,1).
 
-start_link(Client,MidiNI,MidiNO,ClockMask) ->
+start_link(#{ client := Client,
+              hubs   := Hubs,
+              midi_ni := MidiNI,
+              midi_no := MidiNO,
+              clock_mask := ClockMask}) ->
     {ok,
      serv:start(
        {handler,
@@ -26,23 +30,24 @@ start_link(Client,MidiNI,MidiNO,ClockMask) ->
                 Cmd = 
                     tools:format(
                       "~s jack_midi ~s ~p ~p ~p",
-                      [studio_sup:studio_elf(),
+                      [jack_daemon:studio_elf(),
                        Client, MidiNI, MidiNO, ClockMask]),
                 OpenPort =
                     [{spawn,Cmd},
                      [{packet,4}
                      ,binary,exit_status]],
+
                 log:set_info_name({jack_midi,Client}),
-                BC = whereis(midi_hub),
-                _Ref = erlang:monitor(process, BC),
+                %% FIXME: Startup race condition here.
+                BCS = Hubs(midi_hub),
+                [erlang:monitor(process, BC) || BC <- BCS],
                 handle(restart_port,
                        #{ open_port => OpenPort,
                           dump => idle,
-                          bc => BC })
+                          bcs => BCS })
         end,
         fun ?MODULE:handle/2})}.
 
-%% See studio_sup:restart_port/1
 handle(restart_port, State = #{open_port := Args}) ->
     case maps:find(port, State) of
         {ok, Port} ->
@@ -73,7 +78,7 @@ handle({Port,{exit_status,_}=E}, #{ port := Port } = _State) ->
 %% take different paths.
 
 handle({Port,{data, Msg}}, 
-       #{ port := Port, bc := BC, dump := Dump } = State) ->
+       #{ port := Port, bcs := BCS, dump := Dump } = State) ->
     %% log:info("~p~n",[Msg]),
     case maps:find(recorder, State) of
         {ok, Pid} -> Pid ! Msg;
@@ -110,11 +115,17 @@ handle({Port,{data, Msg}},
             log:info("bad control port message ~p~n",[Msg]),
             State;
         <<MidiPort,TimeStamp,BinMidi/binary>> ->
+            Node = node(),
             lists:foreach(
-              fun(DecMidi) -> 
-                      BC ! {broadcast,
-                            {midi, TimeStamp,
-                             {jack, MidiPort}, DecMidi}} end,
+              fun(DecMidi) ->
+                      lists:foreach(
+                        fun(BC) ->
+                                BC ! {broadcast,
+                                      {midi, TimeStamp,
+                                       {jack, Node, MidiPort}, DecMidi}}
+                        end,
+                        BCS)
+              end,
               midi:decode(BinMidi)),
             State
     end;

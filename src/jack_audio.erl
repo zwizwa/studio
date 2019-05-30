@@ -16,7 +16,7 @@ start_link(Client,NI) ->
                 Cmd = 
                     tools:format(
                       "~s jack_audio ~s ~p",
-                      [studio_sup:studio_elf(), Client, NI]),
+                      [jack_daemon:studio_elf(), Client, NI]),
                 OpenPort =
                     [{spawn,Cmd},[{packet,4},binary,exit_status]],
                 log:set_info_name({jack_audio, Client}),
@@ -25,7 +25,6 @@ start_link(Client,NI) ->
         end,
         fun ?MODULE:handle/2})}.
 
-%% See studio_sup:restart_port/1
 handle(restart_port, State = #{open_port := Args}) ->
     case maps:find(port, State) of
         {ok, Port} ->

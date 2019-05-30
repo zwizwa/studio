@@ -1930,6 +1930,233 @@ The doodle.rkt is set up as a task on broom.
 Changing params will send on the pd messages.
 
 It's now set up such that:
-- panda will forward to whichever it finds
+- emacs uses udp send to localhost 12345 on panda
+- panda has forwarder to whichever doodle_pulse it finds
+- exo:start(doodle_pulse) starts on node
+- push_change will issue reload message
+
+
+I think that this s-expession approach is more convenient.  Keep it.
+
+
+
+Entry: Let's do a full set of "standard" effects and synths
+Date: Fri May 10 15:51:13 EDT 2019
+
+And compile them to WASM.
+
+EDIT: Judgement is off.  Depressed state.
+
+
+
+Entry: Midi controllers
+Date: Sat May 11 15:16:25 EDT 2019
+
+Let's see if this works: I want to run the synth on lroom, and plug
+the midi controller into tp.
+
+(exo@10.1.3.2)2> {exo_notify,{10,1,3,10}}: ignored: {add,dmmidi,{tp,1}}
+
+Where does this come from?
+
+{exo_notify,{10,1,3,10}}: exo_notify: Data: <<"env /etc/net/udev/notify-exo.sh tp\n">>
+{exo_notify,{10,1,3,10}}: ignored: {add,dmmidi,{tp,1}}
+
+It does handle midi, just not in a very transparant way.  What do I
+actually want it to do?  Assume a hub-and-spokes model maybe, with zoe
+always central hub, and other audio and midi devs referring back to
+it?
+
+Now what does it do?
+
+It looks for midi_raw, which normally runs on 29, and sends it the
+'add' message.
+
+midi_raw ! {add,midi,{tp,1}}.
+
+
+Then 29 tries to start an erlang process to access that node.  This
+had a bug.  Then it tried to send to midi_raw process, which now has a
+different protocol
+
+Got it now.
+
+Let's move midi_raw to zoe where it belongs: on zoe.
+
+Ok, done.
+
+So it goes like this:
+- udev notifies exo_notify on 2
+- this forwards it to midi_raw
+- midi_raw starts a socat process to the node with the device
+- and sends midi data on to midi_hub
+
+
+Next: how does a pulse synth get the data 
+
+EDIT: Simple: it subscribes to midi_hub
+
+
+
+Entry: Virtual patch bay
+Date: Sun May 12 20:38:35 EDT 2019
+
+Use a breadboard or a patch bay as an input device to a digital
+modular synth.
+
+E.g. take a breadboard and have the top layer be outputs and the
+bottom layer be inputs.  Send some scanning signal on the top and read
+out the bottom.
+
+Thinking about this some more, it seems that a patch matrix would be
+more appropriate.  That would be easy to do with a touch screen gui,
+e.g. using a tablet or an old phone.
+
+This can also be done in code, similar to the number input.
+
+
+
+Entry: Some controller ideas
+Date: Sun May 12 20:52:16 EDT 2019
+
+- patch bay (source code, gui or physical "scanning" bay)
+
+- code editing with rotary encoders: one to scan through parameters,
+  one to set the value.  this doesn't even need a rotary encoder: two
+  sets of keys will be enough.
+
+
+
+Entry: RAI
+Date: Sun May 12 21:23:30 EDT 2019
+
+Instead of going through udp, it should have a mode where it uses
+distel to send it straight to exo.
+
+
+
+Entry: Mobile
+Date: Tue May 14 10:47:36 EDT 2019
+
+So here's what I want on tp:
+
+- work independently of exo network (mobile)
+- optionally jack or pulse
+- easycontrol grey knob set up for code param nav
+
+
+So make it a bit more abstract.
+
+Instead of a single hub, use many hubs that have the same interface.
+Just chain them together.  This can be done later.  It's just
+procrastination.  Get the synth up first.
+
+
+Entry: rai synth
+Date: Tue May 14 11:27:29 EDT 2019
+
+In main_pd there is mention of a proc instance.  In pulse there is no
+such thing.  The synth init code uses this instance information.
+
+I likely don't need the instance, so how to init the proc?
+
+I remember: pulse and jack use static data.  Pd uses dynamic data.
+
+So it looks like the param_reader doe snot support the main gate/freq
+inputs.  Those will have to be done separately.
+
+EDIT: I think I understand.  It will need to be special-cased though,
+just like it is in Pd.
+
+There are a couple of possibilities.  Maybe raw midi is the most
+useful?  I need a default way to map gate, note and velocity to
+something.
+
+EDIT: Note on/of via pd style messages.
+
+Next is to get some sound out of it.  It's not doing anything, likely
+because of those "controls".  Maybe create a simpler synth first?
+
+EDIT: Ok it works.  But pulse has too high latency to be playable.  I
+think the kmook archive has a jack midi implementation.
+
+I actually did get quite far last time.  Pretty much finished it.
+
+
+
+Entry: jack/pulse
+Date: Tue May 14 18:42:18 EDT 2019
+
+Make the studio daemons part of exo.  That way it is easier to start/stop.
+
+EDIT: There are a couple of architectural issues in how all these
+daemons are connected.  The proper solution is to have a supervisor
+with dependencies.  Probably some nesting as well.
+
+
+
+Entry: jack permission problem?
+Date: Wed May 15 12:23:44 EDT 2019
+
+There's a difference between starting it from a tp terminal, and
+starting it via ssh.
+
+In the former there are no error messages about permissions, and the
+devices show up. 
+
+I don't quite understand what's going on here..  Anyways, for now
+there is a workaround: just start it in a terminal.
+
+
+
+Entry: Running code standalone on wanda + tp?
+Date: Wed May 15 12:29:19 EDT 2019
+
+Basically, every node that runs jack should probably have a midi_hub.
+Then when jack comes up, send midi events to all midi hubs in the exo
+network.
+
+EDIT: Going forward with this.  Run the simple synth as a jack plugin.
+
+EDIT: Ok synth works.  Voice allocator is a piece of shit though.
+
+EDIT: Solved the "local hub on partition" issue in exo.
+
+
+
+Entry: Voice allocator
+Date: Thu May 16 14:46:32 EDT 2019
+
+How to create a better voice allocator?
+- push all voices on the stack
+- to allocate, pop one, mark it as used
+- to deallocate, check that it is used and pop push it on the stack
+
+
+Never dealloc a voice if there is another one that is not used.
+
+Can a monophonic allocator be a special case?  I have one on the PIC
+that uses a stack.
+
+
+
+Entry: LRU voice allocator
+Date: Sun May 19 09:18:16 EDT 2019
+
+The main data structure is a list with the following oprations:
+- Take the first N slots (= voice allocation)
+- Add to the head (= note on)
+- Remove from within the body (= note off)
+
+Only the allocation step needs to be fast, because it is run on each
+loop.
+
+EDIT: I think I have something based on queue rotation.  Next is to
+integrate it.
+
+
+EDIT: Again.  There are two obvious next steps:
+- accumulators in lta
+- voice allocator
 
 

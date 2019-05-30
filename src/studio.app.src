@@ -2,6 +2,5 @@
 	{description, "Studio Tools"},
 	{vsn, "0.0.1"},
 	{registered, []},
-	{applications, [kernel,stdlib,erl_tools]},
-        {mod, {studio_app, []}}              
+	{applications, [kernel,stdlib,erl_tools]}
 ]}.
