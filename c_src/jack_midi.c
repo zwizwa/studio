@@ -1,3 +1,5 @@
+#define _DEFAULT_SOURCE
+
 #include "lib.h"
 #include "sysex.h"
 #include <jack/jack.h>
@@ -466,7 +468,9 @@ static inline void process_dec_sysex(uint8_t *buf, uint32_t nb_bytes) {
         ASSERT(dump_buf_read == dump_buf_write);
         dump_start();
         dump_track(&track[track_nb]);
+        dump_end();
         uint32_t len = dump_end();
+        (void)len;
         //log_buf("dump buf: ", dump_buf, len);
         break;
     }
