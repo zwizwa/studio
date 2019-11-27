@@ -2192,3 +2192,14 @@ the .*.install files seems to fix the problem.
 It's uploading, but not reloading.  Should be easy to fix but first
 make the rai interface go through another mechanism.  Currently it is
 sendin UDP frames without properly tagging what file it is from.
+
+
+
+
+Entry: fix midi learn
+Date: Sat Nov 16 18:37:48 EST 2019
+
+It's completely obvious now: go into emacs, set point to the value,
+hit the learn button, wiggle it and.
+
+

@@ -101,9 +101,12 @@ not_tc(_) -> true.
     
 
 %% Midi hub.  serv:hub object filters at the source
+
+%% NOTE: direct epid connections are much more convenient, so this is
+%% no longer used.
+
 start_link() ->
     BC = serv:bc_start(), 
-    register(midi_hub, BC),
     Info = serv:info_start(),
     BC ! {subscribe, {Info, fun ?MODULE:not_tc/1}},
     {ok, BC}.
