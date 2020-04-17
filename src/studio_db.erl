@@ -7,6 +7,9 @@
 %% FIXME:  Currently hardcoded.  Change API such that this can be injected.
 db() ->
     exo:db_local().
+db_put(K,V) ->
+    exo_db:put(K,V).
+    
 
 sql(Queries) ->
     sqlite3:sql(db(), Queries).
@@ -17,27 +20,28 @@ port_pair(Str) ->
     [C,P] = binary:split(iolist_to_binary(Str),<<":">>,[global]),
     {C,P}.
     
-connect(A,B) ->
+connected(A,B,Connected) ->
     try
         {CA,PA} = port_pair(A),
         {CB,PB} = port_pair(B),
-        Q = <<"insert or ignore into connect (client_a, port_a, client_b, port_b) values (?,?,?,?)">>,
-        sql([{Q, [CA,PA,CB,PB]}])
+        db_put([jackconn,CA,PA,CB,PB],[Connected])
     catch
         _C:_E ->
             log:info("WARNING: ~p~n",[{_C,_E}]),
             ok
     end.
+connect(A,B)    -> connected(A,B,true).
+disconnect(A,B) -> connected(A,B,false).   
 
-disconnect({CA,PA},{CB,PB}) when 
-      is_binary(CA) and is_binary(PA) and
-      is_binary(CB) and is_binary(PB) ->
-    Q = <<"delete from connect where client_a=? and port_a=? and client_b=? and port_b=?">>,
-    sql([{Q, [CA,PA,CB,PB]}]).
 
 connections() ->
-    [Table] = sql([{<<"select * from connect">>,[]}]),
-    [{{CA,PA},{CB,PB}} || [CA,PA,CB,PB] <- Table].
+    try
+        [Table] = sql([{<<"select client_a,port_a,client_b,port_b from jackconn where connected = 'true' ">>,[]}]),
+        [{{CA,PA},{CB,PB}} || [CA,PA,CB,PB] <- Table]
+    catch _C:_E ->
+            log:info("WARNING: ~p~n",[{_C,_E}]),
+            []
+    end.
 
 
 
