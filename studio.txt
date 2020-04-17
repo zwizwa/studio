@@ -2203,3 +2203,394 @@ It's completely obvious now: go into emacs, set point to the value,
 hit the learn button, wiggle it and.
 
 
+
+Entry: Resume
+Date: Mon Apr 13 17:56:41 EDT 2020
+
+I want to get back into writing music software.  I want to do it
+without the ego this time.  I think that was the main impediment.
+
+New tricks:
+- no_std rust + async
+- exo monolytg + incremental system is up
+- (soon) webassembly for gui bootstrapping
+- erlang epid + distro db
+
+New insights:
+- Use Erlang only for "patching", not for transport
+- Keep cores simple (state machines)
+- Focus on delta1010 DSP effect on ECP5 (better FPGAs will follow)
+
+
+Entry: fixed function everything
+Date: Mon Apr 13 22:22:02 EDT 2020
+
+To make current setup usable, it needs to be made less programmable
+first, so I can then loosen it up.
+
+
+Entry: Lower the "analog barrier"
+Date: Mon Apr 13 22:26:09 EDT 2020
+
+- mixer
+- envelope
+
+the rest can just be noise
+
+
+Entry: Ricky Tinez videos
+Date: Mon Apr 13 22:30:43 EDT 2020
+
+I like his mindset.  Good way to get to know about recent gear too.
+
+
+Entry: on FPGA work
+Date: Mon Apr 13 22:41:13 EDT 2020
+
+One other thing: it is completely trivial to add processing to a FPGA
+setup.  So why not start out with BBB, use the iCE40 board I already
+have, and add a bus to the ECP5 boards.
+
+Can I make ADCs in FPGA?
+
+
+
+Entry: Motley Crew DSP
+Date: Tue Apr 14 08:27:22 EDT 2020
+
+The mixed digital/analog might be simplest to do with cheap ADCs in a
+microcontroller.  It doesn't really matter it is 10 or 12 bit if it is
+just for a synth voice that still needs to go through envelopes and
+filters.
+
+
+
+Entry: What is missing in the setup?
+Date: Tue Apr 14 12:39:09 EDT 2020
+
+It's not really playable.
+
+Currently it's ok to let zoe be part of it.  Moving to a different
+setup is too much work, but new code should be written so it can run
+on minimalistic hardware.  E.g. move to C or Rust.
+
+Erlang is mostly there for network management.
+
+
+
+
+Entry: scale finder
+Date: Tue Apr 14 21:53:03 EDT 2020
+
+Go back to the idea of log scale with coarse "infinite" adjustment
+knobs on the sides.
+
+
+Entry: something not right
+Date: Wed Apr 15 21:52:21 EDT 2020
+
+(exo@10.1.3.12)1> jack_daemon: ALSA lib rawmidi_hw.c:133:(snd_rawmidi_hw_drain) SNDRV_RAWMIDI_IOCTL_DRAIN failed: Input/output error
+jack_daemon: ALSA lib rawmidi_hw.c:133:(snd_rawmidi_hw_drain) SNDRV_RAWMIDI_IOCTL_DRAIN failed: Input/output error
+jack_daemon: ALSA lib rawmidi_hw.c:133:(snd_rawmidi_hw_drain) SNDRV_RAWMIDI_IOCTL_DRAIN failed: Input/output error
+jack_daemon: ALSA lib rawmidi_hw.c:133:(snd_rawmidi_hw_drain) SNDRV_RAWMIDI_IOCTL_DRAIN failed: Input/output error
+jack_daemon: ALSA lib rawmidi_hw.c:133:(snd_rawmidi_hw_drain) SNDRV_RAWMIDI_IOCTL_DRAIN failed: Input/output error
+
+
+Had to disable the midi hub for devices on zoe: they should use jack.
+It currently doesn't really check.
+
+Also ran into some issues with the cheapo 4 chan midi box.  Power
+cycling helped.
+
+And then studdenly it all works.  My guess: voltage issues somewhere.
+
+Probably best to replace that cheapo with some custom midi circuitry.
+Midi out is easy enough, and really one output for the 3 volcas is
+good enough.
+
+Also ordered some isolation transformers.  It does help quite a lot to
+get the power supply noise out.
+
+
+
+
+Entry: dumb time
+Date: Thu Apr 16 15:51:56 EDT 2020
+
+i need something i can use when i'm really dumb.
+
+
+
+Entry: Looper
+Date: Thu Apr 16 16:27:18 EDT 2020
+
+What would be a good architecture for a looper?  I already have a midi
+looper.  Maybe start there and do audio in the same app?
+
+
+
+Entry: Recorder
+Date: Thu Apr 16 17:29:20 EDT 2020
+
+So I actually have this recorder.  Maybe it's time to actually start
+using it and write a frontend?
+
+
+
+Entry: Volca sync
+Date: Thu Apr 16 17:37:33 EDT 2020
+
+Spec says monaural 3.5mm.
+So it's only pulses. Not start/stop.
+
+
+Entry: next
+Date: Thu Apr 16 19:01:33 EDT 2020
+
+Okay today is not the day, but what does this need to be useful?
+
+- Proper recording & playback of audio and midi loops
+- Flexible and usable midi routing
+- Soft synths
+- Soft effects
+
+Pretty much everything!
+I should probably take a week to work on it.
+
+
+Entry: volca hacks
+Date: Thu Apr 16 19:04:23 EDT 2020
+
+https://www.synthanatomy.com/2020/03/korg-volca-sample-hack-brings-polyphony-probability-triggering-more.html
+
+
+Entry: stay idiosyncratic
+Date: Thu Apr 16 20:24:18 EDT 2020
+
+there is no point in trying to be everything to everybody.
+let it flow.
+
+
+
+Entry: Some notes
+Date: Thu Apr 16 21:21:24 EDT 2020
+
+Started playing a bit yesterday.  It's clear that the analog setup is
+not going to be enough to make tracks.  Esp the drum machine doesn't
+have enough control.  It might be good enough to get an initial thing
+going, but then it should probably be sampled such that more control
+is possible for mixing.
+
+Lessons:
+
+1) use a two-step approach:
+- use synth as user interface to make loops
+- mix the loops separately
+
+End mixing stage should be completely digital, so I need a controller
+just for mixing, eq and other things.
+
+
+2) don't focus on midi recording.
+
+Recording analog is going to be what enables many channels and
+layering.  My analog bandwidth is too limited and should be used
+mostly for bussing.
+
+Also from the past it doesn't make sense to keep midi data without all
+the other synth parameters.  The sound config will just get lost.  So
+do this for fully specified digital only.
+
+
+3) if we're focused on using the analog gear only for sound design,
+what's the best way to lay out the channels?
+
+It's not wired up in a bad way acctualy.  Currently I have:
+
+digital inputs:
+1-8: direct out from mixer channels
+
+digital outputs:
+1-2: 2x stereo
+
+3-4: 1x stereo bus
+5-8: 4x mono bus
+
+This means that effects send from analog channels to the digital
+effects can be digital, and all the stereo returns can
+
+
+
+
+Some bounce ideas:
+
+There are two main ways to combine analog and digital:.
+
+analog synth -> digital effect -> recorder, or
+digital track -> analog effect -> recorder.
+
+
+
+
+5) full access mixing is going to be important
+
+The easycontrol is fixed pot, so let those be fixed per channel
+functions.  Volume for slider and some other function for the top
+knob.  Let's keep it simple and fix the number of tracks to 9.
+
+The button on the easycontrol can be used to select a channel
+parameter on the br control.  This can be anything, but EQ and effects
+send is going to be the most important.
+
+This will need a panel display to show vu meters for channels, current
+function for the br.
+
+
+
+
+6) digital channel allocation optimized for bi-directional 2-bus
+
+changes:
+
+spirit/solderstation mixer -> digital  (these are all better than direct out)
+- 2: Main mix
+- 2: Sub mix
+- 2: Solderstation mix (bench analog)
+- 1: guitar FX return
+- 1: brute (filter effect return)
+(alternatively: effect sends)
+
+digital -> spirit mixer
+- the main mix is digital.  its output should go via ub mixer to monitors
+- 2x stereo busses
+- 2x mono busses
+
+
+what about this:
+
+analog  -> digital: two stereo busses
+digital -> analog:  two stereo busses
+
+Using two busses makes it easy to pass the entire "background mix" in
+two directions, and still have a "foreground mix" to focus on.
+
+The 2 stereo busses can also be used as 4 mono busses by panning the
+channels.
+
+
+
+
+7) Build the final mixer in pd
+
+At least for now, until I have another interface.
+
+
+
+
+Entry: The last 2 channels
+Date: Thu Apr 16 23:53:00 EDT 2020
+
+Probably effects sends are going to be most useful.
+One is definitely reverb.  This can be the unused one.
+The other one could just be duplicate of send to brute.
+
+
+
+Entry: Ardour
+Date: Thu Apr 16 23:56:47 EDT 2020
+
+Can I actually use ardour as the mixer?  Sure why not.  Let's give it
+a try.
+
+I'm not really all that into using existing software, but a
+mixer/tracker is probably a good idea.  No need to reinvent that
+wheel.
+
+EDIT: Yes this is a good idea.  Ardour is good for plumbing.
+
+That also makes it clear what the next step should be.  Ardour should
+probably do timebase.  Can it be looped?
+
+Anyways.  The feel is back again for synth stuff.  The need for a
+looper becomes apparent.  Also something that can sync to ardour's
+timebase.
+
+
+
+Entry: Ardour replacement
+Date: Fri Apr 17 09:53:27 EDT 2020
+
+First: is it possible to reuse ardour file format to get config?
+
+.config/ardour5/templates/studiomix-template/
+
+Yes it probably is.  But not for now.
+
+What should the main router do?
+
+1. properly name I/O
+2. map readable names to routable names
+3. delegate connecting
+
+
+
+Entry: Ports
+Date: Fri Apr 17 09:57:40 EDT 2020
+
+(exo@10.1.3.12)1> obj:dump(jack_daemon).
+obj:dump(jack_daemon).
+#{audio => <0.769.0>,control => <0.763.0>,
+  hubs => #Fun<exo.need_hubs.1>,midi => <0.768.0>,
+  port => #Port<0.1373>,
+  {<<"in">>,<<"Axiom-25-MIDI-1">>} =>
+      <<"in-hw-6-0-0-Axiom-25-MIDI-1">>,
+  {<<"in">>,<<"Axiom-25-MIDI-2">>} =>
+      <<"in-hw-6-0-1-Axiom-25-MIDI-2">>,
+  {<<"in">>,<<"Axiom-25-MIDI-3">>} =>
+      <<"in-hw-6-0-2-Axiom-25-MIDI-3">>,
+  {<<"in">>,<<"M-Audio-Delta-1010-MIDI">>} =>
+      <<"in-hw-1-0-0-M-Audio-Delta-1010-MIDI">>,
+  {<<"in">>,<<"USB-Midi-4i4o-MIDI-1">>} =>
+      <<"in-hw-2-0-0-USB-Midi-4i4o-MIDI-1">>,
+  {<<"in">>,<<"USB-Midi-4i4o-MIDI-2">>} =>
+      <<"in-hw-2-0-1-USB-Midi-4i4o-MIDI-2">>,
+  {<<"in">>,<<"USB-Midi-4i4o-MIDI-3">>} =>
+      <<"in-hw-2-0-2-USB-Midi-4i4o-MIDI-3">>,
+  {<<"in">>,<<"USB-Midi-4i4o-MIDI-4">>} =>
+      <<"in-hw-2-0-3-USB-Midi-4i4o-MIDI-4">>,
+  {<<"out">>,<<"Axiom-25-MIDI-1">>} =>
+      <<"out-hw-6-0-0-Axiom-25-MIDI-1">>,
+  {<<"out">>,<<"Axiom-25-MIDI-2">>} =>
+      <<"out-hw-6-0-1-Axiom-25-MIDI-2">>,
+  {<<"out">>,<<"M-Audio-Delta-1010-MIDI">>} =>
+      <<"out-hw-1-0-0-M-Audio-Delta-1010-MIDI">>,
+  {<<"out">>,<<"USB-Midi-4i4o-MIDI-1">>} =>
+      <<"out-hw-2-0-0-USB-Midi-4i4o-MIDI-1">>,
+  {<<"out">>,<<"USB-Midi-4i4o-MIDI-2">>} =>
+      <<"out-hw-2-0-1-USB-Midi-4i4o-MIDI-2">>,
+  {<<"out">>,<<"USB-Midi-4i4o-MIDI-3">>} =>
+      <<"out-hw-2-0-2-USB-Midi-4i4o-MIDI-3">>,
+  {<<"out">>,<<"USB-Midi-4i4o-MIDI-4">>} =>
+      <<"out-hw-2-0-3-USB-Midi-4i4o-MIDI-4">>}
+
+
+Small recap about how this works.
+
+1. Jack daemon starts up, Erlang parses output.  This is translated
+into an event stream like this:
+
+<0.764.0>: {port,true,"system:midi_playback_14"}
+<0.764.0>: {alias,"system:midi_playback_14","out-hw-8-0-0-LPK25-MIDI-1"}
+<0.764.0>: {connect,true,"system:midi_capture_1","studio_midi:midi_in_10"}
+
+
+
+Entry: Fixing connect
+Date: Fri Apr 17 10:46:21 EDT 2020
+
+Exo DB interface changed to support distributed mode
+- Reads are still the same, but schemas have some restrictions
+- Writes need to go through exo_db:put
+
+
+

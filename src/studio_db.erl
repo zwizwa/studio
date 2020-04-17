@@ -4,28 +4,12 @@
          port_id/1, port_pair/1,
          db/0, sql/1]).
 
-db() -> 
-    maps:merge(
-      sqlite3:db_registered(
-        db,
-        fun db_file/0,
-        fun db_init/1),
-      %% when process is dead, call will fail. otherwise wait forever.
-      %% 3 seconds seems quite normal, so only warn every 10 seconds.
-      #{ timeout => {warn, 10000} }).
+%% FIXME:  Currently hardcoded.  Change API such that this can be injected.
+db() ->
+    exo:db_local().
 
-db_file() ->
-    DbFile = code:priv_dir(studio) ++ "/db.sqlite3",
-    log:info("db file = ~p~n", [DbFile]),
-    DbFile.
-db_init(_) ->
-    ok.
 sql(Queries) ->
     sqlite3:sql(db(), Queries).
-
-midiclock_mask() ->
-    [[[Mask]]] = sql([{<<"select * from midiclock_mask">>,[]}]),
-    binary_to_integer(Mask).
 
 port_pair({C,P}) when is_binary(C) and is_binary(P) ->
     {C,P};
@@ -40,8 +24,9 @@ connect(A,B) ->
         Q = <<"insert or ignore into connect (client_a, port_a, client_b, port_b) values (?,?,?,?)">>,
         sql([{Q, [CA,PA,CB,PB]}])
     catch
-        C:E ->
-            log:info("WARNING: ~p~n",[{C,E}])
+        _C:_E ->
+            log:info("WARNING: ~p~n",[{_C,_E}]),
+            ok
     end.
 
 disconnect({CA,PA},{CB,PB}) when 
@@ -53,8 +38,10 @@ disconnect({CA,PA},{CB,PB}) when
 connections() ->
     [Table] = sql([{<<"select * from connect">>,[]}]),
     [{{CA,PA},{CB,PB}} || [CA,PA,CB,PB] <- Table].
-  
 
+
+
+%% See exo_db midiport table + exo_config
 port_id(Name) when is_binary(Name) ->
     case sql([{<<"select port_id from midiport where port_name = ?">>,[Name]}]) of
         [[[PortId]]] ->
@@ -64,3 +51,23 @@ port_id(Name) when is_binary(Name) ->
             0
     end.
 
+%% This used to be a view.  Don't do that as it spreads things out too
+%% much over different systems.
+
+%% CREATE VIEW midiclock_mask as
+%% select sum(1<<port_id) from midiclock left join midiport on midiclock.port_name = midiport.port_name;
+%% COMMIT;
+
+midiclock_mask() ->
+    %% [[[Mask]]] = sql([{<<"select * from midiclock_mask">>,[]}]),
+    %% Note that exo_db can't represent things by _presence_ of
+    %% records, so an explicit boolean "member" field is necessary
+    %% that we use here to filter.
+    [[[Mask]]] = 
+        sql(
+          [{<<"select sum(1<<port_id) "
+              "from midiclock left join midiport "
+              "on midiclock.port_name = midiport.port_name "
+              "where midiclock.enable = 'true'">>,
+            []}]),
+    binary_to_integer(Mask).

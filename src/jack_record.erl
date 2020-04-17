@@ -21,3 +21,5 @@ start_link(Sources) ->
       fun(Source) -> Source ! {record, Pid} end,
       Sources),
     {ok, Pid}.
+
+%% jack_record:start_link([jack_audio,jack_midi]).

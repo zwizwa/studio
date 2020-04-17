@@ -1,9 +1,42 @@
 %% Jack Daemon wrapper.  Note that this insists on managing the
 %% daemon.  I.e. it is "framework-y".
 
-%% FIXME: The output parsing can now be removed and replaced with
-%% jack_control event-based functionality, but first, save the
-%% contents of the databas.
+%% Some breadcrumbs:
+%%
+%% - In exo, this runs in the main supervisor.  Only jack_daemon is
+%%   stared, which then starts other functionality.
+%%
+%% - Exo also starts midi_raw, which is independent of all jack code.
+%%   Its purpose is to be a hub for midi devices that are not
+%%   connected to jack.
+%%
+%% - While jack daemon is starting up, the daemon's stdout is parsed
+%%   and for each 'added' line, handle_connect/4 is called, which...
+%%
+%% - ... lazy starts jack_control, jack_midi and jack_audio clients.
+%%
+%% - jack_control handles port/alias events
+%%
+%% - jack_midi is a C port and Erlang wrapper that does some "data
+%%   plane" midi operations (e.g. clock generation, sequencer, sysex)
+%%   inside the C application, and furthermore bridges the Jack MIDI
+%%   world and the Erlang message world.  Some thought has been put in
+%%   here, so have a look at jack_midi.c
+%%
+%% - jack_audio is currently a dummy memcpy audio sink
+
+
+
+%% Notes
+%%
+%% - This evolved in a very ad-hoc way.  I currently do not have the
+%%   time to redesign it.  I guess it is ok, just that startup is a
+%%   little messy.
+%%
+%% - It is probably possible to remove the stdout parsing, but at this
+%%   time it is still used to ensure the jack clients are only started
+%%   once the daemon is up.  Once control deamon is up, events are
+%%   handled that way.
 
 
 -module(jack_daemon).
@@ -20,10 +53,11 @@ start_link(Init = #{ hubs := _}) ->
     {ok, serv:start(
            {handler,
             fun() -> 
+                    log:set_info_name(?MODULE),
                     SH = code:priv_dir(studio) ++ "/start_jackd.sh",
                     tools:info("jackd_open: ~s~n",[SH]),
-                    Port = open_port({spawn, SH},
-                                      [{line,1024}, binary, use_stdio, exit_status]),
+                    Opts = [{line,1024}, binary, use_stdio, exit_status],
+                    Port = open_port({spawn, SH}, Opts),
                     maps:merge(Init, #{port => Port})
             end,
             fun ?MODULE:handle/2})}.

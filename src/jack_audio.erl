@@ -12,7 +12,8 @@ start_link(Client,NI) ->
      serv:start(
        {handler,
         fun() ->
-                register(jack_audio, self()),
+                log:set_info_name(jack_audio),
+                register(jack_audio, self()),  %% FIXME: is this necessary?
                 Cmd = 
                     tools:format(
                       "~s jack_audio ~s ~p",

@@ -26,7 +26,8 @@ start_link(#{ client := Client,
      serv:start(
        {handler,
         fun() ->
-                register(jack_midi, self()),
+                log:set_info_name(jack_midi),
+                register(jack_midi, self()),  %% FIXME: is this necessary?
                 Cmd = 
                     tools:format(
                       "~s jack_midi ~s ~p ~p ~p",

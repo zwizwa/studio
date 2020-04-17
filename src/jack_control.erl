@@ -7,6 +7,8 @@ start_link(Client) ->
         serv:start(
           {handler, 
            fun() ->
+                   log:set_info_name(jack_control),
+                   register(jack_control, self()),
                    %% log:set_info_name({jack_control, Client}),
                    Cmd = tools:format("~s jack_control ~s", [jack_daemon:studio_elf(), Client]),
                    Args = [{spawn,Cmd},[{packet,1},binary,exit_status]],
