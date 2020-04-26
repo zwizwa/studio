@@ -2456,9 +2456,8 @@ spirit/solderstation mixer -> digital  (these are all better than direct out)
 - 2: Main mix
 - 2: Sub mix
 - 2: Solderstation mix (bench analog)
-- 1: guitar FX return
-- 1: brute (filter effect return)
-(alternatively: effect sends)
+- 1: send 1 (pre)
+- 1: send 3 (post)
 
 digital -> spirit mixer
 - the main mix is digital.  its output should go via ub mixer to monitors
@@ -2593,4 +2592,262 @@ Exo DB interface changed to support distributed mode
 - Writes need to go through exo_db:put
 
 
+
+
+
+Entry: Optimized
+Date: Fri Apr 17 13:32:50 EDT 2020
+
+1. delta1010 9+10 spdif out can be used.   i put them in ua-30 input
+
+2. ua-30 only needs power to move that signal to its line out with
+   attenuation
+
+3. the ua-30 line out (main mix monitor) can now go into spirit
+   2-track in, which allows straight connection.  note that the
+   isolation transformer does add some attenuation.
+
+4. this allows the 1202 eurorack to be removed entirely!
+
+5. the ua-30 could be connected to another PC which then provides
+   digital sync.  e.g. beaglebone with FPGA.
+
+
+
+
+
+Entry: sprit SX acting up
+Date: Fri Apr 17 15:04:34 EDT 2020
+
+I think it's the yellow right main mix slider.
+
+
+
+Entry: jack plugin gui
+Date: Fri Apr 17 23:28:56 EDT 2020
+
+How to create plugin guis?
+Following youtube video I end up here as example:
+https://github.com/calf-studio-gear/calf/tree/master/gui
+
+there are xml files:
+https://github.com/calf-studio-gear/calf/blob/master/gui/gui/compressor.xml
+
+LV2 is mentioned:
+https://lv2plug.in/
+
+https://tytel.org/helm/
+
+
+
+Entry: fix connect
+Date: Sat Apr 18 17:01:15 EDT 2020
+
+Start with what I want:
+- connect(keys, brute).
+
+This involves a couple of things:
+
+1. Determine if the connection is local to a jack instance.
+
+2. If not, use the epid
+
+3. Else, delegate connecting to jack
+
+
+I only want to solve 3. atm.  The rest should be a fairly trivial
+extension.  But I want to be able to optimize, so let's use the
+convention that if the pid's are the same in an epid, then connect is
+special-cased to a local connection.
+
+
+
+Entry: Names
+Date: Sat Apr 18 17:25:11 EDT 2020
+
+To solve connect, solve names.
+Why are there 4 kinds of names?
+
+1. main port name, e.g. "system:midi_capture_2"
+2. alias "in-hw-2-0-0-USB-Midi-4i4o-MIDI-1"
+3. jack_audio port number
+
+I'm going to add another level of user-defined epid names on top of this.
+
+Should those refer to numbers or names?  Probably numbers are going to
+be most convenient.  The names are ad-hoc anyway.  Let's just keep it
+uniform.
+
+EDIT: Working through the alsa midi connect.  There is a degree of
+freedom here
+
+a. use alsa connect to connect the ports directly
+
+b. implement a connect mechanism inside the jack_midi client
+
+The latter requires more code, but could later be added to provide
+some more flexible routing or mapping.  So we have to go with the
+former for now.
+
+EDIT: It seems alsa naming is not stable.  It looks like I'm doing
+some parsing to map
+
+in-hw-10-0-1-BCR2000-MIDI-2
+
+to
+
+BCR2000-MIDI-2
+
+Indeed. Check the "scan:" handling in jack_daemon.erl
+
+So there is no free lunch to look up the hardware ports, but what can
+be done is to look them up in the db by using the knowledge of what
+ports the studio_midi client is connected to.
+
+
+Some workaround: studio_db:system_port/2
+
+But this exposes a problem: connections cannot persist if names are
+not stable.  So don't save them that way.
+
+Use the functional relation of studio_midi port -> system port instead.
+
+TODO: Remove the connection store/restore from jack and move it to
+exo:connect/disconnect.
+
+
+
+
+Entry: mixer
+Date: Sun Apr 19 10:09:38 EDT 2020
+
+I do want a smaller digital setup with volume control and main out, so
+let's put the mixer back.
+
+EDIT: Ok it is getting convoluted.
+
+1. ua30 output -> ub1202 tape in
+2. ub1202: CD/TAP to CTRL ROOM
+
+This then frees up the bus for other things, so connect that back to the spirit.
+
+Additionally, I've set up a path from spirit monitor out to 11/12 on
+the ub1202, so at least there is an analog path to the speakers.
+
+I probably should create a diagram for this.
+
+
+
+Entry: So what's next?
+Date: Sun Apr 19 11:07:21 EDT 2020
+
+I have 'exo:connect' working.
+This should probably log.
+
+
+
+
+Entry: Couple of wiring changes
+Date: Sun Apr 19 23:17:44 EDT 2020
+
+- UB1202 is available as sub mixer
+- The UA30 is wired to rackhub, which gives it audio sync
+- rackhub will also be panel for the drum machine
+
+
+
+Entry: There might already be many midi/osc control apps in android store
+Date: Mon Apr 20 16:44:08 EDT 2020
+
+And I have all those old phones still.
+
+
+
+Entry: Time base
+Date: Tue Apr 21 17:46:03 EDT 2020
+
+So probably best to pick time base in jack.  How to do that?
+First, switch off the other one.
+
+https://community.ardour.org/a3_features_midi_clock
+
+EDIT > Preferences > MIDI > Sync
+
+TimeCode > JACK Trasport/Time Settings > Ardour is JACK TIme Master
+
+
+Let's turn off the support in studio_midi.
+
+
+
+Entry: 909 kick in reactor
+Date: Wed Apr 22 17:52:49 EDT 2020
+
+https://www.youtube.com/watch?v=A_AWH3SgM84
+
+
+
+Entry: Don't record kick & hh
+Date: Wed Apr 22 18:47:41 EDT 2020
+
+This is of course obvious, so why did I not do it?
+
+
+
+
+
+Entry: waveforms: sampler and logic analyser
+Date: Sun Apr 26 16:01:35 EDT 2020
+
+I have two things that are really the same problem: navigating digital
+logic and oscilloscope traces, and editing music loops and samples.
+
+I want a fast and simple tool.
+
+Start with ideas from wvvw?
+
+The trick there if I recall was to use the mouse in the same way as in
+snd: left button is left selection, right button is right selection.
+Time zoom is done using the middle button based on the location of the
+mouse pointer.
+
+Then just have a lot of those windows.
+
+I need a substrate for this and I really don't want to use the browser
+in a first attempt.
+
+I want to be able to navigate this with just a mouse, and as long as
+the mouse is in the window, keys have special meaning.  No chords:
+just use the keyboard as buttons.
+
+Let's do this so it will also work on a microcontroller, where
+left/right mouse movement is one pot, scroll wheel is another, and
+left/right buttons are two dedicated buttons.
+
+Would SDL+Rust be a good first try?
+
+
+
+So once it is possible to delineate loops, playing them back is fairly
+trivial.
+
+That said, let's take a look at Ricky Tinez' MPC3000 routing setup:
+
+https://www.youtube.com/watch?v=ngFK2YOmuCU
+
+- 10 audio outputs
+- drum group (7 pads / channels)
+- daw tempo midi in  (ERM multiclock)
+- pro 3 synth in reach
+- put pads on separate outputs
+- don't overcomplicate things
+
+
+Some notes: since I don't really need separate midi ports, why not put
+them all on one channel?  Anyway, veering off.  For now the setup is
+ok.  Control is tight enough using jack midi.
+
+But the importance of having both audio and midi in the same client is
+becoming important, so maybe that is something to focus on first?
+ 
 
