@@ -40,7 +40,7 @@
 
 
 -module(jack_daemon).
--export([start_link/1, handle/2, studio_elf/0, start_client/2]).
+-export([start_link/1, handle/2, studio_elf/0, start_client/2, system_port/3]).
 
 
 %% Wrap the daemon and listen on its stdout as a simple way to get
@@ -68,18 +68,28 @@ handle({Port, {data, {eol, Line}}}, #{port := Port} = State) ->
 handle({Port, {exit_status, _}=Msg}, #{port := Port}) ->
     exit(Msg);
 
+
+%% This requires some explanation.  jackd will emit "scan:" lines such
+%% as is printed out above the regexp below.  Note that the numbering
+%% scheme is not likely to be stable across restarts, so we use only
+%% the human readable name part.
+
 handle({line, <<"scan: ", Rest/binary>>=_Line}, State) ->
     %% tools:info("~s~n",[_Line]),
-    {match,[_|[Action,_,Dir,Addr,Name]]} =
-        re:run(Rest,
-               <<"(\\S+) port (\\S+) (\\S+)\\-(hw\\-\\d+\\-\\d+\\-\\d+)\\-(\\S+)\n*">>,
-               [{capture,all,binary}]),
+    {match,[_|[Action,_HwAddr,Dir,Addr,Name]]} =
+        re:run(
+          Rest,
+          %% 
+          %% added  port hw:1,0,0 in-hw-1-0-0-M-Audio-Delta-1010-MIDI
+          <<"(\\S+) port (\\S+) (\\S+)\\-(hw\\-\\d+\\-\\d+\\-\\d+)\\-(\\S+)\n*">>,
+          [{capture,all,binary}]),
     PortAlias = <<Dir/binary,$-,Addr/binary,$-,Name/binary>>,
     Key = {Dir, Name},
     %%tools:info("~s ~p => ~p~n",[Action, Key, PortAlias]),
     case Action of
         <<"added">> ->
-            S1=maps:put(Key,PortAlias,State),
+            %% S1=maps:put(Key,PortAlias,State),
+            S1=State,
             handle_connect(PortAlias, Dir, Name, S1);
         <<"deleted">> ->
             maps:remove(Key, State);
@@ -104,7 +114,8 @@ handle_connect(PortAlias, Dir, Name, State) ->
     %% Client can be started only after daemon is up, so do it lazily.
     {Control, State1} = control_client(State),
 
-    N = integer_to_binary(studio_db:port_id(Name)),
+    N = studio_db:port_id(Name),
+    NBin = integer_to_binary(N),
     %% tools:info("~p~n",[[PortAlias,Dir,Name,N]]),
     Connect =
         fun(Src,Dst) ->
@@ -117,12 +128,18 @@ handle_connect(PortAlias, Dir, Name, State) ->
                           Control ! {connect,Src,Dst}
                   end)
         end,
-                      
+
+    %% Tell controller to connect, but keep the association locally as
+    %% well to be able to resolve {Dir,N} -> PortAlias later for other
+    %% purposes.
     case Dir of
-        <<"in">>  -> Connect(PortAlias,<<"studio_midi:midi_in_",N/binary>>);
-        <<"out">> -> Connect(<<"studio_midi:midi_out_",N/binary>>,PortAlias)
-    end,
-    State1.
+        <<"in">>  ->
+            Connect(PortAlias,<<"studio_midi:midi_in_",NBin/binary>>),
+            maps:put({in,N},PortAlias,State1);
+        <<"out">> ->
+            Connect(<<"studio_midi:midi_out_",NBin/binary>>,PortAlias),
+            maps:put({out,N},PortAlias,State1)
+    end.
 
 
 control_client(State) ->
@@ -152,7 +169,10 @@ start_client(Name, #{ hubs := Hubs}) ->
             audio   -> jack_audio:start_link("studio_audio", 8)
         end,
     Pid.
-                
+
+
+system_port(Pid,Dir,N) when is_number(N) ->
+    obj:find(Pid, {Dir,N}).
                     
 
 %% jackd() ->
@@ -170,7 +190,14 @@ start_client(Name, #{ hubs := Hubs}) ->
 
 
 studio_elf() ->
-    %% Old style
-    %% code:priv_dir(studio) ++ "/studio.elf".
-    %% New style: exo build deploys here:
-    os:getenv("HOME") ++ "/bin/studio.elf".
+    Elf =
+        case 3 of
+            %% Old style
+            1 -> code:priv_dir(studio) ++ "/studio.elf";
+            %% New style: exo build deploys here:
+            2 -> os:getenv("HOME") ++ "/bin/studio.elf";
+            %% Newest style: universal paths.
+            3 -> "/i/exo/studio/c_src/studio.dynamic.host.elf"
+        end,
+    log:info("Elf=~p~n", [Elf]),
+    Elf.

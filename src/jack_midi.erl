@@ -5,6 +5,15 @@
 %% midi processing code as "datapath" code, and use the Erlang bridge
 %% only for convenience.
 
+%% TODO:
+%%
+%% - Since jackd already has a fast internal connection mechanism,
+%%   maybe it is best to annotate midi messages with the port alias
+%%   name instead of a number, to avoid a level of indirection?  Or
+%%   maybe map those names to symbols?
+
+
+
 -module(jack_midi).
 -export([start_link/1, handle/2
         %% ,balance/2

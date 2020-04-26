@@ -19,12 +19,12 @@ start_link(Client) ->
 
 %% Jack control client
 -define(CMD_CONNECT,1).
--define(CMD_DISCONNECT,1).
+-define(CMD_DISCONNECT,2).
 
 fmt_port(Bin) when is_binary(Bin) ->
     Bin;
 fmt_port({C,P}) ->
-    tools:format("~s:~s",[C,P]).
+    tools:format_binary("~s:~s",[C,P]).
 
      
 
@@ -43,14 +43,28 @@ handle(restart_port, State = #{ open_port := Args }) ->
 
 %% Protocol is asynchronous.  This makes it easier to use the return
 %% pipe for jack events.
-
 handle({connect, Src, Dst}, State) ->
     handle({rewire,?CMD_CONNECT,Src,Dst}, State);
 handle({disconnect, Src, Dst}, State) ->
     handle({rewire,?CMD_DISCONNECT,Src,Dst}, State);
 
+%% Also support the epid protocol.
+handle({epid_send,Epid,Msg}=_EpidSend, State) ->
+    log:info("epid command: ~p~n", [_EpidSend]),
+    Self = self(),
+    case Msg of
+        {epid_subscribe, {epid,Self,EpidSub}} ->
+            handle({connect, Epid, EpidSub}, State);
+        {epid_unsubscribe, {epid,Self,EpidSub}} ->
+            handle({disconnect, Epid, EpidSub}, State);
+        _ ->
+            %% Anything else is currently not yet supported.
+            log:info("Bad epid command: ~p~n", [_EpidSend]),
+            State
+    end;
+
 handle({rewire, RewireKind, Src0, Dst0} = _Msg, State = #{ port := Port }) ->
-    %% log:info("~999p~n", [_Msg]),
+    log:info("~999p~n", [_Msg]),
     Src = fmt_port(Src0),
     Dst = fmt_port(Dst0),
     Cmd = <<RewireKind,Src/binary,0,Dst/binary,0>>,
@@ -74,20 +88,12 @@ handle({Port,{data, Data}}, State = #{ port := Port }) ->
     Parsed = type:decode({pterm, Data}),
     log:info("~999p~n", [Parsed]),
     case Parsed of
-        {connect, true,  A, B} ->
-            studio_db:connect(A, B),
-            State;
-        %% FIXME: Distinguish between disconnect due to client exit
-        %% and intentional, manual disconnect?  It can be done on a
-        %% timing basis: if a port disconnect is immediately followed
-        %% by a client deregister, then don't permanently remove the
-        %% connection.
-        %% {connect, false, A, B} -> studio_db:disconnect(A, B);
         {port,Active,CP} ->
             {C,P} = studio_db:port_pair(CP),
             maps:put({C,P},Active,State);
         %% {alias,"system:midi_playback_4","out-hw-4-0-2-USB-Midi-4i4o-MIDI-3"} -> ok;
         %% {port,true,"system:midi_playback_5"} -> ok;
+        %% {connect, true,  _A, _B} -> State;
         _ ->
             State
     end;

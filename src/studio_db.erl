@@ -1,14 +1,11 @@
 -module(studio_db).
--export([connect/2, disconnect/2, connections/0,
-         midiclock_mask/0,
+-export([midiclock_mask/0,
          port_id/1, port_pair/1,
          db/0, sql/1]).
 
 %% FIXME:  Currently hardcoded.  Change API such that this can be injected.
 db() ->
     exo:db_local().
-db_put(K,V) ->
-    exo_db:put(K,V).
     
 
 sql(Queries) ->
@@ -20,30 +17,6 @@ port_pair(Str) ->
     [C,P] = binary:split(iolist_to_binary(Str),<<":">>,[global]),
     {C,P}.
     
-connected(A,B,Connected) ->
-    try
-        {CA,PA} = port_pair(A),
-        {CB,PB} = port_pair(B),
-        db_put([jackconn,CA,PA,CB,PB],[Connected])
-    catch
-        _C:_E ->
-            log:info("WARNING: ~p~n",[{_C,_E}]),
-            ok
-    end.
-connect(A,B)    -> connected(A,B,true).
-disconnect(A,B) -> connected(A,B,false).   
-
-
-connections() ->
-    try
-        [Table] = sql([{<<"select client_a,port_a,client_b,port_b from jackconn where connected = 'true' ">>,[]}]),
-        [{{CA,PA},{CB,PB}} || [CA,PA,CB,PB] <- Table]
-    catch _C:_E ->
-            log:info("WARNING: ~p~n",[{_C,_E}]),
-            []
-    end.
-
-
 
 %% See exo_db midiport table + exo_config
 port_id(Name) when is_binary(Name) ->
@@ -67,11 +40,20 @@ midiclock_mask() ->
     %% Note that exo_db can't represent things by _presence_ of
     %% records, so an explicit boolean "member" field is necessary
     %% that we use here to filter.
-    [[[Mask]]] = 
+    case 
         sql(
           [{<<"select sum(1<<port_id) "
               "from midiclock left join midiport "
               "on midiclock.port_name = midiport.port_name "
               "where midiclock.enable = 'true'">>,
-            []}]),
-    binary_to_integer(Mask).
+            []}]) of
+        [[[<<>>]]] ->
+            %% Why isn't this just <<"0">> when there are no ports enabled?
+            0;
+        [[[Mask]]] ->
+            binary_to_integer(Mask)
+    end.
+
+        
+
+
