@@ -2851,3 +2851,134 @@ But the importance of having both audio and midi in the same client is
 becoming important, so maybe that is something to focus on first?
  
 
+
+
+Entry: Midi filters
+Date: Sun Apr 26 23:51:52 EDT 2020
+
+So I have that connect mechanism.  I can make filters that connect
+channels to channels.
+
+
+
+Entry: sequencer
+Date: Mon Apr 27 00:14:45 EDT 2020
+
+I think I'm done with these dinky sequencers on the volcas.  Let's
+build something more centralized.
+
+Maybe that step sequencer... LMMS
+
+
+Entry: Polyphony
+Date: Mon Apr 27 00:26:19 EDT 2020
+
+This could be done manually by chaining the 3 synths to give 5 voices.
+
+
+Entry: Fix things
+Date: Mon Apr 27 16:12:29 EDT 2020
+
+There is plenty of stuff that just needs to be wired up into the new
+exo connect/redo mechanisms.
+
+
+
+
+Entry: axoloti I2S interface
+Date: Mon Apr 27 17:35:54 EDT 2020
+
+Notes from chat with Johannes.
+
+
+- I2S : multiple busses
+- 3x clock
+
+8MHz -> PLL in audio
+
+- SPI conntroller configurable as I2S  STM32F4
+- SAI block  (msb/lsb different)
+
+
+old axo: no SDram, STM32F407
+new axo: F427 (with SDRam controller)
+
+
+https://www.instructables.com/id/Garduino-Gardening-Arduino/
+
+
+- Generate ELF for "headless" object.
+
+
+
+- start with release:
+https://github.com/axoloti
+2.0 has ELF
+
+- this one has the ELF stuff
+https://github.com/axoloti/axoloti/tree/master/api
+
+
+cd platform_linux
+make
+
+
+
+Implement this class:
+https://github.com/axoloti/axoloti/blob/master/api/patch_class.h
+
+
+- enable packet communication debug
+
+axoloti/src/main/java/axoloti/connection/USBBulkConnection_v2.java
+
+dump_tx_headers
+dump_rx_headers
+
+
+
+Entry: arturia microfreak
+Date: Mon Apr 27 22:50:28 EDT 2020
+
+digital: 1 knob algo select, 3 parameters per algo
+analog SEM filter
+
+https://www.youtube.com/watch?v=-ZmwOaWNmcs
+
+i can do the digital oscillators in rai.  all the other synths can
+probably be modified to take filter inputs.
+
+this is neat
+
+another one:
+
+https://www.youtube.com/watch?v=aRTLlfDRzpU
+
+
+what to learn from that? rai is _way_ too simple to do all this, so
+maybe start building two synths: one that is more classical analog
+style (rai), and one that has more structural variance, to be written
+in rust.  maybe find a combination?
+
+
+
+Entry: filters
+Date: Mon Apr 27 23:07:57 EDT 2020
+
+What do I already have here?
+- keys,bass: different, but both derived from miniKORG700S 12 dB/octave  (2nd order)
+- brute: Steiner-Parker filter
+- monotron: MS-10/MS-20 12 dB/oc
+- fatman (needs new controller + one unassembled)
+
+https://yusynth.net/Modular/EN/STEINERVCF/index.html
+I count 3 caps, but wikipedia says 12dB/octave
+
+
+https://en.wikipedia.org/wiki/Arturia_MiniBrute
+
+
+Entry: A synth in rust
+Date: Tue Apr 28 01:41:28 EDT 2020
+
+Basically, use an entity component architecture.
