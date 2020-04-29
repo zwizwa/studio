@@ -13,11 +13,11 @@ assert_vars() {
     done
 }
 
-assert_vars TYPE
+assert_vars TYPE ERL_TOOLS UC_TOOLS STUDIO
 
-[ -z "$STUDIO"    ] && export STUDIO=$(dirname $0)/..
-[ -z "$ERL_TOOLS" ] && export ERL_TOOLS=$STUDIO/../erl_tools
-[ -z "$UC_TOOLS"  ] && export UC_TOOLS=$STUDIO/../uc_tools
+# [ -z "$STUDIO"    ] && export STUDIO=$(dirname $0)/..
+# [ -z "$ERL_TOOLS" ] && export ERL_TOOLS=$STUDIO/../erl_tools
+# [ -z "$UC_TOOLS"  ] && export UC_TOOLS=$STUDIO/../uc_tools
 
 # Turn them into absolute paths.
 STUDIO=$(readlink -f $STUDIO)

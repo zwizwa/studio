@@ -3,30 +3,33 @@
 // This module bridges {packet,4} ETF and Rust code, while providing a
 // cache for object storage.
 
-#![feature(rustc_private)] 
-
-extern crate erl_rs;
+extern crate erl_tools;
+extern crate looper;
 extern crate eetf;
 extern crate itertools;
 extern crate jack;
 //extern crate libpulse_simple_binding;
 //extern crate libpulse_binding;
 
-use eetf::{Term,Atom};
+//use eetf::{Term,Atom};
+use eetf::{Term,};
 use std::process;
 
-mod etflog;
+use erl_tools::etflog;
+use looper::samplestore;
+use looper::jack_client;
 //mod timeseries;
-mod samplestore;
-mod jack_client;
+//mod samplestore;
+//mod jack_client;
 //mod pulse;
 
 
 // use self::erl_rs::{as_vec, as_i32, as_str, as_u8_slice, atom, tag, binary, i32, i32_vec};
 // constructors
-use self::erl_rs::{atom, tag, i32, i32_vec, i32_vec2, binary};
+use erl_tools::erl_rs::{tag, i32};
+// use self::erl_rs::{atom, tag, i32, i32_vec, i32_vec2, binary};
 // deconstructors
-use self::erl_rs::{as_str, as_vec, as_i32};
+use erl_tools::erl_rs::{as_str, as_vec, as_i32};
 
 /* Packet handler */
 fn main() {
@@ -35,7 +38,7 @@ fn main() {
         count: 0,
         cache: Vec::new()
     };
-    let _rv = erl_rs::loop_apply_etf_2(
+    let _rv = erl_tools::erl_rs::loop_apply_etf_2(
         &mut |cmd| dispatch(&mut ctx, cmd),
         &mut std::io::stdin(),
         &mut std::io::stdout());
@@ -50,7 +53,7 @@ pub enum Object {
     Empty,
     EtfLog      { obj: Box<etflog::EtfLog> },
     SampleStore { obj: Box<samplestore::SampleStore> },
-    JackClient  { obj: Box<jack_client::JackClient /* Trait object */> }
+    JackClient  { obj: Box<dyn jack_client::JackClient /* Trait object */> }
 } 
 pub struct Context {
     count: u32,
@@ -73,20 +76,21 @@ fn ok_obj<'a>(ctx: &'a mut Context, obj: Object) -> Option<Term> {
 // Lifetimes of context and term are different.  Rust requires them to
 // be declared such that it knows which of the two is the lifetime of
 // the output.
-fn as_slot<'a,'b>(ctx: &'a mut Context, term: &'b Term) -> Option<&'a mut Object> {
-    let index = as_i32(term)?;
-    ctx.cache.get_mut(index as usize)
-}
-fn as_etflog<'a,'b> (ctx: &'a mut Context, term: &'b Term) -> Option<&'a etflog::EtfLog> {
-   match as_slot(ctx, term)? {
-       Object::EtfLog { obj: rl } => Some(rl), _ => None
-   }
-} 
-fn as_samplestore<'a,'b> (ctx: &'a mut Context, term: &'b Term) -> Option<&'a samplestore::SampleStore> {
-   match as_slot(ctx, term)? {
-       Object::SampleStore { obj: rl } => Some(rl), _ => None
-   }
-}
+
+// fn as_slot<'a,'b>(ctx: &'a mut Context, term: &'b Term) -> Option<&'a mut Object> {
+//     let index = as_i32(term)?;
+//     ctx.cache.get_mut(index as usize)
+// }
+// fn as_etflog<'a,'b> (ctx: &'a mut Context, term: &'b Term) -> Option<&'a etflog::EtfLog> {
+//    match as_slot(ctx, term)? {
+//        Object::EtfLog { obj: rl } => Some(rl), _ => None
+//    }
+// } 
+// fn as_samplestore<'a,'b> (ctx: &'a mut Context, term: &'b Term) -> Option<&'a samplestore::SampleStore> {
+//    match as_slot(ctx, term)? {
+//        Object::SampleStore { obj: rl } => Some(rl), _ => None
+//    }
+// }
 
 fn dispatch(ctx: &mut Context,
             cmd: &Term) -> Option<Term> {
@@ -149,14 +153,14 @@ fn dispatch(ctx: &mut Context,
 }
 
 
-fn ok()                  -> Option<Term> { Some(atom("ok")) }
+//fn ok()                  -> Option<Term> { Some(atom("ok")) }
 fn ok_term(term: Term)   -> Option<Term> { Some(tag("ok", term)) }
 fn ok_i32(val: i32)      -> Option<Term> { ok_term(i32(val)) }
-fn ok_binary(buf: &[u8]) -> Option<Term> { ok_term(binary(buf)) }
-fn ok_atom(buf: &str)    -> Option<Term> { ok_term(atom(buf)) }
+//fn ok_binary(buf: &[u8]) -> Option<Term> { ok_term(binary(buf)) }
+//fn ok_atom(buf: &str)    -> Option<Term> { ok_term(atom(buf)) }
 
-fn ok_i32_vec(v: &Vec<i32>)        -> Option<Term> { ok_term(i32_vec(v)) }
-fn ok_i32_vec2(vv: &Vec<Vec<i32>>) -> Option<Term> { ok_term(i32_vec2(vv)) }
+//fn ok_i32_vec(v: &Vec<i32>)        -> Option<Term> { ok_term(i32_vec(v)) }
+//fn ok_i32_vec2(vv: &Vec<Vec<i32>>) -> Option<Term> { ok_term(i32_vec2(vv)) }
 
 
 // fn ok_atom(buf: &str) -> Option<Term> { Some(tag("ok", atom(buf))) }

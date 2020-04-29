@@ -235,6 +235,7 @@ static uint8_t dump_last_byte(void) {
 
 #define NS(name) CONCAT(dump,name)
 #include "ns_dump.h"
+#undef NS
 
 
 /* Sequencer.
@@ -279,6 +280,7 @@ struct event_queue {
 typedef struct event        event_queue_element_t;
 typedef struct event_queue  event_queue_container_t;
 #include "ns_queue.h"
+#undef NS
 
 static inline void dump_event_queue(struct event_queue *q) {
     for (uint32_t p = q->read; p != q->write; p = (p + 1) % NB_EVENTS) {
@@ -305,7 +307,7 @@ struct edit_queue edit_queue;
 typedef struct edit       edit_queue_element_t;
 typedef struct edit_queue edit_queue_container_t;
 #include "ns_queue.h"
-
+#undef NS
 
 
 
