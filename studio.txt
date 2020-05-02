@@ -2982,3 +2982,66 @@ Entry: A synth in rust
 Date: Tue Apr 28 01:41:28 EDT 2020
 
 Basically, use an entity component architecture.
+
+
+
+Entry: Refocus
+Date: Fri May  1 17:07:46 EDT 2020
+
+I want too much.  It's important to first start playing, get in the
+grove, and then figure out requirements.
+
+Also the routing is currently not really set up well.  It is very
+complex and too manual.  Go back to the midi learn idea.
+
+
+Entry: Midi learn
+Date: Fri May  1 17:09:49 EDT 2020
+
+What is midi learn from the user interface pov?
+
+- a button that enables learn mode
+- the source controller (just play or turn)
+- something that selects the target
+
+So the problem is really selecting the target.  Basically every target
+will need a learn button.
+
+
+
+Entry: Change bus setup
+Date: Sat May  2 08:56:14 EDT 2020
+
+I don't use stereo track, so let's set up the busses such that they
+record mono only.
+
+Also I need to find a way to make recording simpler.
+
+What is missing?
+- save/restore of connect across client restarts
+- simple loop sampler
+- 1-1 port epid naming
+
+
+I'm not sure why I find the connection thing so difficult.  Maybe I
+want to do too much at once?
+
+jack_control: {port,true,"20200502:midi_in"}
+jack_control: {port,true,"20200502:r95"}
+jack_control: {connect,true,"20200502:r95","system:playback_1"}
+
+
+Let's do some simpler things first.
+EDIT: Changed names to "out_1" etc..
+
+So... output port appears.  This should lead to a connect operation.
+The question is then: how to make that query "natural".
+
+jack_control: {port,true,"20200502:out_1"}
+
+First, is the name stable?  Yes: it's the only thing to go by.
+
+Second: this needs to survive jack restarts, so the name cannot be a
+pid.
+
+Let's start with removing the connect from main_jack.c
