@@ -1,7 +1,15 @@
 // Templated from exo/rs/src/cmd.rs
 
+// For the Jack code there are currently 3 levels:
+// - Stand-alone rust code 
+// - Ties to studio Erlang code
+// - Exo-specific epid & redo mods
+
 // This module bridges {packet,4} ETF and Rust code, while providing a
 // cache for object storage.
+
+
+
 
 extern crate erl_tools;
 extern crate looper;

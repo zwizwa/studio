@@ -1,47 +1,70 @@
 -module(studio_rs).
--export([start_link/0, handle/2, call/2, call/1]).
+-export([start_link/1, handle/2, call/2, call/1]).
 
-%% Templated from exo_rs.erl
 
-start_link(Host) ->
+%% If it runs on localhost, register the process.
+start_link(#{ spawn_port := _ }=Config) ->
     {ok,
      serv:start(
        {handler,
-        fun() -> handle(restart, #{ host => Host }) end,
-        fun exo_rs:handle/2})}.
+        fun() ->
+                %% FIXME:  Reduce start pressure.
+                timer:send_after(2000, restart),
 
-%% If it runs on localhost, register the process.
-start_link() ->
-    {ok, Pid} = start_link(home_bin),
-    register(studio_rs, Pid),
-    {ok, Pid}.
+                %% self() ! restart,
+                maps:merge(
+                  %% By default, start these rust subprocesses.
+                  #{ {ref,0} => {jack_client,<<"studio_rs">>} },
+                  Config)
+        end,
+        fun ?MODULE:handle/2})}.
 
 
+handle(stop, State) ->
+    case maps:find(port, State) of
+        {ok, Port} ->
+            log:info("stopping\n"),
+            port_close(Port);
+        error ->
+            log:info("already stopped\n"),
+            ok
+    end,
+    maps:remove(port, State);
+handle(restart, State) ->
+    self() ! start,
+    handle(stop, State);
 
 %% FIXME: This should rebuild the cache as well.
-handle(restart, State = #{ host := Host }) ->
+handle(start, State = #{ spawn_port := SpawnPort }) ->
     case maps:find(port, State) of
-        {ok, Port} -> port_close(Port);
-        _ -> ok
-    end,
-    %% All port processes for exo go through a SSH layer.  This makes
-    %% it simpler to decouple the Erlang side from the binary side.
-    Opts = [use_stdio, binary, exit_status,{packet,4}],
-    NewPort = exo:exo_open_port(Host, "studio_rs", Opts),
-    Pid = self(),
-    spawn_link(
-      fun() -> 
-              lists:foreach(
-                fun({Ref,What}) ->
-                        log:info("restoring: ~p~n", [{Ref,What}]),
-                        %% Assert they are the same.
-                        %% FIXME: The real solution is to ask for a particular slot.
-                        {ok, Ref} = obj:call(Pid, {open, What})
-                end,
-                lists:sort(
-                  [{Ref,What} || {{ref, Ref}, What} <- maps:to_list(State)]))
-      end),
-    maps:put(port, NewPort, State);
+        {ok, _} ->
+            log:info("already started\n"),
+            State;
+        error ->
+            log:info("starting \n"),
+            %% Framwork provides a way to start the port binary.
+            NewPort =
+                SpawnPort(
+                  #{ cmd => "studio_rs.host.elf",
+                     args => [],
+                     dir => ["/i/exo/studio/rs"],
+                     opts =>  [use_stdio, binary, exit_status,{packet,4}]
+                   }),
+            Pid = self(),
+            spawn_link(
+              fun() -> 
+                      lists:foreach(
+                        fun({Ref,What}) ->
+                                log:info("restoring: ~p~n", [{Ref,What}]),
+                                %% Assert they are the same.
+                                %% FIXME: The real solution is to ask for a particular slot.
+                                {ok, Ref} = obj:call(Pid, {open, What})
+                        end,
+                        lists:sort(
+                          [{Ref,What} || {{ref, Ref}, What} <- maps:to_list(State)]))
+              end),
+            maps:put(port, NewPort, State)
+    end;
 
 handle({Port, Msg}, #{port := Port} = _State) ->
     case Msg of
@@ -102,11 +125,14 @@ etf_call({port,Port}, Term, Timeout) ->
     Val.
 
 call(Pid, Cmd) -> obj:call(Pid, Cmd).
+
 call(Cmd) ->
-    Pid = case whereis(exo_rs) of
-              undefined -> exo:need(exo_rs);
+    Pid = case whereis(?MODULE) of
+              undefined -> exo:need(?MODULE);
               P -> P
           end,
     call(Pid, Cmd).
 
+%% studio_rs:call({open,{jack_client,<<"studio_rs">>}}).
+%% exo:connect(big, {jack_port, <<"studio_rs:midi_in">>}).
 

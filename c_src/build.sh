@@ -51,11 +51,11 @@ case "$TYPE" in
         # This is not a real file for linux builds.
         ;;
     a)
-        assert_vars A O
-        ar -r $A $O #2>/dev/null
+        assert_vars A OBJECTS
+        ar -r $A $OBJECTS #2>/dev/null
         ;;
     elf)
-        assert_vars LD ARCH MAP E A
+        assert_vars LD ARCH MAP ELF A
 
         # The LD name is fake. Use linker's defaults.
         if [ $(basename "$LD") != dynamic.$ARCH.ld ]; then
@@ -63,7 +63,7 @@ case "$TYPE" in
             exit 1
         fi
         set -x
-        $GCC $LDFLAGS -Wl,-Map=$MAP -o $E $O $O_SYSTEM $A $LDLIBS $ELF_LDLIBS
+        $GCC $LDFLAGS -Wl,-Map=$MAP -o $ELF $O $O_SYSTEM $A $LDLIBS $ELF_LDLIBS
 
         ;;
     *)

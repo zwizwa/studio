@@ -54,19 +54,32 @@ start_link(Init = #{ hubs := _}) ->
            {handler,
             fun() -> 
                     log:set_info_name(?MODULE),
-                    SH = code:priv_dir(studio) ++ "/start_jackd.sh",
-                    tools:info("jackd_open: ~s~n",[SH]),
-                    Opts = [{line,1024}, binary, use_stdio, exit_status],
-                    Port = open_port({spawn, SH}, Opts),
-                    maps:merge(Init, #{port => Port})
+                    %% timer:send_after(2000, start),
+                    self() ! start,
+                    Init
             end,
             fun ?MODULE:handle/2})}.
 
-handle({Port, {data, {eol, Line}}}, #{port := Port} = State) ->
-    log:info("~s~n", [Line]),
-    handle({line, Line}, State);
-handle({Port, {exit_status, _}=Msg}, #{port := Port}) ->
-    exit(Msg);
+handle(start, State) ->
+    SH = code:priv_dir(studio) ++ "/start_jackd.sh",
+    tools:info("jackd_open: ~s~n",[SH]),
+    Opts = [{line,1024}, binary, use_stdio, exit_status],
+    Port = open_port({spawn, SH}, Opts),
+    maps:put(port, Port, State);
+
+handle({Port, {data, Data}}, #{port := Port} = State) ->
+    case Data of
+        {eol, Line} ->
+            log:info("~s~n", [Line]),
+            handle({line, Line}, State);
+        _ ->
+            log:info("UNEXPECTED: Data=~p~n", [Data])
+    end;
+handle({Port, {exit_status, _}}=Msg, State = #{ port := Port }) ->
+    log:info("WARNING: ~p~n", [Msg]),
+    timer:send_after(2000, start),
+    maps:remove(port, State);
+
 
 
 %% This requires some explanation.  jackd will emit "scan:" lines such
@@ -105,7 +118,8 @@ handle({client, Msg}, State) ->
         _ -> tools:info("jack client message: ~p~n",[Msg])
     end,
     State;
-handle(Msg, State) ->
+
+handle(Msg={_, {find, _}}, State) ->
     obj:handle(Msg, State).
 
 
@@ -156,15 +170,18 @@ need_clients(State) ->
         [{Name,start_client(Name, State)}
          || Name <- [control, midi, audio]])).
 
-start_client(Name, #{ hubs := Hubs}) ->
+start_client(Name, #{ hubs := Hubs, notify := Notify}) ->
     {ok, Pid} = 
         case Name of
-            control -> jack_control:start_link("studio_control");
+            control -> jack_control:start_link(
+                         #{client => "studio_control",
+                           notify => Notify
+                          });
             midi    -> jack_midi:start_link(
                          #{ hubs => Hubs,
                             client => "studio_midi",
-                            midi_ni => 16, 
-                            midi_no => 16,
+                            midi_ni => 24, 
+                            midi_no => 24,
                             clock_mask => studio_db:midiclock_mask() });
             audio   -> jack_audio:start_link("studio_audio", 8)
         end,

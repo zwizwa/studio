@@ -2,7 +2,7 @@
 -export([start_link/1, handle/2,
         ports/0, ports/1, clients/0]).
 
-start_link(Client) ->
+start_link(#{client := Client, notify := _Notify}=Config) ->
     Pid = 
         serv:start(
           {handler, 
@@ -12,7 +12,9 @@ start_link(Client) ->
                    %% log:set_info_name({jack_control, Client}),
                    Cmd = tools:format("~s jack_control ~s", [jack_daemon:studio_elf(), Client]),
                    Args = [{spawn,Cmd},[{packet,1},binary,exit_status]],
-                   handle(restart_port, #{ open_port => Args })
+                   handle(
+                     restart_port,
+                     maps:put(open_port, Args, Config))
            end,
            fun ?MODULE:handle/2}),
     {ok, Pid}.
@@ -81,12 +83,16 @@ handle({Pid, ports}, State) ->
     State;
 
 
-handle({Port,{data, Data}}, State = #{ port := Port }) ->
+handle({Port,{data, Data}}, State = #{ port := Port, notify := Notify }) ->
     %% Protocol is pterm wrapped in {packet,1}, which is easy to
     %% generate in C and easy to parse here.  FIXME: probably best to
     %% switch to {packet,2} or {packet,4}
     Parsed = type:decode({pterm, Data}),
     log:info("~999p~n", [Parsed]),
+
+    %% FIXME: hardcoded
+    Notify(Parsed),
+
     case Parsed of
         {port,Active,CP} ->
             {C,P} = studio_db:port_pair(CP),
@@ -98,7 +104,7 @@ handle({Port,{data, Data}}, State = #{ port := Port }) ->
             State
     end;
 
-handle(Msg, State) ->
+handle(Msg={_,dump}, State) ->
     obj:handle(Msg, State).
 
 
