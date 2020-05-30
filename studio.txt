@@ -3022,7 +3022,7 @@ What is missing?
 - simple loop sampler
 - 1-1 port epid naming
 
-
+1
 I'm not sure why I find the connection thing so difficult.  Maybe I
 want to do too much at once?
 
@@ -3045,3 +3045,124 @@ Second: this needs to survive jack restarts, so the name cannot be a
 pid.
 
 Let's start with removing the connect from main_jack.c
+
+Now what should happen when the port comes up?  Who is responsible for
+maintaining the connections?
+
+It is important to let sqlite do the scan over the table.  We're
+storing a pterm.  The pterm could just have this form:
+
+{jack_port,<<"doodle:midi_in">>}
+
+I can't assume there is only one jack daemon in the system, but for
+now it is probably ok.
+
+
+EDIT: Got something working with some hardcoding.
+
+
+
+Entry: Behringer NR300 Noise Reducer
+Date: Sat May  2 18:12:21 EDT 2020
+
+I want to mod it to make the attach time much shorter.
+Also wtf is mute anyway?  It's inverted?
+
+https://thetoneking.com/behringer-stomp-box-cross-comparison-chart/
+
+It is derived from NS-2 noise suppressor.
+
+attack knob:
+
+left  = 0 Ohm
+mid   = 150 ohm
+right = 850k Ohm
+
+os in series with R22 4.7k
+
+EDIT: bridging that doesn't do a whole lot...
+
+EDIT: I've wired the distortion chain into the effects loop.
+
+Found schematics.  See library/link/boss-ns2-*
+
+https://www.freestompboxes.org/viewtopic.php?t=11953&p=128917
+http://obrazki.elektroda.net/47_1279571553.jpg
+
+
+Entry: figure out how that patch bay actually works
+Date: Mon May  4 14:07:27 EDT 2020
+
+EDIT: Printed out schematic from manual and put it with the boxes.
+
+
+
+Entry: code, next
+Date: Mon May  4 15:58:43 EDT 2020
+
+Start out with a mixer maybe for the looper?
+
+EDIT: To move this in the Rust direction, it might make more sense to
+start working with midi instead.  Maybe translate the existing
+recorder?
+
+
+MIDI:
+- think state machine os
+- start/stop filter (ardour loops)
+- time doubler
+- arpeggiator
+- filter (e.g filter time from big)
+
+LOOPER:
+- record is linear record with wrap-around
+- playback will need to fade
+- keep originals, possibly cut
+- auto line-up? not necessary when midi-synced
+
+AUDIO:
+- revive circular recorder + trigger?
+- navigator for circular recorder
+
+
+
+
+Entry: The idea is maturing
+Date: Tue May  5 19:06:24 EDT 2020
+
+And also tying into things I've learned and that are just now coming
+together, such as rust async.  Basically, I want an operating system
+for many small state machines.
+
+One important insight is that RAI can't be everything because it
+misses a certain flexibility in control flow.  It's fine though.  It
+can be a modular synth.
+
+So let's design it like that: machines that send messages.
+
+
+
+Entry: Crackles
+Date: Fri May 15 12:14:18 EDT 2020
+
+It seems to be the +4/-10 buttons on the delta1010.
+
+I had taken out the Xenyx802.  I've wired it back up, but now it just
+goes into channel 8 of the spirit.  That is the "debug" mixer so can
+just go wherever.
+
+This frees up input 5/6 on the delta1010.  Those could be effects
+sends?  EDIT: Yes.  Jack now has AUX1 and AUX3 strips.
+
+1202 is now free, so I've put the snake there and filled it up with pc
+and sprit monitor.
+
+
+
+Entry: Tone knobs
+Date: Sat May 16 20:01:17 EDT 2020
+
+So find out the pre/post eq thing on both pedals.
+
+
+
