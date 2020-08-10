@@ -51,17 +51,27 @@ handle({disconnect, Src, Dst}, State) ->
     handle({rewire,?CMD_DISCONNECT,Src,Dst}, State);
 
 %% Also support the epid protocol.
-handle({epid_send,Epid,Msg}=_EpidSend, State) ->
-    log:info("epid command: ~p~n", [_EpidSend]),
+handle({epid_send,Port,Msg}=EpidSend, State) ->
+    %% Use canonical names.
+    log:info("epid command: ~p~n", [EpidSend]),
     Self = self(),
     case Msg of
-        {epid_subscribe, {epid,Self,EpidSub}} ->
-            handle({connect, Epid, EpidSub}, State);
-        {epid_unsubscribe, {epid,Self,EpidSub}} ->
-            handle({disconnect, Epid, EpidSub}, State);
+        %% Internal connections.  Map to canonical names and delegate.
+        {epid_subscribe, {epid,Self,DstPort}} ->
+            handle({connect,
+                    portname(Port),
+                    portname(DstPort)},
+                   State);
+        {epid_unsubscribe, {epid,Self,DstPort}} ->
+            handle({disconnect,
+                    portname(Port),
+                    portname(DstPort)},
+                   State);
         _ ->
-            %% Anything else is currently not yet supported.
-            log:info("Bad epid command: ~p~n", [_EpidSend]),
+            %% Anything else is handled by the high level midi hub.
+            %% FIXME: Remove hardcoded name
+            jack_midi ! EpidSend,
+            %% log:info("Bad epid command: ~p~n", [_EpidSend]),
             State
     end;
 
@@ -106,6 +116,15 @@ handle({Port,{data, Data}}, State = #{ port := Port, notify := Notify }) ->
 
 handle(Msg={_,dump}, State) ->
     obj:handle(Msg, State).
+
+
+%% Internally we use names not numbers, but the interface supports
+%% both formats.
+portname({port, PortDir, PortNb}) ->
+    {ok, HwPort} = jack_daemon:system_port(jack_daemon, PortDir, PortNb),
+    HwPort;
+portname(Name) when is_binary(Name) ->
+    Name.
 
 
 %% Absence of daemon can be mapped to empty collections.

@@ -7,16 +7,6 @@
 #include "port.h"
 #include "macros.h"
 
-#define CT_ASSERT(name, pred) \
-    typedef char nct_assert_##name[(pred) ? 1 : -1]
-#define CT_ASSERT_STRUCT_SIZE(name, size) \
-    CT_ASSERT(struct_##name, sizeof(struct name) == size)
-#define CT_ASSERT_UNION_SIZE(name, size) \
-    CT_ASSERT(union_##name, sizeof(union name) == size)
-
-#define ARRAY_SIZE(x) \
-    (sizeof(x)/sizeof(x[0]))
-
 int jack_midi(int argc, char **argv);
 int jack_audio(int argc, char **argv);
 int jack_control(int argc, char **argv);

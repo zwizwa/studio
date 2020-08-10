@@ -126,6 +126,8 @@ handle({Port,{data, Msg}},
             State;
         <<MidiPort,TimeStamp,BinMidi/binary>> ->
             Node = node(),
+            Midi = midi:decode(BinMidi),
+            %% 1. Broadcasters.
             lists:foreach(
               fun(DecMidi) ->
                       lists:foreach(
@@ -136,9 +138,16 @@ handle({Port,{data, Msg}},
                         end,
                         BCS)
               end,
-              midi:decode(BinMidi)),
+              Midi),
+            %% 2. Epids
+            epid:dispatch(MidiPort, Midi, State),
             State
     end;
+
+%% epid:subscribe installs a monitor. pass on the message.
+handle({'DOWN',_Ref,process,_Pid,_Reason}=Msg, State) ->
+    epid:down(Msg, State);
+
 
 %% The recorder is separate from the broadcast mechanism.  Assume there is only one.
 handle({record, _}, State = #{ recorder := Pid }) ->
@@ -216,6 +225,26 @@ handle({midi,PortMask,Data}, #{ port := Port } = State) ->
     Bin = ?IF(is_binary(Data), Data, midi:encode(Data)),
     Port ! {self(), {command, <<PortMask:32/little, Bin/binary>>}},
     State;
+
+%% Epid interface.
+handle({epid_send,Epid,Msg}=EpidSend, State) ->
+    log:info("jack_midi:handle: ~p~n", [EpidSend]),
+    %% We only support port subscription at this time.  E.g. no
+    %% inidividual midi filtering is done here.
+    PortNb =
+        case Epid of
+            {port,in,N} -> N
+        end,
+    case Msg of
+        %% Internal connections.
+        {epid_subscribe, DstEpid} ->
+            epid:subscribe(PortNb, DstEpid, State);
+        {epid_unsubscribe, DstEpid} ->
+            epid:unsubscribe(PortNb, DstEpid, State);
+        _ ->
+            log:info("Bad epid command: ~p~n", [EpidSend]),
+            State
+    end;
 
 handle(Msg, State) ->
     obj:handle(Msg, State).

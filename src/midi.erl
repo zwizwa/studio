@@ -9,7 +9,7 @@
          %% jackd_port_start_link/0, jackd_port_handle/2, %% jackd erlang port wrapper
          decode/2,decode/1,encode/1,
          %% port_start_link/1, port_handle/2,
-         start_link/0,
+         start_link/0, handle/2,
          trigger_start/2, trigger_cc/1,
          not_tc/1,
          note_freq/1,
@@ -105,11 +105,20 @@ not_tc(_) -> true.
 %% NOTE: direct epid connections are much more convenient, so this is
 %% no longer used.
 
+
+
 start_link() ->
-    BC = serv:bc_start(), 
+    %% Extend serv broacaster with handling of pids.
+    BC = serv:start(
+           {handler,
+            fun serv:bc_init/0,
+            fun ?MODULE:handle/2}),
     Info = serv:info_start(),
     BC ! {subscribe, {Info, fun ?MODULE:not_tc/1}},
     {ok, BC}.
+
+handle(Msg, State) ->
+    serv:bc_handle(Msg, State).
 
 
 %% Event trigger, e.g. for midi learn.
