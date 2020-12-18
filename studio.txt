@@ -3166,3 +3166,89 @@ So find out the pre/post eq thing on both pedals.
 
 
 
+Entry: Raymond setup
+Date: Tue Oct 13 12:00:41 EDT 2020
+
+- removed zni. zoo now has delta1010, and is main workstation
+- set up small speakers at workstation, with 802 mixer
+- solder station is now close to other audio mixers (spirit, 1202)
+
+Nothing is wired yet.  Will have to see how that pans out.  Always an
+issue if there is not just a ton of room to just let the cables hang.
+I can probably do that somewhat, by adding supports to the back of the
+slanted panels.
+
+
+Entry: TD-3-SR
+Date: Fri Oct 30 16:35:27 EDT 2020
+
+https://www.youtube.com/watch?v=2l3rd89aXrQ
+
+4 x 8 x 2
+
+- 4 pattern groups:
+  - 8 patterns
+    - 2 sections
+
+- transpose = pitch + note 
+
+
+Entry: TD-3 midi
+Date: Sun Nov  1 18:20:22 EST 2020
+
+https://303patterns.com/td3-midi.html
+
+It seems quite straightforward.  Maybe an emacs editor for it?
+
+
+
+
+Entry: Pick this up again (Raymond)
+Date: Tue Nov  3 19:04:23 EST 2020
+
+Most midi is connected.  Audio for volcas needs some work.
+
+So what can I do with this?  What I want to do is to create some
+interfacing to create pattern sequences for the synths, and also to
+access the internal pattern sequencer if possible, e.g. for the TD3.
+
+I want to get to something that is "live".  E.g. edit patterns live,
+and do effects and synth settings.
+
+
+
+Entry: Axo as reverb / delay
+Date: Fri Nov  6 10:52:03 EST 2020
+
+Instead of buying yet another box?
+
+
+
+Entry: Review the midi daemon
+Date: Sat Nov  7 08:39:33 EST 2020
+
+I currently don't really remember how it works.
+Start by a simple thing: connect the keyboard to the td3.
+
+EDIT: Something happened with the configuration database.
+
+
+
+Entry: Config DB
+Date: Sat Nov  7 09:38:08 EST 2020
+
+So what is the point there?  Why can't it just be code?
+The reason would be that something is modifying it, e.g. a gui.
+
+But there probably should be a lens that takes a snapshot and turns it
+back into code.
+
+
+
+Entry: I'm fumbling about...
+Date: Sat Nov  7 11:34:11 EST 2020
+
+Maybe let's just give up on these internal sequencers, and build an
+integrated one, or a generative one.  Tidalcycles?
+
+

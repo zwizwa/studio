@@ -120,6 +120,9 @@ handle({client, Msg}, State) ->
     State;
 
 handle(Msg={_, {find, _}}, State) ->
+    obj:handle(Msg, State);
+
+handle(Msg={_,dump}, State) ->
     obj:handle(Msg, State).
 
 

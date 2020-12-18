@@ -1,11 +1,17 @@
 -module(studio_db).
 -export([midiclock_mask/0,
          port_id/1, port_pair/1,
-         db/0, sql/1]).
+         db/0, sql/1, tables/0]).
 
 %% FIXME:  Currently hardcoded.  Change API such that this can be injected.
 db() ->
     exo:db_local().
+tables() ->
+    [{T,exo_db:local_table(T)} ||
+        T <- [midiport,midiclock]].
+        
+
+%% exo_db:local_table(midiport).
     
 
 sql(Queries) ->

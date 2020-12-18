@@ -15,10 +15,11 @@ MIDI data is considered "data plane", since Erlang has too high
 latency.  Typically we run jack at 48kHz, 64 frames, with MIDI snapped
 to the jack frame rate, giving a 750Hz control rate.
 
-However, Erlang still has access to MIDI in/out as for some specific
-controls, the 1-10ms Erlang latency might be good enough.  This leaves
-things open: MIDI (hardware) for low latency, and Erlang for any kind
-of network-connected structure.
+Erlang still has access to MIDI in/out.  For some specific controls,
+the 1-10ms Erlang latency might be a good enough.
+
+This leaves things open: MIDI (hardware) for low latency, and Erlang
+for any kind of network-connected structure.
 
 Inside the jack process we operate:
 - Clock timing

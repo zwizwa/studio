@@ -54,6 +54,7 @@ start_link(#{ client := Client,
                 handle(restart_port,
                        #{ open_port => OpenPort,
                           dump => idle,
+                          clock_mask => ClockMask,
                           bcs => BCS })
         end,
         fun ?MODULE:handle/2})}.
@@ -127,20 +128,32 @@ handle({Port,{data, Msg}},
         <<MidiPort,TimeStamp,BinMidi/binary>> ->
             Node = node(),
             Midi = midi:decode(BinMidi),
-            %% 1. Broadcasters.
+            PortTag = {port,in,MidiPort},
             lists:foreach(
               fun(DecMidi) ->
+                      %% 1. Broadcasters.
                       lists:foreach(
                         fun(BC) ->
                                 BC ! {broadcast,
                                       {midi, TimeStamp,
                                        {jack, Node, MidiPort}, DecMidi}}
                         end,
-                        BCS)
+                        BCS),
+                      %% 2. Epids
+                      %% All midi output
+                      epid:dispatch(PortTag, DecMidi, State),
+                      %% Fine grained epids
+                      case DecMidi of
+                          {cc,Chan,CC,Val} ->
+                              FilterTag = {filter,PortTag,{cc,Chan,CC}},
+                              %% log:info("decmidi ~p -> ~p~n", [DecMidi,FilterTag]),
+                              epid:dispatch(FilterTag, Val, State);
+                          _ ->
+                              ok
+                      end
+                          
               end,
               Midi),
-            %% 2. Epids
-            epid:dispatch(MidiPort, Midi, State),
             State
     end;
 
@@ -229,18 +242,13 @@ handle({midi,PortMask,Data}, #{ port := Port } = State) ->
 %% Epid interface.
 handle({epid_send,Epid,Msg}=EpidSend, State) ->
     log:info("jack_midi:handle: ~p~n", [EpidSend]),
-    %% We only support port subscription at this time.  E.g. no
-    %% inidividual midi filtering is done here.
-    PortNb =
-        case Epid of
-            {port,in,N} -> N
-        end,
     case Msg of
-        %% Internal connections.
+        %% Internal connections.  FIXME: Check epids here?  Otherwise
+        %% it is implicit, e.g. only what dispatch implements.
         {epid_subscribe, DstEpid} ->
-            epid:subscribe(PortNb, DstEpid, State);
+            epid:subscribe(Epid, DstEpid, State);
         {epid_unsubscribe, DstEpid} ->
-            epid:unsubscribe(PortNb, DstEpid, State);
+            epid:unsubscribe(Epid, DstEpid, State);
         _ ->
             log:info("Bad epid command: ~p~n", [EpidSend]),
             State
