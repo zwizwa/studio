@@ -148,6 +148,9 @@ handle({Port,{data, Msg}},
                               FilterTag = {filter,PortTag,{cc,Chan,CC}},
                               %% log:info("decmidi ~p -> ~p~n", [DecMidi,FilterTag]),
                               epid:dispatch(FilterTag, Val, State);
+                          {on,Chan,Note,Vel} ->
+                              FilterTag = {filter,PortTag,{on,Chan,Note}},
+                              epid:dispatch(FilterTag, Vel, State);
                           _ ->
                               ok
                       end
