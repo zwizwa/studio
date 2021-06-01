@@ -211,13 +211,11 @@ system_port(Pid,Dir,N) when is_number(N) ->
 
 studio_elf() ->
     Elf =
-        case 3 of
-            %% Old style
-            1 -> code:priv_dir(studio) ++ "/studio.elf";
-            %% New style: exo build deploys here:
-            2 -> os:getenv("HOME") ++ "/bin/studio.elf";
-            %% Newest style: universal paths.
-            3 -> "/i/exo/studio/c_src/studio.dynamic.host.elf"
-        end,
+        %% Old style
+        %% code:priv_dir(studio) ++ "/studio.elf",
+        %% New style: exo build deploys here:
+        %% os:getenv("HOME") ++ "/bin/studio.elf",
+        %% Newest style: universal paths.
+        "/i/exo/studio/c_src/studio.dynamic.host.elf",
     log:info("Elf=~p~n", [Elf]),
     Elf.

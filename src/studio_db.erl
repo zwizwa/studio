@@ -26,7 +26,8 @@ port_pair(Str) ->
 
 %% See exo_db midiport table + exo_config
 port_id(Name) when is_binary(Name) ->
-    case sql([{<<"select port_id from midiport where port_name = ?">>,[Name]}]) of
+    case sql([{<<"select port_id from midiport where port_name = ?">>,
+               [{text,Name}]}]) of
         [[[PortId]]] ->
             binary_to_integer(PortId);
         _ ->
