@@ -63,7 +63,7 @@ case "$TYPE" in
             exit 1
         fi
         set -x
-        $GCC $LDFLAGS -Wl,-Map=$MAP -o $ELF $O $O_SYSTEM $A $LDLIBS $ELF_LDLIBS
+        $GCC $LDFLAGS -Wl,-Map=$MAP -o $ELF $O $O_SYSTEM $A $LDLIBS $ELF_LDLIBS $LDFLAGS_EXTRA
 
         ;;
     *)
