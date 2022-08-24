@@ -3252,3 +3252,128 @@ Maybe let's just give up on these internal sequencers, and build an
 integrated one, or a generative one.  Tidalcycles?
 
 
+
+Entry: Revisit
+Date: Thu Aug 18 12:54:24 EDT 2022
+
+For sure I'm trying to do too much...
+But I do want to keep focusing on integration.
+Today's idea is to synchronize audio on two setups.
+
+What I want to do is fairly simple: send audio from one machine to the
+other so alsa can sync on it.  This works with the UA-30.
+
+Maybe it's enough to just have analog transport for now?
+
+I'm making this too difficult.
+It should just send word clock.
+
+
+
+
+
+Entry: S/PDIF
+Date: Thu Aug 18 13:05:35 EDT 2022
+
+Doing this over Ethernet makes no sense.  It's important to keep the
+bit clock going such that it can feed a PLL.
+
+It's biphase mark code
+
+https://en.wikipedia.org/wiki/S/PDIF
+
+From scope picture there the transition time is around 150ns
+Or about 6MHz
+
+Better one here:
+
+http://www.crazy-audio.com/tag/oscilloscope/
+
+81ns
+
+12.27MHz.
+
+(/ 12.26 0.048)
+255.41666666666666
+
+(* 48000 24 8)
+1152000
+
+
+(* 256 48000)
+12288000
+
+(* 32 2 48000) -> 3MBit/sec
+
+
+
+https://www.st.com/resource/en/application_note/an5073-receiving-spdif-audio-stream-with-the-stm32f4f7h7-series-stmicroelectronics.pdf
+
+The SPDIFRX peripheral embedded in the STM32 (STM32F4, STM32F7 and
+STM32H7 Series, see the applicabe device datasheet) is designed to
+receive an S/PDIF flow compliant with the IEC-60958 and IEC-61937
+specifications.
+
+https://wiki.st.com/stm32mpu/wiki/SPDIFRX_internal_peripheral
+
+
+also look at this: timer/counter?
+
+https://hackaday.com/2021/04/04/decoding-s-pdif-with-a-microcontroller-brings-a-few-headaches/
+https://jeddelog.com/posts/soft-spdif/
+
+
+https://www.youtube.com/watch?v=udlK1LQ3f3g
+https://bela.io/products/
+https://www.electro-smith.com/about-us
+
+
+
+for RS485: i have LTC1480 which is up to 2.5MBit/sec
+
+i think i'm just going to need to do ethernet
+
+Measuring what comes out of the delta1010 is 3MHz, 3MBit
+
+(* 32 (* 48000 2)) 3072000 Hz
+
+
+
+
+
+
+Entry: JUCE
+Date: Thu Aug 18 16:41:38 EDT 2022
+
+https://juce.com/
+
+The leading framework for multi-platform audio applications
+
+
+
+Entry: Other ICE1712 cards
+Date: Thu Aug 18 19:26:25 EDT 2022
+
+Terratec DMX6fire
+STaudio DSP2000
+
+https://www.zzounds.com/item--STODSP2000
+https://www.tomshardware.com/reviews/terratec-dmx-6fire-24,410-2.html
+
+https://lore.kernel.org/all/5161A6D3.3060602@gmail.com/T/
+
+
+
+Entry: S/PDIF RS495 board
+Date: Thu Aug 18 19:43:30 EDT 2022
+
+James is right.  Use off-the-shelf things.
+
+Because if I make a board, I need RS485 in both directions.
+It's probably simplest to get a 35ft coax and be done with the distraction.
+Later, use nano boards with high speed transceivers for this kind of thing.
+
+EDIT: I bought a $20 cable.
+
+
+
