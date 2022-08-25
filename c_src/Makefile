@@ -12,11 +12,13 @@ STUDIO_BIN_DIR=$(STUDIO_BUILD_DIR)/$(shell $(CC) -dumpmachine)
 STUDIO_ELF = $(STUDIO_BIN_DIR)/studio.elf
 TARGETS := $(STUDIO_ELF)
 
+# FIXME: exo build places studio.elf link in source dir which gets
+# copied to nixos build dir.  This whole thing needs to be simplified...
 .PHONY: all
 all: $(TARGETS) $(patsubst %,../priv/%,$(STUDIO_EXTRA_TARGETS))
 	set >$(STUDIO_BUILD_DIR)/env.log
 	@echo Building in $(REBAR_BUILD_DIR)
-	(cd ../priv ; ln -sf $(STUDIO_ELF) .) # re-create 'current target' link for release tool
+	(cd ../priv ; rm -f studio.elf ; cp -av $(STUDIO_ELF) .)
 
 .PHONY: clean
 clean:
