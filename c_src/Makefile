@@ -25,7 +25,7 @@ clean:
 # Clean this up.
 DEFS := -DMAIN=main -DREAD=read -DWRITE=write
 
-CFLAGS  += -std=c99 -I$(shell readlink -f ../../erl_tools/include)  # FIXME
+CFLAGS  += -std=c99 
 LDFLAGS += -lasound -ljack -lpthread
 
 # Default target build
