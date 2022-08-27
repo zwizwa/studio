@@ -18,9 +18,9 @@ int main(int argc, char **argv) {
     APP(jack_midi);
     APP(jack_audio);
     APP(jack_control);
-    APP(alsa_midi_in);
-    APP(alsa_midi_out);
-    APP(alsa_seq_in);
-    APP(alsa_seq_out);
+    //APP(alsa_midi_in);
+    //APP(alsa_midi_out);
+    //APP(alsa_seq_in);
+    //APP(alsa_seq_out);
     ERROR("unkown program %s\n",program);
 }

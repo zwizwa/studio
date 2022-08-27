@@ -31,7 +31,7 @@ CFLAGS  += -std=c99
 LDFLAGS += -lasound -ljack -lpthread
 
 # Default target build
-LIB_O := alsa.o jack_control.o jack_midi.o jack_audio.o
+LIB_O := jack_control.o jack_midi.o jack_audio.o
 %.o: %.c
 	. ./default.env ; $(CC) $(CFLAGS) -I../include -Wall -c $< -o $@ $(DEFS)
 
