@@ -1,3 +1,6 @@
+-- FIXME: See studio_db:init/0
+
+
 -- Old
 create table midiport (
        port_id    INTEGER PRIMARY KEY NOT NULL,

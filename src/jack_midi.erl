@@ -27,7 +27,7 @@
 -define(JACK_MIDI_CMD_CONNECT,1).
 
 start_link(#{ client := Client,
-              hubs   := Hubs,
+              hubs   := NeedHubs,
               midi_ni := MidiNI,
               midi_no := MidiNO,
               clock_mask := ClockMask}) ->
@@ -48,8 +48,8 @@ start_link(#{ client := Client,
                      ,binary,exit_status]],
 
                 log:set_info_name({jack_midi,Client}),
-                %% FIXME: Startup race condition here.
-                BCS = Hubs(midi_hub),
+
+                BCS = NeedHubs(midi_hub),
                 [erlang:monitor(process, BC) || BC <- BCS],
                 handle(restart_port,
                        #{ open_port => OpenPort,

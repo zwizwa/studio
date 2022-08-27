@@ -1,7 +1,7 @@
 -module(studio_db).
 -export([midiclock_mask/0,
          port_id/1, port_pair/1,
-         db/0, sql/1, tables/0]).
+         db/0, sql/1, tables/0, db_init/0]).
 
 %% FIXME:  Currently hardcoded.  Change API such that this can be injected.
 db() ->
@@ -12,7 +12,24 @@ tables() ->
         
 
 %% exo_db:local_table(midiport).
-    
+
+%% Set up schema.  It would be simpler to do this with a command file
+%% but it doesn't seem that the C api supports that.
+db_init() ->
+    [[],[],[]] = sql(
+      [{<<"create table if not exists midiport ("
+          "  port_id   INTEGER PRIMARY KEY NOT NULL,"
+          "  port_name TEXT    NOT NULL"
+          ");">>,[]},
+       {<<"create table if not exists midiclock ("
+          "  port_name  TEXT    PRIMARY KEY NOT NULL,",
+          "  ts         INTEGER,"
+          "  enable     TEXT",
+          ");">>,[]},
+       {<<"create view if not exists midiclock_mask as"
+          "  select sum(1<<port_id) from midiclock left join midiport on midiclock.port_name = midiport.port_name;">>,[]}
+      ]),
+    ok.
 
 sql(Queries) ->
     sqlite3:sql(db(), Queries).
