@@ -288,4 +288,6 @@ f(Str) -> redo:from_filename(Str).
 export_makefile() ->
     export_makefile(
       redo,
-      [f("rai/rai_uc_tools/doodle.jack.host.elf")]).
+      [f("rai/rai_uc_tools/doodle.jack.host.elf")
+      %% ,f("rai/rai_uc_tools/doodle.pulse.host.elf")
+      ]).

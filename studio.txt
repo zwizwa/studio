@@ -3364,7 +3364,7 @@ https://lore.kernel.org/all/5161A6D3.3060602@gmail.com/T/
 
 
 
-Entry: S/PDIF RS495 board
+Entry: S/PDIF RS485 board
 Date: Thu Aug 18 19:43:30 EDT 2022
 
 James is right.  Use off-the-shelf things.
@@ -3374,6 +3374,23 @@ It's probably simplest to get a 35ft coax and be done with the distraction.
 Later, use nano boards with high speed transceivers for this kind of thing.
 
 EDIT: I bought a $20 cable.
+EDIT: That works ok with UA30, but FTPro gives pops.
+
+Also, S/PDIF is AC-coupled so would have been a mess to get that going
+really.
 
 
+
+
+Entry: How does jack connect work?
+Date: Fri Sep  2 08:09:11 EDT 2022
+
+It used to connect when container was started.
+Does jack see this or not?
+
+I don't find anything obvious.  So assuming this is no longer done
+automatically?
+
+I think it will be necessary to figure out the entire flow graph and
+define it statically.
 
