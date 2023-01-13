@@ -3,7 +3,8 @@
          port_id/1, port_pair/1,
          db/0, sql/1, tables/0, db_init/0]).
 
-%% FIXME:  Currently hardcoded.  Change API such that this can be injected.
+%% FIXME: Currently hardcoded.  Change API such that this can be injected.
+%% FIXME: If the tables do not exist, create them during first contact.
 db() ->
     exo:db_local().
 tables() ->
