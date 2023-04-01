@@ -3252,6 +3252,117 @@ Maybe let's just give up on these internal sequencers, and build an
 integrated one, or a generative one.  Tidalcycles?
 
 
+Entry: analog setup: feedback
+Date: Mon May  9 09:11:09 EDT 2022
+
+Main issue is the high gain feedback, which really needs a switch.
+Or maybe a patch cable is enough.
+
+This issue is solved by using feed-through only, but it might be
+simpler to dedicate one mixer to feedback and leave the large one at
+the end.
+
+That doesn't actually allow feeding instruments into the noise
+feedback chain, so keep it as it is.
+
+
+
+
+Entry: new dsp ideas
+Date: Mon Aug 22 08:15:07 EDT 2022
+
+I want to do something with cheap 12 bit ADC.
+Was thinking something on CM3 but CM4 might be minimum.
+Do want floating point.
+
+
+
+Entry: audio setup
+Date: Wed Aug 24 07:02:44 EDT 2022
+
+delta1010 still seems fine
+
+trying sync to ua30, which seems to work, but can't get it to operate
+without pops.
+
+getting very distracted there... somehow got it in my head the sync
+setup is important, that there is something to learn there...
+
+anyways
+seems music itself isn't happening right now
+mostly in tinkering mode...
+
+
+
+Entry: tsn
+Date: Wed Aug 24 07:12:47 EDT 2022
+
+https://tsn.readthedocs.io/
+
+
+
+Entry: sync the other way?
+Date: Thu Aug 25 21:00:18 EDT 2022
+
+It didn't occur to me that the delta1010 can take sync in just fine,
+so what about sending it out from this then use envy24control?
+
+
+
+Entry: still messing with devices
+Date: Sat Aug 27 19:54:38 EDT 2022
+
+I ordered another fasttrack pro after finding out 64,2 seems to work
+fine with jack+pd on a x230.  That's the ideal portable setup really.
+
+So let's not worry about sync on those.  4 in 4 out is enough as a
+local analog node.  I have one now set up to take wet from guitar with
+2 back to mixer.
+
+The ordered ftpro can go on the workbench.
+
+The main workstation has spdif audio coming from the delta1010 in the
+synth corner.
+
+
+
+Entry: emu10k1
+Date: Sat Aug 27 23:04:35 EDT 2022
+
+delt1010 crashes the z440
+trying with emu10k1
+i want to use the machine as a soft synth
+so would be nice to have digital out into delta1010 on other machine
+
+https://01.org/linuxgraphics/gfx-docs/drm/sound/cards/emu10k1-jack.html
+
+
+Entry: just send the fucking packets
+Date: Sat Aug 27 23:55:43 EDT 2022
+
+so what about this:
+jack or pd sends 64 bytes to compute host
+compute host computes
+sends 64 packets back
+this is done with sequence over udp
+the compute node runs io_uring or some other low latency network stack
+
+this might work with pd batch mode blocking on udp reception
+
+
+Entry: udp latency
+Date: Sun Aug 28 00:13:21 EDT 2022
+
+i think this will need to bypass the kernel using dpdk say stick to 64
+samples at 48kHz thats (/ 48000.0 64) a 750kHz packet rate.
+
+Say 8 channels float that's (* 4 8 64) 2048 bytes which is already a
+jumbo packet of 2048 bytes.
+
+
+
+
+
 
 Entry: Revisit
 Date: Thu Aug 18 12:54:24 EDT 2022
@@ -3381,6 +3492,11 @@ really.
 
 
 
+Entry: igb 5.10
+Date: Thu Sep  1 13:14:17 EDT 2022
+
+updated: zoe, rackhub, mimas
+
 
 Entry: How does jack connect work?
 Date: Fri Sep  2 08:09:11 EDT 2022
@@ -3393,4 +3509,489 @@ automatically?
 
 I think it will be necessary to figure out the entire flow graph and
 define it statically.
+
+
+Entry: fatman
+Date: Mon Dec  5 19:31:06 EST 2022
+
+i put up a new work corner in the basement
+the fatman is sitting on the desk
+
+it has a replacement pic board
+but i am going to use something else for this
+maybe this is actually a good excuse to try rust
+
+it doesn't matter where this is going
+a plan is not needed
+
+might be possible to use the eidac circuit to drive this one.
+
+
+
+
+Entry: standardize exo studio startup
+Date: Fri Dec 23 08:36:14 EST 2022
+
+issue: -d alsa -X raw is needed for midi in /etc/net/dsp/jack-$HOSTNAME.sh
+
+issue: jack_daemon doesn't start automatically when exo beam starts
+
+issue: config database should auto-create.  see mimas startup log:
+
+Dec 23 08:33:32 oberon exo_vm[2604]: =SUPERVISOR REPORT==== 23-Dec-2022::08:33:32.294315 ===
+Dec 23 08:33:32 oberon exo_vm[2604]:     supervisor: {local,exo_sup}
+Dec 23 08:33:32 oberon exo_vm[2604]:     errorContext: child_terminated
+Dec 23 08:33:32 oberon exo_vm[2604]:     reason: {{nocatch,{sqlite3_errmsg,<<"no such table: midiclock">>}},
+Dec 23 08:33:32 oberon exo_vm[2604]:              [{sqlite3,sql,3,
+Dec 23 08:33:32 oberon exo_vm[2604]:                        [{file,"/build/erl_tools-exo/src/sqlite3.erl"},
+Dec 23 08:33:32 oberon exo_vm[2604]:                         {line,235}]},
+Dec 23 08:33:32 oberon exo_vm[2604]:               {studio_db,midiclock_mask,0,
+Dec 23 08:33:32 oberon exo_vm[2604]:                          [{file,"/build/studio-exo/src/studio_db.erl"},
+Dec 23 08:33:32 oberon exo_vm[2604]:                           {line,68}]},
+Dec 23 08:33:32 oberon exo_vm[2604]:               {jack_daemon,start_client,2,
+Dec 23 08:33:32 oberon exo_vm[2604]:                            [{file,"/build/studio-exo/src/jack_daemon.erl"},
+
+
+
+
+
+Entry: studio_db
+Date: Fri Dec 23 10:32:40 EST 2022
+
+This needs studio_db:db_init().
+It's stored in exo db, which is in ~exo/
+
+This should happen automatically.
+
+There are still a bunch of issues with starting the vm properly.
+It seems to have an issue right after reboot.
+Then "nixos-rebuild switch" fixes it.
+
+
+
+
+Entry: about this forth synth
+Date: Thu Dec 29 09:58:42 EST 2022
+
+I really just want to go back to Staapl and that PIC18 right?
+Rust can wait.
+
+I have a lot more clear mind about writing state machines at this time
+so why not do that instead, as a macro language on top of Staapl.
+
+
+
+Entry: piano, gigasampler
+Date: Sat Mar  4 09:52:45 EST 2023
+
+https://www.reddit.com/r/linuxaudio/comments/ospejd/best_piano_available_on_linux/
+
+
+Entry: more channels
+Date: Sat Mar 11 19:19:38 EST 2023
+
+Every analog synth needs its own dedicated digital output to add inserts.
+Dont mix dry.  Mix wet returns.
+Analog distortion should use patch bays.
+
+
+
+Entry: midi processing, erlang, C
+Date: Sat Mar 11 19:40:07 EST 2023
+
+Basically, there is Erlang code for routing over Erlang network and
+doing setup and management, but I still want state machines to run in
+C inside a jackd client and to keep it a bit simpler.
+
+So maybe start reading jack_midi again
+
+
+
+Entry: akai fire
+Date: Sat Mar 11 20:14:49 EST 2023
+
+https://blog.segger.com/decoding-the-akai-fire-part-1/
+https://blog.segger.com/decoding-the-akai-fire-part-2/
+https://blog.segger.com/decoding-the-akai-fire-part-3/
+
+
+Buttons
+
+Input,      Press,    Release
+STEP,       90 2C 7F, 80 2C 00
+NOTE,       90 2D 7F, 80 2D 00
+DRUM,       90 2E 7F, 80 2E 00
+PERFORM,    90 2F 7F, 80 2F 00
+SHIFT,      90 30 7F, 80 30 00
+BANK,       90 1A 7F, 80 1A 00
+SOLO 1,     90 24 7F, 80 24 00
+SOLO 2,     90 25 7F, 80 25 00
+SOLO 3,     90 26 7F, 80 26 00
+SOLO 4,     90 27 7F, 80 27 00
+ALT,        90 31 7F, 80 31 00
+PATTERN,    90 32 7F, 80 32 00
+PLAY,       90 33 7F, 80 33 00
+STOP,       90 34 7F, 80 34 00
+REC,        90 35 7F, 80 35 00
+BROWSER,    90 21 7F, 80 21 00
+PAT UP,     90 1F 7F, 80 1F 00
+PAT DOWN,   90 20 7F, 80 20 00
+GRID LEFT,  90 22 7F, 80 22 00
+GRID RIGHT, 90 23 7F, 80 23 00
+
+Rotary Controls
+
+Input,     Touch/Press Event, Release Event, Turn event
+VOLUME,    90 10 7F,          80 10 00,      B0 10 xx
+PAN,       90 11 7F,          80 11 00,      B0 11 xx
+FILTER,    90 12 7F,          80 12 00,      B0 12 xx
+RESONANCE, 90 13 7F,          80 13 00,      B0 13 xx
+SELECT,    90 19 7F,          80 19 00,      B0 76 xx
+
+The ‘xx’ is relative: 7-bit two’s complement so 01, 03, ..., 3F are
+clockwise rotations (of varying angular velocity) and 7F, 7E, ..., 40
+are counterclockwise rotations.
+
+Pad control
+
+Button, Press,    Release
+R1 C1,  90 36 xx, 80 36 00
+...
+R4 C16, 90 75 xx, 80 75 00
+
+The ‘xx’ here is the velocity.  Limited velocity-sensitive, but not
+very usable.
+
+To illuminate PLAY, send B0 33 xx.  Same for other buttons.  xx is:
+
+Buttons
+
+Red-only       Green-only        Yellow-only       Yellow-red        Yellow-green
+PAT BACK       SOLO 1            ALT               STEP              PATTERN
+PAT NEXT       SOLO 2            STOP              NOTE              PLAY
+BROWSER        SOLO 3                              DRUM
+GRID LEFT      SOLO 4                              PERFORM
+GRID RIGHT                                         SHIFT    
+                                                   LOOP REC
+Control values
+
+00 – Off       00 – Off          00 – Off          00 – Off          00 – Off
+01 – Dull Red  01 – Dull Green   01 – Dull Yellow  01 – Dull Yellow  01 – Dull Yellow
+02 – High Red  02 – High Green   02 – High Yellow  02 – Dull Red     02 – Dull Green
+               03 – High Yellow  03 – High Yellow
+               04 – High Red     04 – High Green
+
+
+
+Rectangular LED 1     B0 28 xx     00 – Off
+Rectangular LED 2     B0 29 xx     01 – Dull red
+Rectangular LED 3     B0 2A xx     02 – Dull green
+Rectangular LED 4     B0 2B xx     03 – High red
+                                   04 – High green
+
+four circular red LEDs
+
+Message 	Effect
+B0 1B 00 	All LEDs off
+B0 1B 01 	Channel LED on only
+B0 1B 02 	Mixer LED on only
+B0 1B 03 	User 1 LED on only
+B0 1B 04 	User 2 LED on only
+Then… 	
+B0 1B 10 (0001’0000) 	All LEDs off
+B0 1B 11 (0001’0001) 	Channel LED on only
+B0 1B 12 (0001’0010) 	Mixer LED on only
+B0 1B 13 (0001’0011) 	Channel and Mixer LED on
+B0 1B 14 (0001’0100) 	User 1 LED on only
+…
+B0 1B 1F (0001’1111) 	All LEDs on
+
+
+
+
+04 – “SysEx Continues” which is part of the USB encapsulation
+F0 – System Exclusive
+47 – Akai Manufacturer ID (see the MMA site for a list)
+7F – The All-Call address
+04 – “SysEx Continues,” and I will not show these bytes further
+43 – Sub-ID byte #1 identifies “Fire” product
+65 – Sub-ID byte #2 identifies the command
+02 – First byte of SysEx payload
+…
+F7 – End of Exclusive
+
+
+The USB specification says that all SysEx data uses that 04 leading
+byte, and the final packet containing the F7 End of Exclusive will be
+in a four-byte packet starting 05, 06, or 07.
+
+
+
+02 00        - length 7,7 (256 bytes)
+00 xx xx xx  - pad index, red, green, blue
+01 xx xx xx
+02 xx xx xx
+03 xx xx xx
+04 xx xx xx
+...
+3F xx xx xx
+
+
+F0 – System Exclusive
+47 – Akai Manufacturer ID (see the MMA site for a list)
+7F – The All-Call address
+43 – Fire Sub-ID
+65 – Write Pad Array command
+hh – High length byte, bits 7 through 13 of following payload
+ll – Low length byte, bits 0 through 7 of following payload
+Repeat for pads you want to change {…
+ii – Pad index, 00 top left through 3F bottom right
+rr – Red level, 00 through 7F
+gg – Green level, 00 through 7F
+bb – Blue level, 00 through 7F
+…}
+F7 – End of Exclusive
+
+
+
+
+static const U8 _aBitMutate[8][7] = {
+  { 13,  19,  25,  31,  37,  43,  49 },
+  {  0,  20,  26,  32,  38,  44,  50 },
+  {  1,   7,  27,  33,  39,  45,  51 },
+  {  2,   8,  14,  34,  40,  46,  52 },
+  {  3,   9,  15,  21,  41,  47,  53 },
+  {  4,  10,  16,  22,  28,  48,  54 },
+  {  5,  11,  17,  23,  29,  35,  55 },
+  {  6,  12,  18,  24,  30,  36,  42 }
+};
+ 
+
+static void _PlotPixel(unsigned X, unsigned Y, unsigned C) {
+  unsigned RemapBit;
+  //
+  if (X < 128 && Y < 64) {
+    //
+    // Unwind 128x64 arrangement into a 1024x8 arrangement of pixels.
+    //
+    X += 128 * (Y/8);
+    Y %= 8;
+    //
+    // Remap by tiling 8x7 block of translated pixels.
+    //
+    RemapBit = _aBitMutate[Y][X % 7];
+    if (C > 0) {
+      _aTestBitmap2[4 + X/7*8 + RemapBit/7] |= 1u << (RemapBit % 7);
+    } else {
+      _aTestBitmap2[4 + X/7*8 + RemapBit/7] &= ~(1u << (RemapBit % 7));
+    }
+  }
+}
+
+The OLED “write display” SysEx
+
+The SysEx that writes the OLED display is as follows:
+
+F0 – System Exclusive
+47 – Akai Manufacturer ID
+7F – The All-Call address
+43 – “Fire” product
+0E – “Write OLED” command
+hh – Bits 7-13 of payload length
+ll – Bits 0-6 of payload length
+00 – Start 8-pixel band of update
+07 – End 8-pixel band of update (here, 8 bands of 8 pixels, i.e. the whole display)
+00 – Start colum of update
+7F – End column of update
+xx – Bitmap data formatted as in _PlotPixel()
+F7 – End of Exclusive
+
+
+
+
+
+
+Entry: live coding
+Date: Mon Mar 13 19:40:08 EDT 2023
+
+I want to go back to live coding.
+
+The rai thing was a good start.  I want to combine that with state
+machine generation.
+
+
+
+Entry: how to get this started again?
+Date: Mon Mar 13 19:44:26 EDT 2023
+
+i want the results of this, the pride.
+
+i however do not have the inspiration. there is no intrinsic drive to
+get over the threshold. i keep going for low hanging fruit.
+
+EDIT: Alright I have cloned a skeleton for jack midi->audio.  Next is
+to revive how to start and connect a synth, then look at the old
+processor API and see where that left off, then revive the entire big
+netowork thing.
+
+
+Entry: text-based
+Date: Mon Mar 13 22:03:39 EDT 2023
+
+So I am clear about this: i want text-editor interface to music
+network, with all parameters auto-assignable and scale tweaking.
+
+As for the analog setup, I just want to connect everything to
+everything.  The analogs are for live play.  I do want to build
+pieces, so maybe focus on using analog for samples etc, or build a
+digitally controlled analog synth.
+
+So maybe time to be very clear about what language to use.  It really
+has to be racket.  There is no decent alternative.  That's the only
+place where I can mix different semantics.
+
+The backbone would be Erlang, or an Erlang-style network.
+
+
+Entry: analog
+Date: Mon Mar 13 22:15:33 EDT 2023
+
+actually I don't care so much about analog mixing.
+
+so what do I have to connect?
+
+delta1010 in:
+- brute
+- tb-03
+- volca keys
+- volca bass
+- volca drums
+- guitar effects wet (send from behringer mixer)
+- guitar / bass / mic clean (via behringer mixer)
+- modular / misc analog
+
+- then the 8 outs could go to analog mixer feeding to speaker,
+  straight through by default
+
+
+the second delta1010 is then free to use
+
+EDIT: tried to gang them with the coax and that works fine
+
+Also the envy can be set up to monitor, so there would be no latency
+at all.
+
+EDIT: ordered a thinner stereo RCA cable.  Coax is very stiff.
+Curious if that will work as well.
+
+So basically I could run a digital mixer on zoe, bring the audio over
+spdif to zoo.
+
+EDIT: Once envy24control switches to spdif it can't be put back to
+internal until audio interface is opened/closed.
+
+
+
+Entry: Voice stealing
+Date: Wed Mar 15 21:40:35 EDT 2023
+
+LRU isn't really the solution.  A good voice stealer would remove the
+least important note, whatever that means.
+
+https://electronicmusic.fandom.com/wiki/Voice_stealing
+
+
+Entry: focus on a single synth for a bit
+Date: Sun Mar 19 22:31:33 EDT 2023
+
+One desk, one synth, all the rest digital support (pd + plugins).
+
+
+Entry: Jack auto-connect
+Date: Mon Mar 20 08:46:00 EDT 2023
+
+There needs to be a dag stored somewhere such that the client creation
+event can create the proper connections.
+
+
+
+Entry: modes
+Date: Mon Mar 20 17:30:40 EDT 2023
+
+1: every knob is an instrument.  intensity is volume.  color is
+  spectral content
+
+2: drum machine
+
+
+
+Entry: code reload
+Date: Mon Mar 20 17:44:12 EDT 2023
+
+Should I not bother and just reload the jack application?  Or do a
+"popless reload" by double-buffering two SO libraries and ldopen?
+
+Wondering... would it be simpler to put everything in Pd instead?
+Bypass the whole jack thing for now.  Just make reload work with
+dlopen?
+
+No, midi doesn't work well in pd.
+
+So let's stick to jack.  Use the patchbay maybe?
+
+Advantage is that this is a standard application.
+https://www.rncbc.org/drupal/node/76
+
+Actually it's already doing this and I spent a lot of time on making
+this work in a uniform way.
+
+
+
+
+Entry: chaining
+Date: Mon Mar 20 20:15:14 EDT 2023
+
+So soon to have 4 machines that could be chained with spdif or
+wordclock.  But let's start simple: zoe and zoo can now be chained
+with spdif.  Zoe could host and sub-mix experimental analog that is on
+the bench then transport to zoo, and vice versa.
+
+The jack thing is going to need to configure all of this and save it
+in Erlang DB.
+
+
+
+Entry: 
+Date: Wed Mar 22 06:58:47 EDT 2023
+
+exo:start({rai,jack,<<"doodle">>}).
+
+It's looking for 
+sh: line 1: /home/tom/rai_uc_tools/doodle.jack.host.elf: No such file or directory
+
+First problem is: how do I split /etc/net code from code that is
+compiled on panda?  Also, it's probably best to push code to the
+remote hosts so it can be run without NFS.
+
+Maybe that was the idea there?
+
+The core idea is how to allow code updates without nixos-rebuild, but
+also allow nixos-rebuild to install defaults?  Well let nixos-rebuild
+install the compiler.
+
+
+
+Entry: Sync
+Date: Fri Mar 24 16:15:15 EDT 2023
+
+The 3 PCs can do their own multitracking and just send the mix out for
+bus chaining.  Then later tracks can be combined.
+
+It's time to make it easy to develop this... Set up a loader etc.
+
+
+
+
+
+
 
