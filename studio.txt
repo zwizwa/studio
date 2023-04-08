@@ -3990,8 +3990,24 @@ bus chaining.  Then later tracks can be combined.
 It's time to make it easy to develop this... Set up a loader etc.
 
 
+Entry: Layla 3G jack
+Date: Thu Apr  6 09:24:52 PM EDT 2023
+
+Actually it does work just fine.
+Chan 1+2 are duplicated on the headphone out.
+Not sure what was going on in the previous attempt.
 
 
+Entry: Distributed mixer
+Date: Thu Apr  6 09:43:15 PM EDT 2023
+
+Now time to get this thing going.
+
+The idea is to not rely on analog mixing any more, but wire all analog
+equipment to direct in, and wire the 3 x 8 cards and PCs together.
+
+Control backbone will be Erlang.  Data plane has its own connections
+to keep sync.
 
 
 
