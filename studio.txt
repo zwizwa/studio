@@ -4321,3 +4321,37 @@ giving it a number for now.  A plugged device is a combination of
 Erlang node and number.
 
 
+
+Entry: connect
+Date: Sun Apr 30 09:20:01 AM EDT 2023
+
+Next step is to implement epid connect.
+
+If there is a path on the local jack instance, use that.
+Otherwise go through the Erlang abstraction.
+
+They should work the same.
+
+Then later, implement "building of network from source" separately.
+
+So first up is to see if epid connect still works.
+
+EDIT: Copied the code over to /etc/net
+Next is to:
+- Recreate the central emacs proxy
+- Look up which jack client has a specific midi device
+
+
+Alright exo:epid(emacs) and exo:send(emacs,123) are working.
+Next up is jack midi ports.
+
+What I really want is to autodetect port locations.
+
+But that is not going to be easy as a first step, so make them
+explicit at first.
+
+EDIT: Forget about finding the ports in the jack instance for now.
+Stick to zoe, make sure it works there.  Then later maybe add some
+dynamic mechanism.
+
+
