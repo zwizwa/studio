@@ -1,3 +1,5 @@
+%% FIXME: No longer used. Config is now hardcoded in studio_cfg.erl
+
 -module(studio_db).
 -export([midiclock_mask/0,
          port_id/1, port_pair/1,

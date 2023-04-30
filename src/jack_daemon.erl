@@ -131,7 +131,7 @@ handle_connect(PortAlias, Dir, Name, State) ->
     %% Client can be started only after daemon is up, so do it lazily.
     {Control, State1} = control_client(State),
 
-    N = studio_db:port_id(Name),
+    N = studio_cfg:port_id(Name),
     NBin = integer_to_binary(N),
     %% tools:info("~p~n",[[PortAlias,Dir,Name,N]]),
     Connect =
@@ -185,7 +185,7 @@ start_client(Name, #{ hubs := Hubs, notify := Notify}) ->
                             client => "studio_midi",
                             midi_ni => 24, 
                             midi_no => 24,
-                            clock_mask => studio_db:midiclock_mask() });
+                            clock_mask => studio_cfg:midiclock_mask() });
             audio   -> jack_audio:start_link("studio_audio", 8)
         end,
     Pid.
