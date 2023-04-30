@@ -4011,3 +4011,313 @@ to keep sync.
 
 
 
+
+Entry: microfreak
+Date: Thu Apr 13 01:12:49 PM EDT 2023
+
+https://www.youtube.com/watch?v=-ZmwOaWNmcs
+
+- powers via usb
+- 160 presets
+
+- basic waves:
+  - wave: square to saw
+  - timbre: pulse width
+  - shape: subosc
+
+- supersaw: wave, mod, detune
+
+- wavetable
+
+- harmonic
+
+- virtual analog
+
+- waveshaper / folder
+
+- 2 op fm
+
+- formant
+
+- chord: type, inversion/transp
+
+- voice: word banks, formants
+
+- modal: inharm, exitation brightness, damping
+
+- 12dB/oct filter
+
+https://www.arturia.com/products/hardware-synths/microfreak/details
+
+
+Entry: 
+Date: Thu Apr 13 02:11:52 PM EDT 2023
+
+voice allocator:
+- reuse the same pitch first
+
+
+
+
+Entry: now what do i want?
+Date: Fri Apr 14 08:48:49 PM EDT 2023
+
+A single file that can describe all routing in applicative form.
+Start by writing this in racket.  I don't want Erlang syntax.
+
+But.. applicative form does have some disadvantages, as inputs to
+synths will show up in a weird way.
+
+{jack_audio,1} = microbrute({midi=jack_midi_2})
+
+I guess this is ok.
+
+
+
+Entry: next
+Date: Fri Apr 14 08:59:09 PM EDT 2023
+
+I guess read all the code again, and trace the startup.
+
+
+Entry: something is in the way
+Date: Sat Apr 15 07:13:24 PM EDT 2023
+
+I just really do not want to read all that code and figure out how it
+works. I want to start over with a new idea, something that is
+"simple".
+
+But let's not do that.  There was this whole epid thing so just
+continue with that.  I think it worked.
+
+First I probably need to continue with the build system to also do C
+code.
+
+
+Entry: trying something on luna
+Date: Sun Apr 16 10:08:27 AM EDT 2023
+
+Ok got jack configured.
+Messing with sed again then abandoned...
+Using fasttrack pro always now.
+
+i keep getting stuck
+what is it i actually want to do?
+
+first, figure out why the midi looper is active on the microfreak
+
+
+
+Entry: midi looper
+Date: Sun Apr 16 01:09:06 PM EDT 2023
+
+~/exo/studio/c_src/jack_midi.c
+
+struct track
+track_record_event
+track_record
+is called when record_mask&(1 << t)
+
+record_mask is set here:
+
+            if (in == 0 &&
+                event.size == 3 &&
+                msg[0] == 0xB0 && // CC channel 0
+                (msg[1] >= 23) && // CC num on Easycontrol 9
+                (msg[1] <= 31)) {
+                uint32_t t = msg[1]-23;
+                if (msg[2]) {
+                    record_mask |= (1<<t);
+                }
+                else {
+                    record_mask &= ~(1<<t);
+                }
+                LOG("record %d %d\n", t, msg[2]);
+            }
+
+This should be in the logs because default starts out as 0 and this is
+in the path where it is enabled or disabled:
+
+                LOG("record %d %d\n", t, msg[2]);
+
+This is old hardcoded stuff, where easycontrol buttons are used to
+enable/disable recording.
+
+
+Questions / wants:
+- Can this be seen in log
+- How to rebuild without nix?
+- Don't log midi to main log.  It is too verbose.
+- Why is microfreak device 0?
+- How does the device table work again?
+
+
+tom@zoe:~$ journalctl |tail -n 10000 | grep record
+Apr 16 13:18:39 zoe exo_vm[1435]: record 5 0
+Apr 16 13:18:39 zoe exo_vm[1435]: record 5 1
+Apr 16 13:18:39 zoe exo_vm[1435]: record 5 2
+
+Track 5 is (+ 23 5) 28
+
+Which is sent indeed, as part of some other cc messages.
+
+The microfreak is sending stuff:
+
+Apr 16 13:22:00 zoe exo_vm[1307]: <0.146.0>: {midi,171,{jack,'exo@zoe.zoo',0},{cc,0,28,2}}
+
+Roadmap:
+- Figure out how db works
+- Set it up such that erl code can be changed incrementally on zoe
+- Then do the same for C code
+
+
+
+grep -nrI . -e 'studio_db:'
+./jack_control.erl:108:   {C,P} = studio_db:port_pair(CP),
+./jack_daemon.erl:134:    N = studio_db:port_id(Name),
+./jack_daemon.erl:188:    clock_mask => studio_db:midiclock
+
+
+
+Entry: database or not?
+Date: Sun Apr 16 08:44:35 PM EDT 2023
+
+What is relevant?
+- When is it written?
+- Are there many different ways of querying?
+
+Going to put them in the studio file.
+
+
+
+
+Entry: realistically, what next?
+Date: Sun Apr 16 08:46:51 PM EDT 2023
+
+i will need to take a break from work, or to work on this in the morning.
+
+
+
+Entry: modify one of the patch bays?
+Date: Fri Apr 21 09:31:50 AM EDT 2023
+
+for the noise stuff it would be nice to have it modded to use a chain
+by default, and maybe some knobs for mixing.
+
+you know this is too much work
+
+
+EDIT: added patchbay and later pd.  nice!
+
+you know many things i get stuck in "too much work".  maybe just do
+one small step.  things are more clear after that. either positive or
+negative. just do the step.
+
+
+
+Entry: next erlang
+Date: Sat Apr 22 08:02:11 AM EDT 2023
+
+- autostart jack and pd, but do this in exo_vm
+EDIT: done for jack on zoe, mimas, pedal
+
+
+Entry: wiring
+Date: Sat Apr 22 10:04:20 AM EDT 2023
+
+Monitors are on the Spirit SX
+
+Sub mixers:
+- ub1202 (RCA + transformer, no eq)
+- layla 1,2 and delta1010 1,2 (TRS ,eq)
+
+
+
+Entry: stuck on?
+Date: Sat Apr 22 06:53:36 PM EDT 2023
+
+- jack patching
+- midi routing / processing  (make a dsl for this)
+- always on recorder
+
+
+Entry: next
+Date: Sun Apr 23 07:54:11 AM EDT 2023
+
+the always on recorder is not necessary yet.  just manually start it
+every time.
+
+the important parts are midi patcher and some kind of mixer, e.g map
+each soft synth to a fixed position on the virtual mixer, then map
+midi controls to it.
+
+before being able to do this I need a couple of things, most
+importantly is to restore incremental development.
+
+it's also the difficult thing.
+
+
+Can I make a dependency graph?
+It is really the same as I did for the tax db.
+Just start.
+
+Loaded dev.erl code.
+I don't know where to start from there.
+
+
+Entry: just did some patching
+Date: Sun Apr 23 12:53:41 PM EDT 2023
+
+That worked much better.  Always pretty clear what's next when
+actually doing things instead of preparing to do things.
+
+
+
+Entry: syncing solder station
+Date: Sun Apr 23 01:02:58 PM EDT 2023
+
+Do I want audio to go from main setup to solder station?
+
+Let's just do both.
+
+Alright that's working
+Also synced mimas:layla to zoe:delta1010 via word clock
+
+So in theory I should be able to use this now:
+
+https://manpages.ubuntu.com/manpages/trusty/man1/jack.udp.1.html
+
+But I don't really need that.
+
+
+
+Entry: use Pd
+Date: Mon Apr 24 07:42:58 AM EDT 2023
+
+It is clear though, that I should not make synths for jack, but
+instead figure out a way to maybe modify Pd to reload externals, or to
+make an external with a special plugin format.  Basically like sp
+before, but use double buffering for the ldopen so it can be closed.
+
+
+
+Entry: VCA in feedback path
+Date: Wed Apr 26 12:14:27 PM EDT 2023
+
+Put a VCA in the noise setup feedback path.  When an oscillator regime
+is found, let it "learn" the range so it can play pitches.
+
+That would be a cult hit if I can make that work.
+
+Alright depression lifts and manic ego jumps right out.
+
+
+
+Entry: jack and midi
+Date: Sun Apr 30 07:31:11 AM EDT 2023
+
+So the idea is that every midi device is identifiable.  I'm just
+giving it a number for now.  A plugged device is a combination of
+Erlang node and number.
+
+
