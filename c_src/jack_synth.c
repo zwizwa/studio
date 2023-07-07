@@ -1,5 +1,7 @@
 // Playground for midi + audio synth.
 // Midi part is cloned from jack_midi.c
+// See also synth_tools/tools/jack_synth.sh
+
 
 #define _DEFAULT_SOURCE
 
@@ -50,7 +52,6 @@ static int process (jack_nframes_t nframes, void *arg) {
     process_audio(nframes);
     return 0;
 }
-
 
 int jack_synth(int argc, char **argv) {
 

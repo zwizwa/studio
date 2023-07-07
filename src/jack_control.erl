@@ -98,7 +98,8 @@ handle({Port,{data, Data}}, State = #{ port := Port, notify := Notify }) ->
     %% generate in C and easy to parse here.  FIXME: probably best to
     %% switch to {packet,2} or {packet,4}
     Parsed = type:decode({pterm, Data}),
-    log:info("~999p~n", [Parsed]),
+
+    %% log:info("~999p~n", [Parsed]),
 
     %% FIXME: hardcoded
     Notify(Parsed),

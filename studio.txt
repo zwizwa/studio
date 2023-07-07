@@ -4354,4 +4354,675 @@ EDIT: Forget about finding the ports in the jack instance for now.
 Stick to zoe, make sure it works there.  Then later maybe add some
 dynamic mechanism.
 
+EDIT: Ok simple connect works on zoe.
+
+
+Entry: jack port lookup
+Date: Sun Apr 30 01:21:36 PM EDT 2023
+
+Let jack_control or jack_midi keep track of the connections it makes.
+I think there are disconnect notifications as well.
+
+It seems to already do this:
+
+(exo@zoe.zoo)3> obj:dump(jack_midi).                                                                                                                                      
+obj:dump(jack_control).                                                                                                                                                   
+#{{<<"studio_midi">>,<<"midi_in_17">>} => true,
+  {<<"studio_midi">>,<<"midi_out_23">>} => true,
+  {<<"studio_midi">>,<<"midi_in_11">>} => true,
+  {<<"studio_midi">>,<<"midi_out_20">>} => true,
+...}
+
+I don't think that's it, because it's the same on an empty zora
+instance.
+
+Alright so read code.
+
+
+Entry: pd autostart
+Date: Sun Apr 30 03:25:23 PM EDT 2023
+
+can i attach gui after?
+maybe just use vnc indeed.
+https://forum.pdpatchrepo.info/topic/10324/connecting-pd-gui-to-pd/2
+
+let's not worry about this.. the gui should only be for "development".
+
+maybe start pd from jack_daemon?
+
+it can be started from xmonad hook. that's good enough.
+EDIT: works fine
+
+
+
+Entry: revive pd patches
+Date: Mon May  1 09:49:34 PM EDT 2023
+
+My externals such as ad~ don't run.
+Maybe that one is just old.
+
+
+
+
+Entry: modular
+Date: Sat May  6 12:38:57 PM EDT 2023
+
+Let's start incrementally building up the modular.
+First the VCF, then maybe some CV for that.
+
+I want to have some idea of signal levels.
+
+Combination of guitar effects and modular is not going to be simple,
+so maybe start with an array of amplifiers?
+
+It's actually fairly hot, 3-4V pp
+So doesn't look like that is going to be an issue.
+
+Next step: cables from small to big jack.  Is going to be simplest to
+make them RCA.  I have a bunch single ended.
+
+Made cables, tested matrix mixer and breadboard.
+
+Next: test the VCF + STM32F103 board.
+
+
+Entry: integrators
+Date: Sat May  6 05:31:41 PM EDT 2023
+
+I can use those LM13700 to make integrators.
+
+
+Entry: Playing with analog
+Date: Sun May  7 03:16:41 PM EDT 2023
+
+So how do I set this up?
+
+I'd like to solder permanently.  Kinda done with the breadboards.
+
+Stripboard seems like the thing to do.  Then use wires or component
+leads + tape.
+
+
+Entry: feedback machine into vcf
+Date: Sun May  7 04:06:12 PM EDT 2023
+
+that's nice
+
+next: i want to automatically index this into loops and percussion
+instruments, then somehow "slider through it" to create rhythms.  
+
+generalize this to envelope.  that shouldn't be too hard.
+
+also make that stm32f103 programmable, maybe expose it as sound card
+from pd?
+
+
+Entry: johannes modules
+Date: Sun May  7 08:44:34 PM EDT 2023
+
+pakje komt waarschijnlijk morgen aan bij jou
+
+Op de "euro-axo" module staat een test-firmware geflasht voor de
+"actieve haptics + 360deg pot", kun je die module eens (euro) poweren
+en vertellen wat je ervan vind?
+
+issues:
+
+* de matrix-mixer heeft ~18kHz bandbreedte, ietsje te weinig,
+  vuistwaardes zijn blijven staan...
+
+* de max11300 module heeft ietsje te weinig plaats om een euro-power
+  flatcable-connector met polarisatie-nok in te pluggen, bij een van
+  de euro-power-kabels heb ik dat nokje weggesneden, die past wel.
+
+* de max11300 module heeft pads voor een oled op het frontpaneel, maar
+  die zijn niet volledig aangesloten, en niet getest. Zonder
+  bedieningsknoppen vooral nuttig voor debug of nano-oscilloscoop
+  ofzo.
+
+* de max11300 module heeft plaats voor 6 pots, slechts één
+  geassembleerd, die kun je evt nog toevoegen. bvb. Alpha
+  RV09AF-40-20K-B100K of Alps RK09K1130A5R
+
+* de bicolor leds volgen niet allemaal de normaal verwachte kleurcode
+  als rood=positief groen/blauw=negatief
+
+* de "euro-axo" module heeft een stm32h730, die heeft maar 1 usb
+  poort, dus de device+host combo die erop zit is onbruikbaar. De
+  device poort (usb-C) zou wel moeten werken. Ik heb hier nog geen
+  opstart-code voor gedeeld (eerst even opkuisen...)
+
+
+
+Entry: i need vcas
+Date: Thu May 11 09:38:28 PM EDT 2023
+
+I think I can do without envelope generators for now.  I need
+exponential VCAs.
+
+So do I build them?
+
+Or do I spend the $100 to just get some, and spend the tinker time on
+something else?
+
+Linear VCA is cheap though.
+
+Anyway for the digital control using the 12 bit DAC, the exponential
+VCA is going to be best.  It sounds pretty good with the filter.
+
+Maybe one that can do both?
+
+
+What do I want?  Pd-controlled VCAs.
+I can probably do that with my EXP DAC.
+
+Looked at neutron. Has just one VCA.
+
+
+let's build one
+
+
+
+Entry: alright let's do it right
+Date: Thu May 11 10:08:39 PM EDT 2023
+
+build an actual module format?
+getting ambitious again
+
+EDIT: No. Stick to breadboarding one-offs.  Making a schematic is the
+next step.
+
+
+
+Entry: overthinking it
+Date: Thu May 11 10:14:53 PM EDT 2023
+
+Synth-wise, a neutron would probably be a good way to go.
+But I really want VCA.
+
+If the voltage varies slow enough, the EXP dac + load resistor might be enough.
+Or do a differential pair.
+Look at the microbrute again.
+
+It uses BC847BS dual NPN
+
+
+Or it might be much simpler to go with off-the-shelf exp vca and
+program that 12 bit DAC so it hooks up to PD / wordclock.
+
+
+EDIT: Ordered VCA
+
+For the rest focus on the STM code and the existing circuit.
+
+I created a synth_tools archive for experimentation, so it doesn't
+have to sit in uc_tools.
+
+EDIT: VCA arrived, but it doesn't work well with the inverted CV,
+which works ok for the ladder filter.
+
+
+Entry: something simple
+Date: Mon May 15 05:30:37 PM EDT 2023
+
+I need to do something. Feeling a bit low.
+
+
+Entry: Hammerfall DSP Multiface II
+Date: Mon May 15 05:38:08 PM EDT 2023
+
+Should just work.
+Question is more where to put it.
+
+
+
+Entry: midi next
+Date: Thu May 18 07:45:45 AM EDT 2023
+
+What do I want?
+- Simple midi router config file
+- Simple recorder using start/stop buttons
+- Live coding for implementing midi transfers
+- Communication with PDM synth module
+
+In all this, one of the real issues is that I don't have a STM32F1 midi interface.
+
+So maybe start with that?
+
+EDIT: So I have something working.
+
+tom@luna:/proc/asound$ cat card3/midi0 
+MIDI Synth
+
+Output 0
+  Tx bytes     : 0
+Input 0
+  Rx bytes     : 0
+
+Next is to re-integrate that with existing API.  Basically I'm
+starting from scratch.
+
+
+
+Entry: 3if sysex is working
+Date: Sat May 20 05:03:39 PM EDT 2023
+
+next:
+- app midi access
+- erlang, C jack conn, dev
+- sysex jack
+
+
+
+Entry: integration with sysex jack
+Date: Sun May 21 10:40:52 AM EDT 2023
+
+What I want: create a connection topology, and restore the topology
+whenever a device comes up.
+
+Devices have identities in this network.
+
+I need a context switch, some place to start.
+
+Where do I want to end up?
+
+With jack running on luna, I plug in the BP synth, a midi controller,
+and the tether app, and have it all just work.
+
+
+
+Entry: analog next
+Date: Sun May 21 01:06:26 PM EDT 2023
+
+Inverting amplifier.
+Control the stm32f103.
+
+
+
+Entry: midi epid on plug
+Date: Fri May 26 06:31:49 AM EDT 2023
+
+1. Basically when a port comes up and it is part of a begin or
+endpoint in a epid connection, that connection should be made.
+
+2. I'm going to want processing.  That would be possible by covariant
+or contravariant functors in that connection.  Those can be
+implemented in a DSL inside the midi router.
+
+That's it really.  That's a nice incremental path.
+
+Now the problem is: should the plug event cause a redo rebuild, or can
+it be a separate FRP mechanism?
+
+The real problem is that redo should be able to contain "embedded
+makefiles".
+
+
+Entry: new setup
+Date: Tue Jul  4 05:01:23 PM CEST 2023
+
+laptop and 2 new controllers, both mapping to device 0
+
+Jul 04 11:00:12 narvi exo_vm[1363]: <0.110.0>: {midi,21,{jack,'exo@narvi.zoo',0},{on,0,102,32}}
+Jul 04 11:00:12 narvi exo_vm[1363]: <0.110.0>: {midi,26,{jack,'exo@narvi.zoo',0},{off,0,102,0}}
+Jul 04 11:00:15 narvi exo_vm[1363]: <0.110.0>: {midi,137,{jack,'exo@narvi.zoo',0},{on,0,53,8}}
+Jul 04 11:00:15 narvi exo_vm[1363]: <0.110.0>: {midi,143,{jack,'exo@narvi.zoo',0},{off,0,53,24}}
+
+what i want:
+- both get connected to midi processing app
+- they control a couple of soft synths
+- all config in a single (Erlang) file
+
+
+make it simple:
+- start jack
+- start synth
+- connect using epid
+
+
+
+Entry: jack_synth
+Date: Thu Jul  6 08:06:07 PM CEST 2023
+
+
+studio/c_src/jack_synth.c
+-rw-r--r-- 1 tom tom  5112 Mar 26 21:12 jack_synth.host.o
+
+which seems to be linked into the studio binary
+
+going to have to remove that
+
+it's compiled but it's not in the binary
+i think that's as far as i got
+
+next: move it to synth_tools
+i want a jack synth without erlang baggage first
+
+
+first client should be a pd netsend
+first copy the jack_synth.c to synth_tools
+
+
+
+Entry: wrong jack version
+Date: Fri Jul  7 10:19:49 AM CEST 2023
+
+had to yak shave build tools, now arriving at something i saw before:
+
+CheckSize error size = 81 Size() = 85
+CheckRead error
+Unknown request 1801675114
+Unknown request 1853453151
+Unknown request 26740
+...
+
+I think I had a custom jack version somewhere.
+
+First find out which one is tied to exo.
+
+/etc/net/dsp/jack.sh: START=/etc/net/dsp/jack-tp.sh
+jackdmp 1.9.19
+
+/etc/net/nixos/pkgs/etc-net defines etc-net-run
+
+That one uses jack2 package, which is not overridden.
+Replacing libjack2 with jack2 doesn't work.
+
+The studio package is building and has working clients so at least it
+should have the correct build setup.
+
+EDIT: Changed the nixpkgs to current zwizwa branch head and it's fine now.
+
+So maybe overlays is better instead of having both overlays and a
+modified nixpkgs?
+
+Anwyays, it's working now
+
+
+Entry: get the jack graph
+Date: Fri Jul  7 11:02:25 AM CEST 2023
+
+How to obtain the current jack graph?  I want to get rid of qjackctl.
+Start looking at qjackctl source maybe?
+
+tom@tp:~/git$ git clone https://git.code.sf.net/p/qjackctl/code qjackctl
+
+
+alright... just RTFM
+https://jackaudio.org/api/
+
+
+    const char **ports = jack_get_ports(client, NULL, NULL, 0);
+    for (int i=0; ports[i]; i++) {
+        LOG("%d %s\n", i, ports[i]);
+    }
+
+when exo_vm is up and jack_synth is also running:
+
+tom@tp:/i/tom/exo/synth_tools/tools$ ./jack_info.dynamic.host.elf
+0 system:capture_1
+1 system:capture_2
+2 system:playback_1
+3 system:playback_2
+4 system:playback_3
+5 system:playback_4
+6 jack_synth:midi_in_0
+7 jack_synth:audio_out_0
+
+why are there no ports for the studio jack clients?
+maybe because midi stuff gets started on demand?
+
+let's plug in a keyboard
+
+ok that was it
+
+tom@tp:/i/tom/exo/synth_tools/tools$ ./jack_info.dynamic.host.elf
+0 system:capture_1
+1 system:capture_2
+2 system:playback_1
+3 system:playback_2
+4 system:playback_3
+5 system:playback_4
+6 jack_synth:midi_in_0
+7 jack_synth:audio_out_0
+8 system:midi_capture_1
+9 system:midi_playback_1
+10 studio_audio:audio_in_0
+11 studio_audio:audio_in_1
+12 studio_audio:audio_in_2
+13 studio_audio:audio_in_3
+14 studio_audio:audio_in_4
+15 studio_audio:audio_in_5
+16 studio_audio:audio_in_6
+17 studio_audio:audio_in_7
+18 studio_midi:midi_in_0
+19 studio_midi:midi_in_1
+20 studio_midi:midi_in_2
+21 studio_midi:midi_in_3
+22 studio_midi:midi_in_4
+23 studio_midi:midi_in_5
+24 studio_midi:midi_in_6
+25 studio_midi:midi_in_7
+26 studio_midi:midi_in_8
+27 studio_midi:midi_in_9
+28 studio_midi:midi_in_10
+29 studio_midi:midi_in_11
+30 studio_midi:midi_in_12
+31 studio_midi:midi_in_13
+32 studio_midi:midi_in_14
+33 studio_midi:midi_in_15
+34 studio_midi:midi_in_16
+35 studio_midi:midi_in_17
+36 studio_midi:midi_in_18
+37 studio_midi:midi_in_19
+38 studio_midi:midi_in_20
+39 studio_midi:midi_in_21
+40 studio_midi:midi_in_22
+41 studio_midi:midi_in_23
+42 studio_midi:midi_out_0
+43 studio_midi:midi_out_1
+44 studio_midi:midi_out_2
+45 studio_midi:midi_out_3
+46 studio_midi:midi_out_4
+47 studio_midi:midi_out_5
+48 studio_midi:midi_out_6
+49 studio_midi:midi_out_7
+50 studio_midi:midi_out_8
+51 studio_midi:midi_out_9
+52 studio_midi:midi_out_10
+53 studio_midi:midi_out_11
+54 studio_midi:midi_out_12
+55 studio_midi:midi_out_13
+56 studio_midi:midi_out_14
+57 studio_midi:midi_out_15
+58 studio_midi:midi_out_16
+59 studio_midi:midi_out_17
+60 studio_midi:midi_out_18
+61 studio_midi:midi_out_19
+62 studio_midi:midi_out_20
+63 studio_midi:midi_out_21
+64 studio_midi:midi_out_22
+65 studio_midi:midi_out_23
+
+
+alright so these client and port callbacks are already exposed in
+jack_control()
+
+follow the breadcrumbs
+
+Alright jack_control.c is already doing that
+
+disconnect:
+
+Jul 07 12:18:19 tp exo_vm[1338]: {port,false,"jack_synth:midi_in_0"}
+Jul 07 12:18:19 tp exo_vm[1338]: {port,false,"jack_synth:audio_out_0"}
+Jul 07 12:18:19 tp exo_vm[1338]: {port,false,"jack_synth:midi_in_0"}
+Jul 07 12:18:19 tp exo_vm[1338]: {port,false,"jack_synth:audio_out_0"}
+Jul 07 12:18:19 tp exo_vm[1338]: {client,false,"jack_synth"}
+
+connect:
+
+Jul 07 12:19:07 tp exo_vm[1338]: {client,true,"jack_synth"}
+Jul 07 12:19:07 tp exo_vm[1338]: {port,true,"jack_synth:midi_in_0"}
+Jul 07 12:19:07 tp exo_vm[1338]: {port,true,"jack_synth:audio_out_0"}
+
+
+
+Entry: manage connections
+Date: Fri Jul  7 12:19:39 PM CEST 2023
+
+So next step: I definitely want to manage graph data in a high level
+language.  There is already an Erlang "place" to do this, so don't
+reinvent.  Look at what is actually happening already
+
+What it should do:
+- disconnect: nothing
+- connect: go over all connections and restore them
+
+The specification of this should be an Erlang data structure that has
+a default, but can be loaded at runtime.
+
+Alright, so where do these notifications get handled?
+
+All messages go through Notify, which is set via start_link.  This is
+passed in via jack_daemon:start_client/2 where Notify is already part
+of the state.  Look at exo.erl in /etc/net which connects it to
+exo:jack_notify/1
+
+The port message is handled locallay and put into the State of
+jack_control, so basically it keeps track of a database.
+
+Alright so that part still needs to be built.
+How to do incremental dev?
+
+Let's develop on tp since that's the one to be used for the synthfest.
+
+To install development tools on a node:
+
+(exo@tp.zoo)9> exo:load_dev().
+loading /i/exo/src/dev.erl
+loading /i/exo/src/jack_daemon.erl
+loading /i/exo/src/jack_control.erl
+loading /i/exo/src/studio_cfg.erl
+loading /etc/net/nixos/pkgs/exo/src/exo_epid.erl
+loading /etc/net/nixos/pkgs/exo/src/exo.erl
+loading /i/exo/src/redo.erl
+
+After that:
+
+dev:load() also works.
+
+
+
+Now the first thing to know is that when a midi interface is
+connected, jack_daemon will scan jack output and call
+jack_daemon:handle_connect() which uses studio_cfg:port_id to connect
+the physical port to the studio_midi patchbay
+
+What I want to do is simpler: I want a direct connection between midi
+controller and softsynth.
+
+Maybe the studio_cfg:port_id/1 function could be changed to also
+reflect softsynths?
+
+Anyway I need some uniform way to deal with this.
+
+The main idea is that studio_midi is the interface between Erlang and
+the jack midi, so it should be connected to everything.
+
+
+Entry: a single kind of plug event
+Date: Fri Jul  7 01:04:45 PM CEST 2023
+
+How to structure this?
+
+First, the realm is "configuration is code", which means we are always
+talking to an Erlang compiler.  A patch can then be an erlang module
+with a unique name that is loaded into a running system as part of
+exo:load_dev().
+
+First what do I want?
+I want a connection from the uma to the softsynth.
+
+Does the epid handle this?
+
+I found these:
+
+epid(midi_clock) -> epid({jack_port, <<"ardour:MIDI Clock out">>});
+epid(doodle)     -> epid({jack_port, <<"doodle:midi_in">>});
+
+Be explicit first, then later abstract things in exo_epid.erl
+
+exo:epid({jack_control, {port, out, 22}, 'exo@tp.zoo'}).
+exo:epid({jack_control, {jack_port, <<"jack_synth:midi_in_0">>}, 'exo@tp.zoo'}).
+
+exo:connect(
+{jack_control, {jack_port, <<"system:midi_capture_4">>}, 'exo@tp.zoo'},
+{jack_control, {jack_port, <<"jack_synth:midi_in_0">>}, 'exo@tp.zoo'}
+).
+
+
+
+What I need is the following:
+
+- Connect every midi port (including softsynths) to the studio_midi
+  hub.  These are all "instances".
+
+- Make midi connection work via the epid mechanism.
+
+- "Tighten" the connection to go through jack if the node name is the
+  same.
+
+
+First, make sure that connecting via the daemon works properly.
+
+
+
+Entry: what are the rules for midi ports?
+Date: Fri Jul  7 01:46:56 PM CEST 2023
+
+- There is a 1-1 map between studio_midi port (single number, in or
+  out) and a system port.
+
+- The system port can be looked up from {Dir,PortNb}
+
+(exo@tp.zoo)16> obj:dump(exo:pid(jack_daemon)).
+#{audio => <0.189.0>,control => <0.187.0>,
+  hubs => fun exo:need_hubs/1,midi => <0.188.0>,
+  notify => fun exo:jack_notify/1,port => #Port<0.17>,
+  {in,22} => <<"in-hw-1-0-0-UMA25S-MIDI-1">>,
+  {out,22} => <<"out-hw-1-0-0-UMA25S-MIDI-1">>}
+
+  From there standard tools work:
+  jack_connect in-hw-1-0-0-UMA25S-MIDI-1 jack_synth:midi_in_0
+
+
+
+What's the next step here?  Find a way to register soft synth midi
+ports.
+
+But that can be postponed.  I first need to have a working synth.
+This can either be a jack client (which is already set up) or a
+netsent to Pd.
+
+Maybe the netsend is a good idea anyway?  Could also just be another
+client.
+
+
+
+Entry: interactive development
+Date: Fri Jul  7 02:38:30 PM CEST 2023
+
+Is the most important part.
+
+This means that I want to auto-connect already, then later figure out
+how to generalize.
+
+Basically when the synth port comes up, connect it to audio.
+
+Let's configure the softsynths to be always on, at least, from config.
+The config will go into exo_midi.erl which will get the notify.
+
+
+
 

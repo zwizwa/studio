@@ -1,7 +1,8 @@
 %% Indirection for studio_db.
 
-%% Allow override by exo module, which uses Erlang code for
-%% configuration.
+%% For exo this is overridden: if these functions exist they are used:
+%%  exo:midi_port_id/1
+%%  exo:midi_clock_ports/0
 
 -module(studio_cfg).
 -export([port_pair/1, port_id/1, midiclock_mask/0]).
