@@ -5026,3 +5026,34 @@ The config will go into exo_midi.erl which will get the notify.
 
 
 
+Entry: pd live coding
+Date: Sun Jul 16 07:09:11 PM CEST 2023
+
+Basically the sp idea from rai, but then done by double buffering
+dlopen.
+
+
+
+Entry: basic setup
+Date: Wed Aug  2 10:19:33 AM CEST 2023
+
+I want:
+- jack running
+- pd running, connected to jack
+- midi forwarder into pd
+- individual jack clients
+
+I want this to be one command that runs from dev.erl
+
+So, to start:
+1. exo_vm  # on terminal on any machine.
+2. exo:load_dev(). %% Erlang
+3. dev:audio().    %% Erlang
+
+
+Roadblocks:
+
+- make vs. redo.  I want this to be trivially the same.  See if the
+  uc_tools build still works for synth_tools?
+
+
