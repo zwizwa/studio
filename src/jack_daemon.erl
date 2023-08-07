@@ -86,19 +86,44 @@ handle({Port, {exit_status, _}}=Msg, State = #{ port := Port }) ->
 %% as is printed out above the regexp below.  Note that the numbering
 %% scheme is not likely to be stable across restarts, so we use only
 %% the human readable name part.
+%%
+%% %% The 'scan:' lines:
+%%
+%% scan: added port hw:1,0,0 in-hw-1-0-0-UMA25S-MIDI-1
+%% scan: added port hw:1,0,0 out-hw-1-0-0-UMA25S-MIDI-1
+%% scan: added port hw:3,0,0 in-hw-3-0-0-FastTrack-Pro-MIDI-1
+%% scan: added port hw:3,0,0 out-hw-3-0-0-FastTrack-Pro-MIDI-1
+%% scan: opened port hw:1,0,0 in-hw-1-0-0-UMA25S-MIDI-1
+%% scan: opened port hw:1,0,0 out-hw-1-0-0-UMA25S-MIDI-1
+%% scan: opened port hw:3,0,0 in-hw-3-0-0-FastTrack-Pro-MIDI-1
+%% scan: opened port hw:3,0,0 out-hw-3-0-0-FastTrack-Pro-MIDI-1
+%%
+%% %% Are parsed to:
+%%
+%% added  {<<"in">>, <<"UMA25S-MIDI-1">>}        => <<"in-hw-1-0-0-UMA25S-MIDI-1">>
+%% added  {<<"out">>,<<"UMA25S-MIDI-1">>}        => <<"out-hw-1-0-0-UMA25S-MIDI-1">>
+%% added  {<<"in">>, <<"FastTrack-Pro-MIDI-1">>} => <<"in-hw-3-0-0-FastTrack-Pro-MIDI-1">>
+%% added  {<<"out">>,<<"FastTrack-Pro-MIDI-1">>} => <<"out-hw-3-0-0-FastTrack-Pro-MIDI-1">>
+%% opened {<<"in">>, <<"UMA25S-MIDI-1">>}        => <<"in-hw-1-0-0-UMA25S-MIDI-1">>
+%% opened {<<"out">>,<<"UMA25S-MIDI-1">>}        => <<"out-hw-1-0-0-UMA25S-MIDI-1">>
+%% opened {<<"in">>, <<"FastTrack-Pro-MIDI-1">>} => <<"in-hw-3-0-0-FastTrack-Pro-MIDI-1">>
+%% opened {<<"out">>,<<"FastTrack-Pro-MIDI-1">>} => <<"out-hw-3-0-0-FastTrack-Pro-MIDI-1">>
+%%
+%% The PortAlias is what is what Jack uses to identify the port.  Note
+%% that the hw numbering is not stable, so we keep track of a map from
+%% a stable name to this name used by jack to make connections.
+%%
 
 handle({line, <<"scan: ", Rest/binary>>=_Line}, State) ->
     %% tools:info("~s~n",[_Line]),
     {match,[_|[Action,_HwAddr,Dir,Addr,Name]]} =
         re:run(
           Rest,
-          %% 
-          %% added  port hw:1,0,0 in-hw-1-0-0-M-Audio-Delta-1010-MIDI
           <<"(\\S+) port (\\S+) (\\S+)\\-(hw\\-\\d+\\-\\d+\\-\\d+)\\-(\\S+)\n*">>,
           [{capture,all,binary}]),
     PortAlias = <<Dir/binary,$-,Addr/binary,$-,Name/binary>>,
     Key = {Dir, Name},
-    %%tools:info("~s ~p => ~p~n",[Action, Key, PortAlias]),
+    %% log:info("~s ~p => ~p~n",[Action, Key, PortAlias]),
     case Action of
         <<"added">> ->
             %% S1=maps:put(Key,PortAlias,State),
@@ -194,20 +219,6 @@ start_client(Name, #{ hubs := Hubs, notify := Notify}) ->
 system_port(Pid,Dir,N) when is_number(N) ->
     obj:find(Pid, {Dir,N}).
                     
-
-%% jackd() ->
-%%     os:cmd("echo -n $(which jackd.$(hostname))").
-
-
-
-%% %% midiclock_mask() -> 16864.
-%% midiclock_mask() ->
-%%     binary_to_integer(
-%%       hd(hd(
-%%            sqlite3:query(
-%%              db,select,[midiclock_mask,all])))).
-
-
 
 studio_elf() ->
     Elf = code:priv_dir(studio) ++ "/studio.elf",

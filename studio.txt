@@ -5057,3 +5057,234 @@ Roadblocks:
   uc_tools build still works for synth_tools?
 
 
+
+Entry: continue
+Date: Thu Aug  3 11:39:30 AM CEST 2023
+
+The synth_tools redo build is working.
+
+Next: start softsynth process, connect it.  Write the whole thing as a
+build script.
+
+EDIT: Had to fix some more things to use nixos build tools.
+See /etc/net/nixos/pkgs/exo-dev
+
+
+next:
+
+- start processor
+- connect to i/o ports
+
+
+Entry: synthfest
+Date: Fri Aug  4 08:01:00 PM CEST 2023
+
+- start processors, hook to i/o ports
+- pd midi or osc (separate client?)
+- check pd patches + fix compilation issues
+
+
+Entry: pd patches
+Date: Fri Aug  4 08:30:24 PM CEST 2023
+
+./abstractions/compat/ad~.pd
+
+I need to add thi to the abs path.
+Oh I see.  Was just missing.
+
+
+
+Entry: pd patches
+Date: Fri Aug  4 08:47:46 PM CEST 2023
+
+granulardynwav.pd
+logistics_part4.pd
+IPEM2002/agc2.pd
+3toneharmonicdoublechaos.pd
+
+
+
+Entry: connections
+Date: Sat Aug  5 08:43:29 AM CEST 2023
+
+Currently exo_midi.erl contains connectivity information.
+
+Can this be encoded in the build system or should I not worry about it?
+Can I do it gradually?  I.e. make it work first, then see?
+
+Alright first I need a proxy daemon.
+There was already the rai daemon so let's use that.
+
+EDIT: Maybe just abandon this connectivity idea.  It clearly needs a
+lot more thought.  Make a midi to netsend client first.
+
+Yeah take the whole erlang thing out of the picture for now.  This
+really is for later.
+
+
+Entry: netsend
+Date: Sat Aug  5 10:15:57 AM CEST 2023
+
+Too stupid to get UDP to work.
+So do TCP instead.
+
+
+Entry: names are not stable?
+Date: Sat Aug  5 02:17:33 PM CEST 2023
+
+                "jack_netsend:midi_in_0" ->
+                    From("in-hw-1-0-0-UMA25S-MIDI-1");
+                "jack_netsend:midi_in_1" ->
+                    From("in-hw-1-0-0-UMA25S-MIDI-1");
+
+
+I need a live system to see what this does.
+
+in-hw-1-0-0-FL-STUDIO-FIRE-MIDI-1
+
+So I was able to connect it, but this needs abstraction.
+
+
+Entry: drum machine
+Date: Sat Aug  5 02:51:56 PM CEST 2023
+
+So I have knobs.
+What to do with those knobs?
+
+This is not something I can do right away.
+
+Also I really want to split this up in 2 parts: specification and code
+generation.  I.e. something using constraints, which then generalizes
+or "directionalizes" the event handling code.
+
+Let's start with classical drum machine
+
+Three things are needed:
+- input: key toggles drum in pattern data structure
+- display: each state change results in update message
+- playback: each drum tick updates previous and current colors
+
+It's clear that initially, updates are 1-1: every input results in a single update.
+
+Later this will be different.  So I will likely be writing some kind
+of "react" for this.
+
+I want to build this together with a web interface.
+Or at least as something that easily translates to web.
+Probably will require webassembly.
+
+Anyway.  Stick to a simple representation.
+
+
+Entry: single voice drum patterns?
+Date: Sat Aug  5 03:29:01 PM CEST 2023
+
+Going to do something different.  Use the colors on the FT to indicate
+instruments.  Tho this is difficult for simultaneous hits.  Maybe
+simultaneous hits could be different instruments?  Which they are,
+somehow.  That then also maps to "single voice drums" I wanted to do
+with the noise sample inputs.
+
+
+
+Entry: next
+Date: Mon Aug  7 11:28:42 AM CEST 2023
+
+- i want something playable, not just programmable
+- focus on cleaning up, integrating what is already there
+
+
+
+Entry: jack daemon onward
+Date: Mon Aug  7 03:31:49 PM CEST 2023
+
+Question: does jack daemon know the jack port name or number based on
+the annotated name?  I think this is what needs to be recorded.  Find
+the point where this information is known.
+
+Aug 07 15:36:47 tp exo_vm[400785]: scan: added port hw:3,0,0 in-hw-3-0-0-FastTrack-Pro-MIDI-1
+Aug 07 15:36:47 tp exo_vm[400785]: scan: added port hw:3,0,0 out-hw-3-0-0-FastTrack-Pro-MIDI-1
+Aug 07 15:36:47 tp exo_vm[400785]: scan: opened port hw:1,0,0 in-hw-1-0-0-UMA25S-MIDI-1
+Aug 07 15:36:47 tp exo_vm[400785]: scan: opened port hw:1,0,0 out-hw-1-0-0-UMA25S-MIDI-1
+Aug 07 15:36:47 tp exo_vm[400785]: scan: opened port hw:3,0,0 in-hw-3-0-0-FastTrack-Pro-MIDI-1
+Aug 07 15:36:47 tp exo_vm[400785]: scan: opened port hw:3,0,0 out-hw-3-0-0-FastTrack-Pro-MIDI-1
+
+
+Who keeps track of what?
+It got messy.
+
+This is what is there now for daemon and control processes.
+Stuff is saved in the maps but not retreived so that is odd.
+And there's some missing information as well.
+
+(exo@tp.zoo)16> obj:dump(exo:pid(jack_daemon)).
+obj:dump(exo:pid(jack_daemon)).
+#{audio => <0.7273.0>,control => <0.7271.0>,
+  hubs => fun exo:need_hubs/1,midi => <0.7272.0>,
+  notify => fun exo_midi:jack_notify/1,port => #Port<0.138>,
+  {in,0} => <<"in-hw-3-0-0-FastTrack-Pro-MIDI-1">>,
+  {in,22} => <<"in-hw-1-0-0-UMA25S-MIDI-1">>,
+  {out,0} => <<"out-hw-3-0-0-FastTrack-Pro-MIDI-1">>,
+  {out,22} => <<"out-hw-1-0-0-UMA25S-MIDI-1">>}
+
+
+(exo@tp.zoo)19> obj:dump(maps:get(control, obj:dump(exo:pid(jack_daemon)))).
+obj:dump(maps:get(control, obj:dump(exo:pid(jack_daemon)))).
+#{{<<"studio_midi">>,<<"midi_in_17">>} => true,
+  {<<"studio_midi">>,<<"midi_out_23">>} => true,
+  {<<"studio_midi">>,<<"midi_in_11">>} => true,
+  {<<"studio_midi">>,<<"midi_out_20">>} => true,
+  {<<"studio_midi">>,<<"midi_out_18">>} => true,
+  port => #Port<0.139>,
+  open_port =>
+      [{spawn,"/nix/store/zm9k3lp3a6dwlcdbgdqqhvsl36dafnd7-studio-0.0.1/lib/erlang/lib/studio-0.0.1/priv/studio.elf jack_control studio_control"},
+       [{packet,1},binary,exit_status]],
+  {<<"studio_midi">>,<<"midi_out_17">>} => true,
+  {<<"studio_midi">>,<<"midi_out_10">>} => true,
+  {<<"studio_midi">>,<<"midi_out_21">>} => true,
+  {<<"studio_audio">>,<<"audio_in_5">>} => true,
+  {<<"studio_midi">>,<<"midi_out_12">>} => true,
+  {<<"studio_audio">>,<<"audio_in_7">>} => true,
+  {<<"studio_midi">>,<<"midi_in_4">>} => true,
+  {<<"studio_midi">>,<<"midi_in_22">>} => true,
+  {<<"studio_midi">>,<<"midi_in_8">>} => true,
+  {<<"studio_midi">>,<<"midi_in_10">>} => true,
+  {<<"studio_midi">>,<<"midi_in_5">>} => true,
+  {<<"studio_midi">>,<<"midi_out_16">>} => true,
+  {<<"studio_midi">>,<<"midi_out_19">>} => true,
+  {<<"studio_audio">>,<<"audio_in_0">>} => true,
+  {<<"studio_midi">>,<<"midi_in_0">>} => true,
+  {<<"studio_midi">>,<<"midi_in_12">>} => true,
+  {<<"studio_midi">>,<<"midi_out_14">>} => true,
+  {<<"studio_midi">>,<<"midi_out_22">>} => true,
+  {<<"studio_midi">>,<<"midi_in_18">>} => true,
+  {<<"studio_midi">>,<<"midi_in_20">>} => true,
+  {<<"studio_midi">>,<<"midi_out_1">>} => true,
+  {<<"studio_midi">>,<<"midi_in_15">>} => true,...}
+
+
+Let's not change anything.  Only add, get it to work, then remove old stuff.
+
+The notify handler I have runs where?
+
+As part of jack_control.
+
+
+I'm having a hard time to split the two things:
+- native jack ports and how to manage native jack connections
+- the jack_midi process and jack_control mapping
+
+
+I want to understand how this works and I first need to understand
+what data it keeps.
+
+The jack_daemon state is there to implement RPC call
+jack_daemon:system_port() which is called by jack_control:portname()
+
+So the information is there already: the canonical way to refer to
+midi controllers is to use the port index on the jack_midi task.
+
+  {in,0} => <<"in-hw-3-0-0-FastTrack-Pro-MIDI-1">>,
+  {in,22} => <<"in-hw-1-0-0-UMA25S-MIDI-1">>,
+  {out,0} => <<"out-hw-3-0-0-FastTrack-Pro-MIDI-1">>,
+  {out,22} => <<"out-hw-1-0-0-UMA25S-MIDI-1">>}

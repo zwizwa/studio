@@ -101,7 +101,6 @@ handle({Port,{data, Data}}, State = #{ port := Port, notify := Notify }) ->
 
     %% log:info("~999p~n", [Parsed]),
 
-    %% FIXME: hardcoded
     Notify(Parsed),
 
     case Parsed of
