@@ -26,7 +26,10 @@ start_link(#{client := Client, notify := _Notify}=Config) ->
 fmt_port(Bin) when is_binary(Bin) ->
     Bin;
 fmt_port({C,P}) ->
-    tools:format_binary("~s:~s",[C,P]).
+    tools:format_binary("~s:~s",[C,P]);
+fmt_port(IOL) ->
+    tools:format_binary("~s",[IOL]).
+
 
      
 

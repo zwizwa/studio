@@ -5288,3 +5288,36 @@ midi controllers is to use the port index on the jack_midi task.
   {in,22} => <<"in-hw-1-0-0-UMA25S-MIDI-1">>,
   {out,0} => <<"out-hw-3-0-0-FastTrack-Pro-MIDI-1">>,
   {out,22} => <<"out-hw-1-0-0-UMA25S-MIDI-1">>}
+
+EDIT: Ok got something working.
+
+Is it time to review the spec language?
+
+I mean, the goal was to have something for synthfest.  Next goal is to
+have something playable but also to solve all the config issues.
+
+Maybe it is time for types.
+Maybe this needs a Haskell spec language.
+
+
+
+Entry: next?
+Date: Mon Aug  7 04:55:45 PM CEST 2023
+
+Maybe first make auto-reload on rebuild work.
+Also set up rebuild via emacs f5
+
+What is needed?
+
+The jack client process needs to be started by erlang.
+
+Beyond that, I think sending a reload notification is probably enough.
+I.e. I want to update the running state after recompile, but this
+should be best-effort.
+
+What this needs is mostly the emacs keybinding to start a redo build.
+Maybe that can be f6.
+
+Do I have a way to go from terminal to redo?
+
+Jeez I'm too tired for this...
