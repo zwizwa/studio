@@ -44,7 +44,7 @@
          studio_elf/0,
          start_client/2,
          system_port/3,
-         jack_clock/0]).
+         client/1]).
 
 
 %% Wrap the daemon and listen on its stdout as a simple way to get
@@ -191,21 +191,25 @@ handle_connect(PortAlias, Dir, Name, State) ->
 
 control_client(State) ->
     State1 = need_clients(State),
-    {maps:get(control, State1), State1}.
+    Clients = maps:get(clients, State1),
+    {maps:get(control, Clients), State1}.
 
-need_clients(State = #{ control := _, midi := _ }) -> 
+%% Clients are started on demand, to ensure it happens when daemon is
+%% started.
+need_clients(State = #{ clients := _ }) ->
     State;
 need_clients(State) ->
     tools:info("starting clients~n"),
-    maps:merge(
-      State,
+    maps:put(
+      clients,
       maps:from_list(
         [{Name,start_client(Name, State)}
          || Name <- [control   %% RPC
                     ,midi      %% Messages
                     ,clock     %% synth_tools jack_clock.c
                     ,synth     %% synth_tools jack_synth.c
-                    ]])).
+                    ]]),
+      State).
 
 jack_client_proc(#{ spawn_port := SpawnPort }, Name) ->
     jack_client:proc(#{name => Name, spawn_port => SpawnPort}).
@@ -246,5 +250,5 @@ studio_elf() ->
     log:info("Elf=~p~n", [Elf]),
     Elf.
 
-jack_clock() ->
-    obj:get(jack_daemon, clock).
+client(Name) ->
+    maps:get(Name, obj:get(jack_daemon, clients)).

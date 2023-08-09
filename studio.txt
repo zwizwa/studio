@@ -5504,5 +5504,48 @@ TODO:
 
 
 
+Entry: connectivity
+Date: Wed Aug  9 02:57:01 PM CEST 2023
+
+Alright so the next bit is the connectivity.
+I think this isn't much else than reviving the patch thing.
+But should it go through redo?
+
+I don't think so.  It's better to look at the patch as something
+different: it is a graph of its own, but it is possible to identify
+subgraphs and restart them.  That's really all I need:
+
+1. specify the full graph
+2. restart parts of it
+
+A part of a graph could be a single C program with connectivity
+implemented as C data dependencies.
+
+So, graphs and subgraphs.
+
+What about not implementing that part in Erlang?  It might be useful
+outside as well.
+
+Otoh, the backbone glue will be in Erlang so maybe best to implement
+the graph handling there as well?
+
+So let's just continue with what is there.
+
+But I think it might be good to not mix the run and build
+config... But we'll see. Might be too naive.
+
+
+
+
+The core thing is: restore connectivity after replacing a part.
+
+This is something like:
+- disconnect old, recording conenctions 
+- kill old
+- start new
+- connect
+
+The 'record connections' doesn't have to be a local operation.
+Information could come from a map.
 
 
