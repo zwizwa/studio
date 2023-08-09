@@ -1,10 +1,10 @@
+%% Standardized wrapper for synth_tools jack clients.
+%% These all have a midi port on stdio.
+
 -module(jack_client).
 -export([%% run_udp/1, handle_udp/2,
          proc/1, handle_proc/2
         ]).
-
-%% Stripped down version of studio/src/rai.erl
-%% Dumb wrapper around stand-alone jack binary.
 
 %% Start a processor or synth.
 proc(#{ name := Name,  %% basename
@@ -16,11 +16,26 @@ proc(#{ name := Name,  %% basename
                 log:set_info_name({rai,Name}),
                 Self = self(),
                 Self ! start,
-                Config
+                %% By default, take the processors that are compiled
+                %% as part of synth_tools package Nixos package.
+                Dir = tools:format("~s/linux",
+                                   %% ["/i/exo/synth_tools"]
+                                   [os:getenv("SYNTH_TOOLS")]),
+                maps:merge(
+                  #{ dir => Dir},
+                  Config)
         end,
         fun ?MODULE:handle_proc/2})}.
 
-handle_proc(start, #{ name := Name, spawn_port := SpawnPort } = State) ->
+spawn_params(Dir, Cmd) ->
+    #{ dir  => Dir,
+       cmd  => Cmd,
+       args => [],
+       opts => [use_stdio, binary, exit_status,
+                {packet,4}] %% FIXME
+     }.
+
+handle_proc(start, #{ name := Name, spawn_port := SpawnPort, dir := Dir } = State) ->
     case maps:find(port, State) of
         {ok, _Port} ->
             State;
@@ -29,13 +44,7 @@ handle_proc(start, #{ name := Name, spawn_port := SpawnPort } = State) ->
             log:info("Cmd = ~p~n", [Cmd]),
             maps:put(
               port,
-              SpawnPort(
-                #{ dir  => "/i/exo/synth_tools/linux",
-                   cmd  => Cmd,
-                   args => [],
-                   opts => [use_stdio, binary, exit_status,
-                            {packet,4}] %% FIXME
-                 }),
+              SpawnPort(spawn_params(Dir,Cmd)),
               State)
     end;
 
@@ -49,6 +58,7 @@ handle_proc(stop, State) ->
     end,
     maps:remove(port, State);
 
+%% FIXME: Add restart with path
 handle_proc(restart, State) ->
     lists:foldl(
       fun(Cmd, S) -> handle_proc(Cmd, S) end,

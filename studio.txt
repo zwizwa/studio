@@ -5414,5 +5414,95 @@ complicated.  For YEARS I've been messing with this...
 
 Ok here's an idea: stick to the current idea but make all ports lazy.
 
+EDIT: Can't do this without breaking everything.  It's a lot of work.
+
+
+So damn what do I do?
+Keep everything as it is and add software ports to the config.
+
+
+
+Entry: software ports
+Date: Wed Aug  9 10:50:19 AM CEST 2023
+
+Maybe it's best not to proliferate these midi ports.
+But otoh that is exactly what I would like to do.
+
+One advantage of treating hardware and software ports the same is that
+it's possible to create some solidity.
+
+No.  Let's proliferate.  It is actually a good abstraction mechanism;
+a good guide towards making things that are standard.
+
+What needs to disappear is the jack_midi daemon, to be replaced with:
+
+- separate sync client + sequencer
+- separate on-demand erlang bridge
+
+Roadmap:
+
+1. build separate sync and sequencer clients
+2. make jack_midi use dynamic ports
+
+
+Is this necessary?
+I think it is because of all the confusion it causes.
+
+It's not that hard to make it work.  It is hard to do the incremental
+development and test though, so maybe fix that first?
+
+So smaller step:
+- disable the sync
+- create a synth_tools sync master
+
+I think it might make sense to let all the studio code depend on
+synth_tools, then there can be more built in C.
+
+Ok so move the sync and sequencer into separate clients.
+
+And for the stdio protocol: use midi.
+
+Then make it so that the jack_daemon can start the jack clients.
+
+
+
+Entry: starting jack clients
+Date: Wed Aug  9 11:21:11 AM CEST 2023
+
+When jack_daemon starts, I want it to start and connect jack clients.
+Let's assume there are a lot of these.
+
+Basically I want some kind of network monitor.
+
+This could actually be part of studio.erl
+
+What do I want?
+
+I just want the studio project to have access to default versions of
+the jack clients.  So it might be simplest to copy whatever is needed.
+
+
+
+
+Entry: summary
+Date: Wed Aug  9 01:38:36 PM CEST 2023
+
+
+EDIT: Alright I got here:
+
+- synth_tools is now part of /etc/net nixos wrappers, and studio can
+  access it
+
+- jack daemon starts erlang wrapper for synth_tools jack clients, by
+  default using the /nix/store binaires
+
+
+
+TODO:
+
+- add method to reload from a different directory
+
+
+
 
 

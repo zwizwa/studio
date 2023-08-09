@@ -3,7 +3,6 @@ ssize_t raw_write(int fd, const void *buf, size_t count) {
     return write(fd,buf,count);
 }
 
-
 #define APP(x) if (!strcmp(#x,argv[0])) return x(argc,argv)
 
 int main(int argc, char **argv) {
@@ -16,11 +15,6 @@ int main(int argc, char **argv) {
     argc--;argv++;
     char *program = argv[0];
     APP(jack_midi);
-    APP(jack_audio);
     APP(jack_control);
-    //APP(alsa_midi_in);
-    //APP(alsa_midi_out);
-    //APP(alsa_seq_in);
-    //APP(alsa_seq_out);
     ERROR("unkown program %s\n",program);
 }

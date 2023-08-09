@@ -40,7 +40,11 @@
 
 
 -module(jack_daemon).
--export([start_link/1, handle/2, studio_elf/0, start_client/2, system_port/3]).
+-export([start_link/1, handle/2,
+         studio_elf/0,
+         start_client/2,
+         system_port/3,
+         jack_clock/0]).
 
 
 %% Wrap the daemon and listen on its stdout as a simple way to get
@@ -49,7 +53,8 @@
 %% Once midi port aliases are known, connect them to a specified port
 %% number on the jack client.
 
-start_link(Init = #{ hubs := _}) ->
+start_link(Init = #{ hubs := _,
+                     spawn_port := _}) ->
     {ok, serv:start(
            {handler,
             fun() -> 
@@ -196,21 +201,31 @@ need_clients(State) ->
       State,
       maps:from_list(
         [{Name,start_client(Name, State)}
-         || Name <- [control
-                    ,midi
-                    %% ,audio  %% Not used
+         || Name <- [control   %% RPC
+                    ,midi      %% Messages
+                    ,clock     %% synth_tools jack_clock.c
+                    ,synth     %% synth_tools jack_synth.c
                     ]])).
 
-start_client(Name, #{ hubs := Hubs, notify := Notify}) ->
+jack_client_proc(#{ spawn_port := SpawnPort }, Name) ->
+    jack_client:proc(#{name => Name, spawn_port => SpawnPort}).
+    
+
+start_client(Name, State=#{ hubs := Hubs, notify := Notify, spawn_port := SpawnPort }) ->
     {ok, Pid} = 
         case Name of
-            audio ->
-                jack_audio:start_link("studio_audio", 8);
+            %% Main MIDI clock source
+            clock -> jack_client_proc(State, <<"jack_clock">>);
+            %% Example MIDI synth
+            synth -> jack_client_proc(State, <<"jack_synth">>);
+            %% RPC jack interface
             control ->
                 jack_control:start_link(
                   #{client => "studio_control",
                     notify => Notify
                    });
+            %% Unidirectional midi forwarding
+            %% Also has jack clock and sequencer, which should be removed.
             midi ->
                 jack_midi:start_link(
                   #{ hubs => Hubs,
@@ -230,3 +245,6 @@ studio_elf() ->
     Elf = code:priv_dir(studio) ++ "/studio.elf",
     log:info("Elf=~p~n", [Elf]),
     Elf.
+
+jack_clock() ->
+    obj:get(jack_daemon, clock).
