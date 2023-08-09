@@ -5321,3 +5321,98 @@ Maybe that can be f6.
 Do I have a way to go from terminal to redo?
 
 Jeez I'm too tired for this...
+
+
+
+Entry: jack ports
+Date: Wed Aug  9 09:22:50 AM CEST 2023
+
+Next step: software client ports should also connect to jack_midi.
+
+I don't especially like the studio_midi idea.  Too many unused ports.
+
+What are the constraints and design decisions?
+
+- a client like studio_midi is necessary to have a connection to the
+  jack network.  the jack_daemon Erlang process is not connected!  it
+  only observes the jackd process and its stdout
+
+- the jack_control daemon is separate to allow flow control and return
+  values
+
+- the jack_midi daemon is only for unidirectional midi interfacting
+  to/from erlang.  this needs one port per jack port.
+
+- the jack_audio is the same as jack_midi, but for audio, and not yet
+  implemented.  should probably be unified with jack_midi.  can be
+  ignored.
+
+- the jack_midi contains midi clock distribution
+
+
+What is missing or not right?
+
+- There are many unused ports.  Is that a real problem though?
+- Software client midi port need to be treated as system ports
+
+
+
+Entry: refactoring jack_midi
+Date: Wed Aug  9 09:44:23 AM CEST 2023
+
+What about this:
+
+midi_out_0 is the midi clock, so could be named as such
+
+each additional port is dedicated to send/receive to a system port or
+some jack client.
+
+pd doesn't support jack midi
+
+
+the midiclock thing could really be a seprate client, because the only
+reason that studio_midi needs to be centralized is because it is the
+interface to erlang.
+
+roadmap should include something that relies on timing messages
+
+so what is my test?
+
+- some drum machine that relies on timing messages
+- an erlang to midi path, e.g. emacs key?
+- a midi to erlang path, e.g. emacs knob display?
+
+what is the end goal here?
+
+to make things clear such that in a qjackctl graph it looks clear
+
+the things that create clutter are the studio_audio and studio_midi
+
+
+can i do it without changes? how important is it to not get lost in
+the weeds again?
+
+make small changes.
+
+
+EDIT: removed the audio daemon.
+man this is hard to restart/reload...
+
+
+Can I split off studio sync client?
+
+Yeah this is too complex.
+
+Let's keep it the way it is but fix it at the level of pord
+identifiers.  Add an additional level of indirection maybe?
+
+The studio_midi keeps track of a mapping from port id to internal port
+name, which could just be the id, and creates it if needed.
+
+EDIT: I don't want to bathe in this confusion.  It is really too
+complicated.  For YEARS I've been messing with this...
+
+Ok here's an idea: stick to the current idea but make all ports lazy.
+
+
+

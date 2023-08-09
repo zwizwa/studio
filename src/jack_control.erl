@@ -54,6 +54,14 @@ handle({disconnect, Src, Dst}, State) ->
     handle({rewire,?CMD_DISCONNECT,Src,Dst}, State);
 
 %% Also support the epid protocol.
+%% This supports:
+%% - from arbitrary external epid to jack port
+%% - between jack ports
+%%
+%% A jack port can be a system port or a client port.  We need both
+%% because client ports need to look like system ports.
+
+
 handle({epid_send,Port,Msg}=EpidSend, State) ->
     %% Use canonical names.
     log:info("epid command: ~p~n", [EpidSend]),

@@ -196,22 +196,28 @@ need_clients(State) ->
       State,
       maps:from_list(
         [{Name,start_client(Name, State)}
-         || Name <- [control, midi, audio]])).
+         || Name <- [control
+                    ,midi
+                    %% ,audio  %% Not used
+                    ]])).
 
 start_client(Name, #{ hubs := Hubs, notify := Notify}) ->
     {ok, Pid} = 
         case Name of
-            control -> jack_control:start_link(
-                         #{client => "studio_control",
-                           notify => Notify
-                          });
-            midi    -> jack_midi:start_link(
-                         #{ hubs => Hubs,
-                            client => "studio_midi",
-                            midi_ni => 24, 
-                            midi_no => 24,
-                            clock_mask => studio_cfg:midiclock_mask() });
-            audio   -> jack_audio:start_link("studio_audio", 8)
+            audio ->
+                jack_audio:start_link("studio_audio", 8);
+            control ->
+                jack_control:start_link(
+                  #{client => "studio_control",
+                    notify => Notify
+                   });
+            midi ->
+                jack_midi:start_link(
+                  #{ hubs => Hubs,
+                     client => "studio_midi",
+                     midi_ni => 24, 
+                     midi_no => 24,
+                     clock_mask => studio_cfg:midiclock_mask() })
         end,
     Pid.
 
