@@ -112,6 +112,16 @@ handle({Port,{data, Data}}, State = #{ port := Port, notify := Notify }) ->
 
     %% log:info("~999p~n", [Parsed]),
 
+    %% Here I want the following: allow "wait for notification", where
+    %% a process can temporarily register the bringup of a port, and
+    %% receive a single message when the port appears.
+
+    %% Alternatively, let the jack client send a proper notification.
+    %% It's much easier to implement from that end.
+
+    %% Also, we could easily keep track of which processors are up and
+    %% what the io ports are.
+
     Notify(Parsed),
 
     case Parsed of
@@ -153,4 +163,21 @@ clients() ->
     tools:unique([C || {C,_} <- ports()]).
 
 
-             
+    
+
+    
+%% Wait for client coming up by:
+%% exo_midi:jack_notify({client,true,"jack_synth-01"})
+%% exo_midi:jack_notify({port,true,"jack_synth-01:midi_in_0"})
+%% exo_midi:jack_notify({port,true,"jack_synth-01:audio_out_0"})
+
+wait(Client,Ports) ->
+    %% FIXME: Register
+    Ref = erlang:make_ref(),
+    receive {Tag, {client,true,Name}} -> ok end,
+    [begin 
+         PortName = tools:format("~s:~s",[Name,Port]),
+         receive {Tag, {port,true,PortName}} -> ok end
+     end || Port <- Ports],
+    %% FIXME: Flush
+    ok.

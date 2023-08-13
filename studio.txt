@@ -3697,13 +3697,13 @@ B0 1B 01 	Channel LED on only
 B0 1B 02 	Mixer LED on only
 B0 1B 03 	User 1 LED on only
 B0 1B 04 	User 2 LED on only
-Then… 	
+Then...
 B0 1B 10 (0001’0000) 	All LEDs off
 B0 1B 11 (0001’0001) 	Channel LED on only
 B0 1B 12 (0001’0010) 	Mixer LED on only
 B0 1B 13 (0001’0011) 	Channel and Mixer LED on
 B0 1B 14 (0001’0100) 	User 1 LED on only
-…
+...
 B0 1B 1F (0001’1111) 	All LEDs on
 
 
@@ -3717,7 +3717,7 @@ F0 – System Exclusive
 43 – Sub-ID byte #1 identifies “Fire” product
 65 – Sub-ID byte #2 identifies the command
 02 – First byte of SysEx payload
-…
+...
 F7 – End of Exclusive
 
 
@@ -5547,5 +5547,159 @@ This is something like:
 
 The 'record connections' doesn't have to be a local operation.
 Information could come from a map.
+
+
+Entry: fire fl
+Date: Wed Aug  9 05:23:04 PM CEST 2023
+
+To get this going I don't need full integration.
+Would be nice to also test the midi clock stuff.
+
+
+Entry: unstable midi names
+Date: Wed Aug  9 07:01:35 PM CEST 2023
+
+Aug 09 13:00:48 zora exo_vm[239258]: scan: added port hw:1,0,0 out-hw-1-0-0-FL-STUDIO-FIRE-Jack-1
+
+WTF why is this -Jack-1 ?
+
+So it seems this cannot be trusted....
+
+https://askubuntu.com/questions/1153655/making-connections-in-jack-on-the-command-line
+
+
+Ok they are different.  tp is running a different kernel
+
+tom@zora:~$ cat /proc/version
+Linux version 5.15.29 (nixbld@localhost) (gcc (GCC) 10.3.0, GNU ld (GNU Binutils) 2.35.2) #1-NixOS SMP Wed Mar 16 13:23:47 UTC 2022
+
+root@tp:/etc/net/nixos/pkgs# cat /proc/version 
+Linux version 5.4.182-rt71 (nixbld@localhost) (gcc version 10.3.0 (GCC)) #1-NixOS SMP PREEMPT_RT Wed Mar 2 10:41:18 UTC 2022
+
+Must be that because devices are the same.
+
+Aug 09 13:00:48 zora exo_vm[239258]: jackdmp 1.9.19
+
+Aug 09 17:17:25 tp exo_vm[596586]: jackdmp 1.9.19
+
+I don't want to mess with tp so make zora the same.
+zora didn't have:
+
+  boot.kernelPackages = pkgs.linuxPackages-rt;
+
+Also explains the underruns.
+
+EDIT: zora rt kernel fixed it
+
+
+
+Entry: next
+Date: Thu Aug 10 09:54:59 AM CEST 2023
+
+The dataflow language.
+First find out why this was done as a redo rule.
+
+First it needs:
+
+        exo_patch            -> {epid_app, start_link, [#{}]};
+
+The exo_patch.erl seems to be a dummy.
+
+I can't reconstruct anything from comments.
+
+What is coming back: the tension between the two dags, where the redo
+dag is specified using patterns, and the epid_app through application.
+
+Current ill-informed intuition: redo is more general, so implement
+epid_app in terms of redo, which seems to be the case.
+
+
+A running example is always best.  So let's make sure the epid dag is
+always running on each node, and later maybe on the network as a
+whole.
+
+
+
+Is there something to say _before_ getting into this?  One is to make
+sure the DSL can be ported outside of Erlang.  But no, that doesn't
+make any sense since the epid mechanism is built from Erlang wrapper
+processes.
+
+I guess what I miss is a starting point, so continue reading.
+
+Move to exo.txt
+
+
+So with the do_patch thing working somewhat, how to use this to store
+jack connections?
+
+The actual problem isn't solved: i.e. I want to automatically connect
+when a port appears in the jack daemon.
+
+Plugging that into redo might be overkill?
+Also creates brittle code.  What if it fails?
+
+
+
+
+Entry: bypass epid_app
+Date: Thu Aug 10 07:50:05 PM CEST 2023
+
+It's simpler to use redo and manage a connection as a node that
+depends on two other nodes.  This way a bunch of connections can be
+managed at once.
+
+An advantage of this is that the build system can always run on the
+same machine, but the connected state is "cached".
+
+
+Entry: synchronous start of a jack client
+Date: Thu Aug 10 08:04:13 PM CEST 2023
+
+Basically, wait for all its i/o to be created.
+
+Can I use this directly?
+
+exo_midi:jack_notify({port,true,"system:midi_playback_3"})
+
+Not really, because redo is pull.
+
+I need a wrapper.  Something that implements jack client restart and
+waits for all ports to appear, with a 3 second timeout.
+
+Here's what the notifications look like when starting a client:
+
+exo_midi:jack_notify({client,true,"jack_synth-01"})
+exo_midi:jack_notify({port,true,"jack_synth-01:midi_in_0"})
+exo_midi:jack_notify({port,true,"jack_synth-01:audio_out_0"})
+
+It might be enough to:
+
+1. subscribe to all messages with a unique tag.
+2. Wait for these 3 messages
+3. unsubscribe
+4. flush
+
+
+The list is easy to generate.  Don't even have to parse.  Can just
+generate.
+
+Added some proto code to jack_control.erl
+
+EDIT: Probably easier to send something on task stdio.
+
+
+Entry: looper
+Date: Thu Aug 10 10:12:01 PM CEST 2023
+
+https://www.youtube.com/watch?v=ypuP18k3wGM
+
+
+
+Entry: jack daemon restart
+Date: Sun Aug 13 12:48:11 PM CEST 2023
+
+I really need a solution for this, so build something today.
+
 
 

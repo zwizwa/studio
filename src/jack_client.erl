@@ -31,8 +31,7 @@ spawn_params(Dir, Cmd) ->
     #{ dir  => Dir,
        cmd  => Cmd,
        args => [],
-       opts => [use_stdio, binary, exit_status,
-                {packet,4}] %% FIXME
+       opts => [use_stdio, binary, exit_status, {packet,4}] %% FIXME
      }.
 
 handle_proc(start, #{ name := Name, spawn_port := SpawnPort, dir := Dir } = State) ->
@@ -65,6 +64,21 @@ handle_proc(restart, State) ->
       State,
       [stop, start]);
 
+handle_proc({set_dir, Dir}, State) ->
+    maps:put(dir, Dir, State);
+
+%% FIXME: Add synchronous restart RPC.
+%% This will restart and send a reply when device sends 0xFE after startup.
+handle_proc({ReplyTo, restart}, State) ->
+    maps:put(ping_reply_to, ReplyTo, State);
+
+%% exo:pid({jack_client,<<"jack_akai_fire">>}) ! {set_dir, "/i/exo/synth_tools/linux"}.
+
+handle_proc({Port,{data,<<255,253>>}},
+            State = #{port := Port, ping_reply_to := ReplyTo}) ->
+    obj:reply(ReplyTo, ok),
+    maps:remove(ping_reply_to, State);
+
 handle_proc({Port,{exit_status,_}=E}, State = #{port := Port}) ->
     %% Don't crash the process, just issue a warning.
     log:info("WARNING: ~p~n",[E]),
@@ -72,6 +86,7 @@ handle_proc({Port,{exit_status,_}=E}, State = #{port := Port}) ->
 
 handle_proc(Msg={_,dump},State) ->
     obj:handle(Msg, State);
+
 
 %% Delegate to mixins at tail end.
 handle_proc(Msg, State) -> 
