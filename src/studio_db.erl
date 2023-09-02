@@ -40,8 +40,10 @@ sql(Queries) ->
 port_pair({C,P}) when is_binary(C) and is_binary(P) ->
     {C,P};
 port_pair(Str) ->
-    [C,P] = binary:split(iolist_to_binary(Str),<<":">>,[global]),
-    {C,P}.
+    case binary:split(iolist_to_binary(Str),<<":">>,[global]) of
+        [C,P] -> {C,P};
+        [C,P,P1] -> {C,<<P/binary, P1/binary>>} %% a2j ports have a colon
+    end.
     
 
 %% See exo_db midiport table + exo_config

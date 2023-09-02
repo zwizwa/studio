@@ -70,7 +70,12 @@ handle(start, State) ->
     tools:info("jackd_open: ~s~n",[SH]),
     Opts = [{line,1024}, binary, use_stdio, exit_status],
     Port = open_port({spawn, SH}, Opts),
+    %% FIXME: sync?
+    timer:send_after(1000, need_clients),
     maps:put(port, Port, State);
+
+handle(need_clients, State) ->
+    need_clients(State);
 
 handle({Port, {data, Data}}, #{port := Port} = State) ->
     case Data of

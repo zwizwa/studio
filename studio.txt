@@ -5700,6 +5700,609 @@ Entry: jack daemon restart
 Date: Sun Aug 13 12:48:11 PM CEST 2023
 
 I really need a solution for this, so build something today.
+EDIT: Didn't get to it.
+
+
+
+Entry: next
+Date: Mon Aug 14 07:57:20 AM CEST 2023
+
+Maybe instead of building the akai fire interface separately, start
+building something that produces sound right away.  Start doing the
+looper, which boils down to making a sampler first.
+
+Maybe it is also time to start doing some rust?  Problem is that I got
+good enough at C that I don't really need this for simple code (not
+many forking paths).
+
+
+
+
+Entry: sampler
+Date: Wed Aug 23 11:43:05 PM CEST 2023
+
+start with recording of noise setup, turn it into a shuffler
+
+
+
+Entry: Layla3G analog + digital config?
+Date: Fri Aug 25 02:10:26 PM EDT 2023
+
+Can I actually run 8 analog and 8 digital at the same time?
+
+I think when reading the driver that it had a comment that this
+wouldn't work.
+
+/linux/sound/pci/echoaudio
+
+Maybe this is a good occasion to start messing with the Linux kernel
+again.
+
+I think it was this:
+
+        /* The card can manage substreams formed by analog and digital channels
+        at the same time, but I prefer to keep analog and digital channels
+        separated, because that mixed thing is confusing and useless. So we
+        register two PCM devices: */
+
+There is also this:
+
+        /* This card has a Vmixer, that is there is no direct mapping from PCM
+        streams to physical outputs. The user can mix the streams as he wishes
+        via control interface and it's possible to send any stream to any
+        output, thus it makes no sense to keep analog and digital outputs
+        separated */
+
+git blame echoaudio.c
+dd7b254d8dd3a (Giuliano Pochini     2006-06-28 13:53:41 +0200  950) 
+
+Copyright (C) 2003-2004 Giuliano Pochini <pochini@shiny.it>
+Copyright (C) 2020 Mark Hills <mark@xwax.org>
+
+on mimas, asound/cards reports "Layla3G". That string is in
+echo3g_dsp.c which is included from echo3g.c:
+
+#include "echo3g_dsp.c"
+#include "echoaudio_dsp.c"
+#include "echoaudio_3g.c"
+#include "echoaudio.c"
+#include "midi.c"
+
+It doesn't seem to have ECHOCARD_HAS_VMIXER
+
+So it creates two PCM devices
+
+	/* PCM#0 Analog i/o */
+	err = snd_pcm_new(chip->card, "Analog PCM", 0,
+			  num_analog_busses_out(chip),
+			  num_analog_busses_in(chip), &pcm);
+
+	/* PCM#1 Digital i/o */
+	err = snd_pcm_new(chip->card, "Digital PCM", 1,
+			  num_digital_busses_out(chip),
+			  num_digital_busses_in(chip), &pcm);
+
+
+tom@mimas:~$ cat /proc/asound/card0/pcm0p/info 
+card: 0
+device: 0
+subdevice: 0
+stream: PLAYBACK
+id: Analog PCM
+name: Layla3G
+subname: subdevice #0
+class: 0
+subclass: 0
+subdevices_count: 8
+subdevices_avail: 7
+
+(7 is because jack is already running)
+
+tom@mimas:~$ cat /proc/asound/card0/pcm1p/info 
+card: 0
+device: 1
+subdevice: 0
+stream: PLAYBACK
+id: Digital PCM
+name: Layla3G
+subname: subdevice #0
+class: 0
+subclass: 0
+subdevices_count: 8
+subdevices_avail: 8
+
+
+So it looks like I'm going to need to either mod the driver, or open
+it twice, once with the jack alsa client.  That might be the way to go
+because I think I'm going to have to do that again when using multiple
+cards:
+
+https://jackaudio.org/faq/multiple_devices.html
+
+
+https://linuxmusicians.com/viewtopic.php?t=16062
+mentions "jack2 audioadapters"
+
+something like this:
+https://forum.mod.audio/t/whats-the-best-implementation-for-multiple-usb-interfaces/4656/7
+jack_load mod-slave audioadapter -w -a -i "-d hw:1 -p 128 -n 3"
+
+https://www.youtube.com/watch?v=yrcJuBPQ1uY
+jack_load <myname> audioadapter -i "-d hw:3 -g406 -i1 -o1 -r48000"
+
+also possible with alsa loopback
+https://sysplay.in/blog/linux/2019/06/playing-with-alsa-loopback-devices/
+
+
+so two things to remember:
+- on jack2, jack_load can be used to add an "audioadapter"
+- jack_load sets up internal clients (netjack is another one?)
+- alsa loopback can be used to plug one app that uses also into jack that way
+
+
+Entry: jack2 audioadapter (jack_load)
+Date: Fri Aug 25 02:56:55 PM EDT 2023
+
+some questions:
+
+- jack, jackdmp, jack2?
+- jack_load?
+
+JACK2 aka jackdmp is a C++ version of the JACK low-latency audio
+server for multi-processor machines.
+
+tom@luna:~$ readlink -f `which jack_load`
+/nix/store/0rxaxxfv5jsqfd7h0qab5s374px756zs-jack2-1.9.19/bin/jack_load
+
+i guess i need the source code somewhere
+https://github.com/jackaudio/jack2
+
+man jack_load:
+jack_load - JACK toolkit client for loading in-process clients
+
+
+there is also netjack
+
+i guess i jave some manual reading to do
+
+also see this:
+https://github.com/jackaudio/jack-example-tools
+
+
+Entry: netjack
+Date: Fri Aug 25 04:14:26 PM EDT 2023
+
+https://linuxmusicians.com/viewtopic.php?t=1010
+
+
+Entry: openmixer
+Date: Fri Aug 25 04:14:45 PM EDT 2023
+
+https://github.com/Openmixer
+
+
+Entry: jackpatch, nsmd
+Date: Sun Aug 27 05:47:22 AM EDT 2023
+
+https://jackaudio.org/news/
+
+
+
+Entry: next
+Date: Tue Aug 29 06:42:09 AM EDT 2023
+
+alsa loopback to send pulseaudio to jack on luna
+
+
+Entry: alsa loopback
+Date: Tue Aug 29 06:44:30 AM EDT 2023
+
+modprobe snd-aloop
+
+interesting hint: "aplay -l" can be used to list cards
+
+tom@luna:~$ jack_load pulse audioadapter -i "-d hw:3 -i2 -o2 -r48000"
+audioadapter is running.
+client name = pulse
+
+
+now it doesn't show up in pulseaudio
+actually it does, it's just not called loopback
+
+
+alright this is just not transparent enough
+
+probably better to get rid of pulseaudio, or to compile it with jack support
+
+i am spending way too much time on this
+
+hey what if the nixos is not including the jack and alsa loopback
+stuff during nix rebuild?
+
+ok i found this:
+https://nixos.wiki/wiki/JACK
+
+    hardware.pulseaudio.package = pkgs.pulseaudio.override { jackaudioSupport = true; };
+
+That rebuilds pulse.  So prob good to do it on zoo so it can be cached.
+
+It does need some massaging afterwards.  Basically, read the docs.
+
+First start jack, then do:
+
+pactl load-module module-jack-sink channels=2
+pactl load-module module-jack-source channels=2
+pacmd set-default-sink jack_out
+
+
+
+Ok that works.
+
+So what it needs to do:
+- start jack daemon in exo_vm
+- run the pactl commands after daemon has started
+
+So the latter should go into Erlang code
+
+
+Entry: o1v digitial io
+Date: Tue Aug 29 01:09:48 PM EDT 2023
+
+cable arrives today
+try the audioadapter thing
+
+
+Entry: digital optical cables arrived
+Date: Wed Aug 30 06:31:16 AM EDT 2023
+
+
+root@mimas:/home/tom# cat /etc/net/dsp/jack-mimas.sh 
+
+#!/bin/sh
+export DISPLAY=:0
+P=64
+exec jackd -R -dalsa -r48000 -p$P -n2 -d hw:Layla3G,0 -X raw -i 8 -o 8 "$@"
+
+
+
+jack_load o1v audioadapter -i "-d hw:0,1 -i8 -o8 -r48000"
+
+it hangs
+
+
+
+findings:
+
+- if echo is master 48kz and o1v syncs to it, the o1v -> echo digi
+  path is flakey. this goes away when echo syncs to o1v. however o1v
+  can only do 44.1 internal
+
+- this problem goes away when echo is set to 44.1
+
+
+so do i just lower the sample frequency to 44.1, or do i find another
+sync setup?  it will need to be synced to zni anyway.
+
+
+anyways. will need to think about it. set some goal first.
+
+one more thing to check: run analog i/o as well
+
+
+
+Entry: general setup
+Date: Wed Aug 30 07:40:35 AM EDT 2023
+
+1. neerpelt / brunswick setups should be +- the same
+
+2. things need to start automatically at power on
+
+
+For both, the 16-channel setup is for "hacking".  Basically, that's
+where things can be added in the future.
+
+In brunswick, the delta1010 is for the analog synths.
+
+
+
+
+
+
+
+Entry: digi and analog
+Date: Wed Aug 30 07:57:34 AM EDT 2023
+
+jack_load o1v audioadapter -i "-d hw:0,0 -i8 -o8 -r44100"
+audioadapter is running.
+client name = o1v
+
+but jack output does this:
+Ringbuffer automatic adaptative mode size = 4096 frames
+Audio Interface Description :
+Sampling Frequency : 44100, Sample Format : S32_LE, buffering : 1024, nperiod : 2
+Software inputs :  8, Software outputs :  8
+Hardware inputs :  8, Hardware outputs :  8
+ALSA lib conf.c:5514:(parse_args) Unknown parameter 1
+ALSA lib conf.c:5685:(snd_config_expand) Parse arguments error: No such file or directory
+ALSA lib control.c:1599:(snd_ctl_open_noupdate) Invalid CTL hw:0,0
+ALSA lib conf.c:5514:(parse_args) Unknown parameter 1
+ALSA lib conf.c:5685:(snd_config_expand) Parse arguments error: No such file or directory
+ALSA lib control.c:1599:(snd_ctl_open_noupdate) Invalid CTL hw:0,0
+ALSA lib conf.c:5514:(parse_args) Unknown parameter 1
+ALSA lib conf.c:5685:(snd_config_expand) Parse arguments error: No such file or directory
+ALSA lib control.c:1599:(snd_ctl_open_noupdate) Invalid CTL hw:0,0
+../linux/alsa/JackAlsaAdapter.h:551, alsa error -2 : No such file or directory
+ALSA lib conf.c:5514:(parse_args) Unknown parameter 1
+ALSA lib conf.c:5685:(snd_config_expand) Parse arguments error: No such file or directory
+ALSA lib control.c:1599:(snd_ctl_open_noupdate) Invalid CTL hw:0,0
+
+
+It does seem to appear though.  How to test?
+It seems fine from vu meters in echomixer and pd.
+
+
+
+Entry: autostart
+Date: Wed Aug 30 08:02:17 AM EDT 2023
+
+So make sure this works at boot.
+
+This works:
+jack_load system_analog audioadapter -i "-d hw:0,0 -i8 -o8 -r44100"
+
+
+
+Entry: zoe delta1010
+Date: Wed Aug 30 08:15:03 AM EDT 2023
+
+Currently set to internal 44.1 in envy24control
+But that doesn't seem right because jack is running at 48kHz
+
+Next experiment: can i sync envy to zoe delta1010 word clock? That
+worked before so should be fine.
+
+The echo digi in doesn't work in that mode: getting glitches in echomixer
+
+Let's switch zoe delta1010 to 44.1k then
+
+Ok that works.
+
+zoo then still syncs to zoe.  not checked if it has audio but prob ok
+
+so looks like this is all good
+
+
+
+Entry: jack tools
+Date: Wed Aug 30 10:41:15 AM EDT 2023
+
+collection of jack tools and built-in clients in the repo
+
+https://github.com/jackaudio/jack2
+
+Internal clients are in .so ?
+https://github.com/jackaudio/jack2/blob/develop/common/JackInternalClient.cpp
+
+https://github.com/jackaudio/jack2/blob/develop/common/netjack.c
+
+https://github.com/jackaudio/jack2/blob/develop/linux/alsa/ice1712.c
+ice1712_hw_monitor_toggle()
+ice1712_set_input_monitor_mask()
+
+https://github.com/jackaudio/jack2/blob/develop/linux/alsa/hammerfall.c
+sync, monitor
+
+so where is audioadapter?
+https://github.com/jackaudio/jack2/blob/develop/linux/alsa/JackAlsaAdapter.cpp
+
+is there a way to list internal clients?
+root@luna:/nix/store/0rxaxxfv5jsqfd7h0qab5s374px756zs-jack2-1.9.19# find -name '*.so'
+./lib/libjack.so
+./lib/libjacknet.so
+./lib/jack/jack_alsa.so
+./lib/jack/jack_firewire.so
+./lib/jack/jack_netone.so
+./lib/jack/jack_alsarawmidi.so
+./lib/jack/jack_net.so
+./lib/jack/netmanager.so
+./lib/jack/jack_dummy.so
+./lib/jack/jack_proxy.so
+./lib/jack/jack_loopback.so
+./lib/jack/inprocess.so
+./lib/jack/netadapter.so
+./lib/jack/profiler.so
+./lib/jack/audioadapter.so
+./lib/libjackserver.so
+
+Aha, jackd --help gives:
+
+Available internals:
+      netmanager
+      netadapter
+      profiler
+      audioadapter
+
+Available backends:
+      alsa (master)
+      firewire (master)
+      netone (master)
+      alsarawmidi (slave)
+      net (master)
+      dummy (master)
+      proxy (master)
+      loopback (slave)
+
+what is netone?
+
+also, is raw the sqame as alsarawmidi?
+
+reading man jackd i find the 'jalv' internal LV2 plugin host client:
+https://libreav.org/software/jalv
+
+
+
+
+Entry: netadapter
+Date: Wed Aug 30 11:21:33 AM EDT 2023
+
+https://jack-devel.jackaudio.narkive.com/XP3eXD7t/how-to-setup-jack-for-transmission-of-audio-from-embedded-system-to-jack-equipped-audio-workstation
+
+slave:
+
+jack_load netadapter -i '-C 4'
+
+master:
+
+jack_load netmanager
+
+
+
+what about --slave-backend ? 
+
+wait this is X.  maybe -X raw is already a slave backend and i can run
+jack in midi only mode?
+
+
+Entry: alsa -Xraw
+Date: Wed Aug 30 02:13:00 PM EDT 2023
+
+https://linux-audio-user.linuxaudio.narkive.com/r88hTnOx/lau-is-xalsarawidi-the-same-as-xraw-or-xseq
+
+Capela: when on JACK2, use a2jmidid -e; forget -Xwhatever; you've been
+warned, probably way too many times ;)...
+
+Davis: Just a note. You should NEVER use ALSA raw MIDI with JACK
+unless you don't care about timing in any way.
+
+
+
+I never had any issues.  But let's do what they say.  Might make
+things simpler in the end because it does seem this uses a simpler
+port naming scheme.
+
+Not for right away, but instead of making some other overhaul.
+
+
+https://github.com/jackaudio/a2jmidid
+
+nix-shell -p a2jmidid
+
+tom@luna:~$ 
+jack_connect \
+'a2j:WORLDE easy control [28] (capture): WORLDE easy control MIDI 1' \
+'a2j:WORLDE easy control [28] (playback): WORLDE easy control MIDI 1' \
+
+So I probably still need to do some name mangling because that is too
+much to do manually.  Also I doubt that the 28 is going to be stable.
+
+tom@luna:~$ jack_lsp
+system:capture_1
+system:capture_2
+system:playback_1
+system:playback_2
+PulseAudio JACK Sink:front-left
+PulseAudio JACK Sink:front-right
+PulseAudio JACK Source:front-left
+PulseAudio JACK Source:front-right
+a2j:Midi Through [14] (capture): Midi Through Port-0
+a2j:Midi Through [14] (playback): Midi Through Port-0
+a2j:WORLDE easy control [28] (capture): WORLDE easy control MIDI 1
+a2j:WORLDE easy control [28] (playback): WORLDE easy control MIDI 1
+
+
+Entry: new arch
+Date: Wed Aug 30 04:32:01 PM EDT 2023
+
+I think I want to get rid of this erlang thing.  It's too complex to
+set up.  I also want to be able to run jack without erlang.
+
+
+
+Entry: jack without erlang
+Date: Thu Aug 31 09:02:31 AM EDT 2023
+
+First make an experiment.  Set up jack on a couple of machines with
+the a2jmidid and netjack.  Keep it in Erlang for now (don't break
+things) but gradually move more to C so it can run stand-alone.
+
+So what's next?
+
+The jack network thing.
+
+
+
+Entry: jack: make it visible
+Date: Fri Sep  1 10:36:00 AM EDT 2023
+
+Configuration is still a realy issue.  And that is because I want to
+keep things open too much.
+
+Debugging is an issue as well: not always clear if things are set up
+properly, and that is also tied into the configuration being a mess.
+
+
+
+Entry: moving forward
+Date: Sat Sep  2 06:52:37 AM EDT 2023
+
+i'm a bit stuck.
+
+one thing is the recent discovery of the other jack clients which
+basically means i have to redo things
+
+so let's just explore it then by building an actual setup.  i want to
+get close to something i had before: a step sequencer, and a number of
+synths connected through a mixer.
+
+first thing to try here is to set up the drum sync.  i think i tried
+this last month, remove it from the erlang client into a new client.
+
+i moved the drum stuff to synth_tools/linux/jack_clock.c
+
+so todo:
+- disable -X raw on zoe jackd
+- add new a2j client
+- connect manually, test beat timing
+- automate the connection
+
+
+Alright, manual connection jack_clock -> korg drum machine works
+qjackctl also looks a lot more manageable
+
+It shows up on the a2jmidid stdout:
+
+port created: USB Midi 4i4o [20] (playback): USB Midi 4i4o MIDI 3
+
+But I should see this inside jack as well.
+
+Problem right now is that those messages are getting lost, since I
+changed it to "send to emacs".  Maybe as an intermediate step, send it
+to disk or network broadcast as well.
+
+Or maybe simpler: allow Erlang console to register.
+
+Or even simpler: send to emacs over network via tp proxy.
+
+See exo log.
+
+Alright now the clients are not starting.
+
+Maybe it is time to just redesign this whole thing.
+
+
+
+Entry: midi studio client
+Date: Sat Sep  2 08:51:34 AM EDT 2023
+
+That should probably be replaced by a single erlang client that only
+does erlang to midi bridging, and can also create ports and
+connections on demand.
+
+So let's set it up so that the a2jmidid is started from erlang as well.
+
+
+
+
 
 
 
