@@ -6300,6 +6300,20 @@ connections on demand.
 
 So let's set it up so that the a2jmidid is started from erlang as well.
 
+Alright it's up
+
+next: remove the jack_midi daemon at start?
+
+
+Entry: remove jack_midi daemon
+Date: Sat Sep  2 10:05:09 AM EDT 2023
+
+Let's just not start this any more, see how it goes.
+
+Let's recreate the erlang interface right away.  synth_tools jack_erl
+
+
+
 
 
 

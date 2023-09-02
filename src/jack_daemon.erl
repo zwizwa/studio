@@ -210,9 +210,10 @@ need_clients(State) ->
       maps:from_list(
         [{Name,start_client(Name, State)}
          || Name <- [control   %% RPC
-                    ,midi      %% Messages
+                    %%,midi      %% Messages
                     ,clock     %% synth_tools jack_clock.c
                     ,synth     %% synth_tools jack_synth.c
+                    ,a2jmidid  %% upstream alsa to jack midi bridge
                     ]]),
       State).
 
@@ -223,9 +224,12 @@ jack_client_proc(#{ spawn_port := SpawnPort }, Name) ->
 start_client(Name, State=#{ hubs := Hubs, notify := Notify, spawn_port := SpawnPort }) ->
     {ok, Pid} = 
         case Name of
-            %% Main MIDI clock source
+            %% Upstream alsa to jack midi bridge
+            a2jmidid -> jack_a2jmidid:start_link(#{});
+
+            %% Main MIDI clock source (synth_tools)
             clock -> jack_client_proc(State, <<"jack_clock">>);
-            %% Example MIDI synth
+            %% Example MIDI synth (synth_tools)
             synth -> jack_client_proc(State, <<"jack_synth">>);
             %% RPC jack interface
             control ->
