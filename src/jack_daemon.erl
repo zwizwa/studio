@@ -210,8 +210,9 @@ need_clients(State) ->
       maps:from_list(
         [{Name,start_client(Name, State)}
          || Name <- [control   %% RPC
-                    %%,midi      %% Messages
+                    %%,midi      %% Messages (old Erlang bridge)
                     ,clock     %% synth_tools jack_clock.c
+                    ,erl       %% synth_tools jack_erl.c (new Erlang bridge)
                     ,synth     %% synth_tools jack_synth.c
                     ,a2jmidid  %% upstream alsa to jack midi bridge
                     ]]),
@@ -229,6 +230,8 @@ start_client(Name, State=#{ hubs := Hubs, notify := Notify, spawn_port := SpawnP
 
             %% Main MIDI clock source (synth_tools)
             clock -> jack_client_proc(State, <<"jack_clock">>);
+            %% Erlang to Jack port bridge (synth_tools)
+            erl   -> jack_client_proc(State, <<"jack_erl">>);
             %% Example MIDI synth (synth_tools)
             synth -> jack_client_proc(State, <<"jack_synth">>);
             %% RPC jack interface
