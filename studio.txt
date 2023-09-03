@@ -6312,11 +6312,55 @@ Let's just not start this any more, see how it goes.
 
 Let's recreate the erlang interface right away.  synth_tools jack_erl
 
+EDIT: What needs to happen first is daemon restart.
 
 
 
+Entry: adhd intermezzo
+Date: Sat Sep  2 11:04:42 AM EDT 2023
+
+Field bus for audio, sample switched.
+
+Basically a single daisychain cable, where each device has a slot.
+Tight microcontroller timing, uart interface.
+
+A single channel is (* 2 10 44100)  882 kbps
+
+10Mbit is probably doable with RS485
+
+(/ 10000 882.0)
+
+That's only 11 channels.
+
+This doesn't look like a good idea.
+Best way seems to be to use legacy audio cards.
+
+So forget
 
 
 
- a
+Entry: use o1v + echo as pd + analog interface
+Date: Sat Sep  2 11:09:10 AM EDT 2023
+
+That's a huge amount of bandwith.  Not going to fill that up any time
+soon.
+
+Get rid of the hyperion / m-audio setup.  The idea was to have a
+portable setup.  That's not going to work with the feedback setup, so
+build a separate portable setup in a suitcase.
+
+
+
+Entry: portable setup
+Date: Sat Sep  2 11:11:24 AM EDT 2023
+
+M-Audio + behringer mixer.
+
+M-Audio is effects processor fed from behringer's send and an extra
+direct input.
+
+Behringer USB is recorder output.
+
+Adding hyperion would make it stand-alone.  It needs power anyway.
+
 
