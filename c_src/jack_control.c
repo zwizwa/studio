@@ -64,7 +64,9 @@ static void port_connect(jack_port_id_t a, jack_port_id_t b, int connect, void *
 }
 static void client_registration(const char *name, int reg, void *arg) {
     //LOG("client_registration %s %d\n", name, reg);
-    SEND("{client,%s,\"%s\"}", reg  ? "true" : "false", name);
+    SEND("{client,%s,\"%s\"}",
+         reg ? "reg" : "unreg",
+         name);
 }
 
 int jack_control(int argc, char **argv) {
