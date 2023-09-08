@@ -6364,3 +6364,248 @@ Behringer USB is recorder output.
 Adding hyperion would make it stand-alone.  It needs power anyway.
 
 
+
+Entry: i need to get somewhere, find some place to start
+Date: Wed Sep  6 06:54:26 AM EDT 2023
+
+Yeah there's nothing.
+
+Was looking at qjackctl patchbay again.  I think I don't want to use
+this.  I want to definitely manage jack connections globally, together
+with other daemon interactions on different PCs.
+
+So maybe just acknowledge that this is harder than it seems, and wait
+until my mental state is better to tackle it?
+
+Until then I can do manual connections, or use the point that's
+already there.
+
+Also, connections are relations, so maybe best to put it in a database
+after all.
+
+This is what it looks like:
+
+host,src_client,src_port,dst_client,dst_port
+
+I first need to know what the number is in:
+
+a2j:WORLDE easy control [28] (playback): WORLDE easy control MIDI 1
+
+
+
+Entry: a2jmidid
+Date: Wed Sep  6 07:34:26 AM EDT 2023
+
+Port names like this:
+
+a2j:WORLDE easy control [28] (playback): WORLDE easy control MIDI 1
+
+Come from: a2jmidid/port.c
+
+  if (make_unique)
+  {
+    ret = snprintf(
+      port_ptr->name,
+      g_max_jack_port_name_size,
+      "%s [%d] (%s): [%d] %s",
+      snd_seq_client_info_get_name(client_info_ptr),
+      snd_seq_client_info_get_client(client_info_ptr),
+      type == A2J_PORT_CAPTURE ? "capture": "playback",
+      snd_seq_port_info_get_port(port_info_ptr),
+      snd_seq_port_info_get_name(port_info_ptr));
+  }
+  else
+  {
+    ret = snprintf(
+      port_ptr->name,
+      g_max_jack_port_name_size,
+      "%s (%s): %s",
+      snd_seq_client_info_get_name(client_info_ptr),
+      type == A2J_PORT_CAPTURE ? "capture": "playback",
+      snd_seq_port_info_get_name(port_info_ptr));
+  }
+
+
+So what is make_unique ?
+It's called like this:
+
+  a2j_port_fill_name(port, type, client_info_ptr, info, !g_disable_port_uniqueness);
+
+In main():
+
+      case 'u':
+        g_disable_port_uniqueness = true;
+        break;
+
+So there is an option for this.
+Glad I looked!
+
+From the man page:
+
+NOTES 
+
+  ALSA does not guarantee client names to by unique. I.e. it is
+  possible to have two apps that create two clients with same ALSA
+  client name.  JACK however requires port names to be unique. To
+  ensure this uniqueness, a2jmidid will add the unique numeric ALSA
+  client ID to the JACK port name.  However this behaviour is known to
+  be problematic when restoring connections using simplistic tools
+  like aj-snapshot and jack_connect.  In order to make them work, the
+  -u option can be used. This option will cause a2jmidid to omit the
+  numeric ALSA Client ID from JACK port names.  In this mode, ALSA
+  client name uniqueness must be guaranteed externally.
+
+
+So a make_unique example is:
+a2j:M Audio Delta 1010 [24] (playback): M Audio Delta 1010 MIDI
+
+Without:
+a2j:M Audio Delta 1010 (playback): M Audio Delta 1010 MIDI
+
+Ok so keep that as the default.
+
+
+
+Entry: persistent jack connections need to go into a database
+Date: Wed Sep  6 07:52:47 AM EDT 2023
+
+Let's make it so it can be snapshotted.  This makes it possible to use
+qjackctl to set things up.
+
+Adapted jack_lsp to this:
+
+tom@zoe:/i/tom/exo/synth_tools/linux$ ./jack_snapshot.dynamic.host.elf
+jack_synth,audio_out_0,system,playback_1
+jack_synth,audio_out_0,system,playback_2
+jack_clock,out,a2j,USB Midi 4i4o (playback): USB Midi 4i4o MIDI 3
+
+
+
+Entry: next
+Date: Wed Sep  6 08:50:51 AM EDT 2023
+
+Ok that's a step in the right direction.
+
+It should be wrapped in a database so it can be plugged into the event
+code.  But that feels like not something for now maybe.
+
+
+
+Entry: database
+Date: Thu Sep  7 05:40:24 AM EDT 2023
+
+The event we're responding to is new port creation (and maybe later
+deletion).
+
+So this means for each port, find the connections it is involved in.
+
+There are two kinds here: involved as input or as output.
+
+Database seems best to hold relations like this, and turn them into
+functions mapping from the new port to the other ports it is connected
+to.
+
+
+The next question is how to implement it.  Use a stateful database, or
+put everything in csv.
+
+Let's keep it in csv first, see how that goes.  Most connections would
+be permanent anyway, at least in the beginning.
+
+Ok so the csv read is working, and I have the relevant select
+statement as well.
+
+So what next?
+
+It is the design decision to use a database or not.
+
+So let's short-circuit that: yes, use a database.  Each node has one.
+Even if it is only to cache things that are discovered dynamically.
+
+This needs to go into the /etc/net exo.erl
+
+So currently there is exo:db_local().
+Where is it stored?
+
+EDIT: Got it
+
+So how should it go from here?
+qjackctl -> jack_snapshot -> csv -> db
+
+How to do the last step?
+
+
+Entry: I am really done with this mess
+Date: Thu Sep  7 02:31:35 PM EDT 2023
+
+Build a single client that does all filtering.
+
+
+
+Entry: are connections code?
+Date: Thu Sep  7 02:51:48 PM EDT 2023
+
+Here's the reason to not put jack connections in redo: it's not
+directional.
+
+But no, that is not the way to look at it.  Already been here.  It's
+fine whenever the connection depends on the 2 client ports.
+
+But that road doesn't work well because it needs synchronization
+between restart mechanism and redo, and that is a can of worms.
+
+So is it ok to leave connections as being "not code" ?
+
+Why am I even stuck on this?
+
+Overanalyzing.
+
+It might be enough to do the following: let restart depend on
+connection db being up-to date, and rules being inserted into
+connections db.  There are many ways around it probably.
+
+
+Also, I am prematurely optimizing.  It's probably ok to attempt to
+reconnect everything instead of filtering.  Anyway, let's stick to the
+db because that will have topology data in a form that is easily
+accessible.
+
+
+Maybe it is time to cut this short and just do it.
+
+What I want to do mostly is to put the .csv in /etc/net git and make
+sure it gets imported when the exo_vm starts up.
+
+
+
+Entry: just fucking do it
+Date: Fri Sep  8 08:38:35 AM EDT 2023
+
+Put together what works.  Make sure it is function, then later find a
+way to optimize.
+
+1. Dump to csv per host, store in /etc/net
+2. Pick up that csv in the init script
+3. Test result in erlang
+
+(exo@deimos.zoo)3> sqlite3:sql(DB,[<<"select * from jack">>]).
+[[[<<"system">>,<<"capture_1">>,
+   <<"PulseAudio JACK Source">>,<<"front-left">>],
+  [<<"system">>,<<"capture_2">>,<<"PulseAudio JACK Source">>,
+   <<"front-right">>],
+  [<<"PulseAudio JACK Sink">>,<<"front-left">>,<<"system">>,
+   <<"playback_1">>],
+  [<<"PulseAudio JACK Sink">>,<<"front-right">>,<<"system">>,
+   <<"playback_2">>],
+  [<<"src_client">>,<<"src_port">>,<<"dst_client">>,
+   <<"dst_port">>],
+  [<<"system">>,<<"capture_1">>,<<"PulseAudio JACK Source">>,
+   <<"front-left">>],
+  [<<"system">>,<<"capture_2">>,<<"PulseAudio JACK Source">>,
+   <<"front-right">>],
+  [<<"PulseAudio JACK Sink">>,<<"front-left">>,<<"system">>,
+   <<"playback_1">>],
+  [<<"PulseAudio JACK Sink">>,<<"front-right">>,<<"system">>,
+   <<"playback_2">>]]]
+
+
