@@ -31,20 +31,25 @@ static jack_client_t          *client = NULL;
         assert_write(1, (void*)buf, buf[0] + 1);                       \
     }
 
-static void port_register(jack_port_id_t a, int reg, void *arg) {
-    jack_port_t *pa = jack_port_by_id(client, a);
-    const char *na = jack_port_name(pa);
+static void port_register(jack_port_id_t port_id, int reg, void *arg) {
+    jack_port_t *port = jack_port_by_id(client, port_id);
+    int flags = jack_port_flags(port);
+    const char *port_name = jack_port_name(port);
 
-    //LOG("port_register %s %d\n", na, reg);
-    SEND("{port,%s,\"%s\"}", reg ? "true" : "false", na);
+    // LOG("port_register %s %d\n", na, reg);
+    // SEND("{port,%s,\"%s\"}", reg ? "true" : "false", na);
+    SEND("{port,%s,%s,\"%s\"}",
+         reg ? "reg" : "unreg",
+         flags & JackPortIsInput ? "in" : "out",
+         port_name);
 
     char alias0[jack_port_name_size()];
     char alias1[jack_port_name_size()];
     char *const alias[2] = {alias0, alias1};
-    int nb_alias = jack_port_get_aliases(pa, alias);
+    int nb_alias = jack_port_get_aliases(port, alias);
     for (int i = 0; i<nb_alias; i++) {
         //LOG(" - alias: %s\n", alias[i]);
-        SEND("{alias,\"%s\",\"%s\"}", na, alias[i]);
+        SEND("{alias,\"%s\",\"%s\"}", port_name, alias[i]);
     }
 }
 
