@@ -125,11 +125,14 @@ handle({Port,{data, Data}}, State = #{ port := Port, notify := Notify }) ->
     Notify(Parsed),
 
     case Parsed of
-        {port,Active,CP} ->
+        %% Is this still necessary?
+        %% RegUnreg = reg | unreg
+        %% InOut = in | out
+        {port,RegUnreg,InOut,CP} ->
             {C,P} = studio_cfg:port_pair(CP),
-            maps:put({C,P},Active,State);
-        %% {alias,"system:midi_playback_4","out-hw-4-0-2-USB-Midi-4i4o-MIDI-3"} -> ok;
-        %% {port,true,"system:midi_playback_5"} -> ok;
+            maps:put({InOut,C,P},RegUnreg,State);
+        %% {alias, "system:midi_playback_4", "out-hw-4-0-2-USB-Midi-4i4o-MIDI-3"} -> ok;
+        %% {port, reg, out, "system:midi_playback_5"} -> ok;
         %% {connect, true,  _A, _B} -> State;
         _ ->
             State
