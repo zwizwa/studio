@@ -151,14 +151,6 @@ handle(Msg={_,dump}, State) ->
     obj:handle(Msg, State).
 
 
-%% Internally we use names not numbers, but the interface supports
-%% both formats.
-portname({port, PortDir, PortNb}) ->
-    {ok, HwPort} = jack_daemon:system_port(jack_daemon, PortDir, PortNb),
-    HwPort;
-portname(Name) when is_binary(Name) ->
-    Name.
-
 
 %% Absence of daemon can be mapped to empty collections.
 call_default(Msg,Dflt) ->
@@ -193,3 +185,8 @@ wait(Client,Ports) ->
      end || Port <- Ports],
     %% FIXME: Flush
     ok.
+
+%% FIXME: The epid mechanism broke after switching away from -Xraw to
+%% a2jmidid.  Needs to be rebuilt.
+portname(_) -> 'FIXME_jack_control_portname'.
+    

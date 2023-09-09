@@ -41,9 +41,7 @@
 
 -module(jack_daemon).
 -export([start_link/1, handle/2,
-         start_client/2,
-         system_port/3,
-         client/1]).
+         start_client/2, client/1]).
 
 
 %% Wrap the daemon and listen on its stdout as a simple way to get
@@ -91,58 +89,6 @@ handle({Port, {exit_status, _}}=Msg, State = #{ port := Port }) ->
 
 
 
-%% This requires some explanation.  jackd will emit "scan:" lines such
-%% as is printed out above the regexp below.  Note that the numbering
-%% scheme is not likely to be stable across restarts, so we use only
-%% the human readable name part.
-%%
-%% %% The 'scan:' lines:
-%%
-%% scan: added port hw:1,0,0 in-hw-1-0-0-UMA25S-MIDI-1
-%% scan: added port hw:1,0,0 out-hw-1-0-0-UMA25S-MIDI-1
-%% scan: added port hw:3,0,0 in-hw-3-0-0-FastTrack-Pro-MIDI-1
-%% scan: added port hw:3,0,0 out-hw-3-0-0-FastTrack-Pro-MIDI-1
-%% scan: opened port hw:1,0,0 in-hw-1-0-0-UMA25S-MIDI-1
-%% scan: opened port hw:1,0,0 out-hw-1-0-0-UMA25S-MIDI-1
-%% scan: opened port hw:3,0,0 in-hw-3-0-0-FastTrack-Pro-MIDI-1
-%% scan: opened port hw:3,0,0 out-hw-3-0-0-FastTrack-Pro-MIDI-1
-%%
-%% %% Are parsed to:
-%%
-%% added  {<<"in">>, <<"UMA25S-MIDI-1">>}        => <<"in-hw-1-0-0-UMA25S-MIDI-1">>
-%% added  {<<"out">>,<<"UMA25S-MIDI-1">>}        => <<"out-hw-1-0-0-UMA25S-MIDI-1">>
-%% added  {<<"in">>, <<"FastTrack-Pro-MIDI-1">>} => <<"in-hw-3-0-0-FastTrack-Pro-MIDI-1">>
-%% added  {<<"out">>,<<"FastTrack-Pro-MIDI-1">>} => <<"out-hw-3-0-0-FastTrack-Pro-MIDI-1">>
-%% opened {<<"in">>, <<"UMA25S-MIDI-1">>}        => <<"in-hw-1-0-0-UMA25S-MIDI-1">>
-%% opened {<<"out">>,<<"UMA25S-MIDI-1">>}        => <<"out-hw-1-0-0-UMA25S-MIDI-1">>
-%% opened {<<"in">>, <<"FastTrack-Pro-MIDI-1">>} => <<"in-hw-3-0-0-FastTrack-Pro-MIDI-1">>
-%% opened {<<"out">>,<<"FastTrack-Pro-MIDI-1">>} => <<"out-hw-3-0-0-FastTrack-Pro-MIDI-1">>
-%%
-%% The PortAlias is what is what Jack uses to identify the port.  Note
-%% that the hw numbering is not stable, so we keep track of a map from
-%% a stable name to this name used by jack to make connections.
-%%
-
-handle({line, <<"scan: ", Rest/binary>>=_Line}, State) ->
-    %% tools:info("~s~n",[_Line]),
-    {match,[_|[Action,_HwAddr,Dir,Addr,Name]]} =
-        re:run(
-          Rest,
-          <<"(\\S+) port (\\S+) (\\S+)\\-(hw\\-\\d+\\-\\d+\\-\\d+)\\-(\\S+)\n*">>,
-          [{capture,all,binary}]),
-    PortAlias = <<Dir/binary,$-,Addr/binary,$-,Name/binary>>,
-    Key = {Dir, Name},
-    %% log:info("~s ~p => ~p~n",[Action, Key, PortAlias]),
-    case Action of
-        <<"added">> ->
-            %% S1=maps:put(Key,PortAlias,State),
-            S1=State,
-            handle_connect(PortAlias, Dir, Name, S1);
-        <<"deleted">> ->
-            maps:remove(Key, State);
-        _ ->
-            State
-    end;
 handle({line, _Line}, State) -> 
     %% tools:info("~s~n",[_Line]),
     State;
@@ -158,39 +104,6 @@ handle(Msg={_, {find, _}}, State) ->
 
 handle(Msg={_,dump}, State) ->
     obj:handle(Msg, State).
-
-
-handle_connect(PortAlias, Dir, Name, State) ->
-
-    %% Client can be started only after daemon is up, so do it lazily.
-    {Control, State1} = control_client(State),
-
-    N = studio_cfg:port_id(Name),
-    NBin = integer_to_binary(N),
-    %% tools:info("~p~n",[[PortAlias,Dir,Name,N]]),
-    Connect =
-        fun(Src,Dst) ->
-                spawn(
-                  fun() ->
-                          %% Port creation seems to happen after it is
-                          %% logged to the console.  Can't sync, so
-                          %% add a workaround timeout.
-                          timer:sleep(500),
-                          Control ! {connect,Src,Dst}
-                  end)
-        end,
-
-    %% Tell controller to connect, but keep the association locally as
-    %% well to be able to resolve {Dir,N} -> PortAlias later for other
-    %% purposes.
-    case Dir of
-        <<"in">>  ->
-            Connect(PortAlias,<<"studio_midi:midi_in_",NBin/binary>>),
-            maps:put({in,N},PortAlias,State1);
-        <<"out">> ->
-            Connect(<<"studio_midi:midi_out_",NBin/binary>>,PortAlias),
-            maps:put({out,N},PortAlias,State1)
-    end.
 
 
 control_client(State) ->
@@ -218,15 +131,16 @@ need_clients(State) ->
       State).
 
 jack_client_proc(#{ spawn_port := SpawnPort }, Name) ->
-    jack_client:proc(#{name => Name, spawn_port => SpawnPort}).
+    %% Let exo start the client.
+    %% FIXME: Maybe abstract the spawn mechanism?
+    %% jack_client:proc(#{name => Name, spawn_port => SpawnPort}).
+    Pid = exo:need({jack_client, Name}),
+    {ok, Pid}.
     
 
 start_client(Name, State=#{ hubs := Hubs, notify := Notify, spawn_port := SpawnPort }) ->
     {ok, Pid} = 
         case Name of
-
-            %% Upstream alsa to jack midi bridge
-            a2jmidid -> jack_a2jmidid:start_link(#{});
 
             %% Main MIDI clock source (synth_tools)
             clock -> jack_client_proc(State, <<"jack_clock">>);
@@ -234,6 +148,9 @@ start_client(Name, State=#{ hubs := Hubs, notify := Notify, spawn_port := SpawnP
             erl   -> jack_client_proc(State, <<"jack_erl">>);
             %% Example MIDI synth (synth_tools)
             synth -> jack_client_proc(State, <<"jack_synth">>);
+
+            %% Upstream alsa to jack midi bridge
+            a2jmidid -> jack_a2jmidid:start_link(#{});
 
             %% RPC jack interface
             control ->
@@ -243,11 +160,6 @@ start_client(Name, State=#{ hubs := Hubs, notify := Notify, spawn_port := SpawnP
                    })
         end,
     Pid.
-
-
-system_port(Pid,Dir,N) when is_number(N) ->
-    obj:find(Pid, {Dir,N}).
-                    
 
 client(Name) ->
     maps:get(Name, obj:get(jack_daemon, clients)).
