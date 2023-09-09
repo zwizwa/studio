@@ -6609,3 +6609,53 @@ way to optimize.
    <<"playback_2">>]]]
 
 
+Alright I got zoe to autoconnect
+
+
+
+Entry: next
+Date: Fri Sep  8 11:58:30 AM EDT 2023
+
+Ok so time to start making permanent connections.
+
+One thing is a dedicated midi processor for the whole studio.
+Basically I do not really need to split machines up into separate jack
+clients.  This can be pretty much arbitrary.
+
+Only for things that are released this will be important.
+
+
+Entry: bug
+Date: Sat Sep  9 08:03:20 AM EDT 2023
+
+I now have jack clients running twice: once started by jack_daemon,
+and once as an exo client.
+
+What I want to do is to make sure I can easily edit a client's code
+and restart it.  This needs to be built into jack_daemon I think.
+
+No what needs to happen is to bring this under exo control, and make
+sure that all jack code refers to client code symbolically.
+
+I want to just throw it all out, but no: keep it running.  Gradually
+change it, throwing things out that are no longer needed, such as the
+scan stuff.
+
+
+
+so, roadmap:
+
+1. remove old erlang and C code that is no longer needed in the
+   current a2jmidid setup to simplify next steps
+
+2. make jack_daemon clients part of exo processes so they can be
+   easily restarted
+
+3. restore epid using a new C client
+
+
+
+So jack_midi.c is no longer needed.  I moved it to synth_tools/linux
+Now move jack_control as well.
+
+This means the whole c part can be removed from studio.

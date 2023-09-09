@@ -235,20 +235,7 @@ start_client(Name, State=#{ hubs := Hubs, notify := Notify, spawn_port := SpawnP
             %% Example MIDI synth (synth_tools)
             synth -> jack_client_proc(State, <<"jack_synth">>);
             %% RPC jack interface
-            control ->
-                jack_control:start_link(
-                  #{client => "studio_control",
-                    notify => Notify
-                   });
-            %% Unidirectional midi forwarding
-            %% Also has jack clock and sequencer, which should be removed.
-            midi ->
-                jack_midi:start_link(
-                  #{ hubs => Hubs,
-                     client => "studio_midi",
-                     midi_ni => 24, 
-                     midi_no => 24,
-                     clock_mask => studio_cfg:midiclock_mask() })
+            control -> jack_client_proc(State, <<"jack_control">>)
         end,
     Pid.
 
