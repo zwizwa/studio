@@ -6659,3 +6659,6 @@ So jack_midi.c is no longer needed.  I moved it to synth_tools/linux
 Now move jack_control as well.
 
 This means the whole c part can be removed from studio.
+
+
+EDIT: Alright I'm getting notifications, it seems to be working.

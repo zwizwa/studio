@@ -41,7 +41,6 @@
 
 -module(jack_daemon).
 -export([start_link/1, handle/2,
-         studio_elf/0,
          start_client/2,
          system_port/3,
          client/1]).
@@ -225,6 +224,7 @@ jack_client_proc(#{ spawn_port := SpawnPort }, Name) ->
 start_client(Name, State=#{ hubs := Hubs, notify := Notify, spawn_port := SpawnPort }) ->
     {ok, Pid} = 
         case Name of
+
             %% Upstream alsa to jack midi bridge
             a2jmidid -> jack_a2jmidid:start_link(#{});
 
@@ -234,8 +234,13 @@ start_client(Name, State=#{ hubs := Hubs, notify := Notify, spawn_port := SpawnP
             erl   -> jack_client_proc(State, <<"jack_erl">>);
             %% Example MIDI synth (synth_tools)
             synth -> jack_client_proc(State, <<"jack_synth">>);
+
             %% RPC jack interface
-            control -> jack_client_proc(State, <<"jack_control">>)
+            control ->
+                jack_control:start_link(
+                  #{client => "studio_control",
+                    notify => Notify
+                   })
         end,
     Pid.
 
@@ -243,11 +248,6 @@ start_client(Name, State=#{ hubs := Hubs, notify := Notify, spawn_port := SpawnP
 system_port(Pid,Dir,N) when is_number(N) ->
     obj:find(Pid, {Dir,N}).
                     
-
-studio_elf() ->
-    Elf = code:priv_dir(studio) ++ "/studio.elf",
-    log:info("Elf=~p~n", [Elf]),
-    Elf.
 
 client(Name) ->
     maps:get(Name, obj:get(jack_daemon, clients)).

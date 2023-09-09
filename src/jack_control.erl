@@ -1,3 +1,6 @@
+%% This uses a different API than jack_client.erl
+%% but the restart interface is kept similar.
+
 -module(jack_control).
 -export([start_link/1, handle/2,
         ports/0, ports/1, clients/0]).
@@ -10,7 +13,13 @@ start_link(#{client := Client, notify := _Notify}=Config) ->
                    log:set_info_name(jack_control),
                    register(jack_control, self()),
                    %% log:set_info_name({jack_control, Client}),
-                   Cmd = tools:format("~s jack_control ~s", [jack_daemon:studio_elf(), Client]),
+
+                   %% Binary is now part of synth_tools repo.
+                   Dir = tools:format("~s/linux",
+                                      %% ["/i/exo/synth_tools"]
+                                      [os:getenv("SYNTH_TOOLS")]),
+
+                   Cmd = tools:format("~s/jack_control.dynamic.host.elf jack_control",[Dir]),
                    Args = [{spawn,Cmd},[{packet,1},binary,exit_status]],
                    handle(
                      restart_port,
