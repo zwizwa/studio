@@ -51,7 +51,13 @@ handle_proc(stop, State) ->
     log:info("stop\n"),
     case maps:find(port, State) of
         {ok, Port} ->
-            port_close(Port);
+            port_close(Port),
+            %% Sleep workaround to make sure jack sees the unregister
+            %% before the register.  The right way to do this is to
+            %% wait for the unreg event, but that is a lot of work to
+            %% implement.
+            timer:sleep(250),
+            ok;
         error ->
             ok
     end,

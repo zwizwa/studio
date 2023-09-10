@@ -6662,3 +6662,95 @@ This means the whole c part can be removed from studio.
 
 
 EDIT: Alright I'm getting notifications, it seems to be working.
+
+
+Entry: debugging
+Date: Sat Sep  9 09:34:18 AM EDT 2023
+
+Why is it starting jack_clock twice?
+
+exo@tp.zoo: child_mfa: jack_daemon
+exo@tp.zoo: exo:start_child(jack_daemon): registeredsd
+exo@tp.zoo: /etc/net/dsp/jack.sh: START=/etc/net/dsp/jack-tp.sh
+exo@tp.zoo: no message buffer overruns
+exo@tp.zoo: no message buffer overruns
+exo@tp.zoo: no message buffer overruns
+exo@tp.zoo: jackdmp 1.9.19
+exo@tp.zoo: Copyright 2001-2005 Paul Davis and others.
+exo@tp.zoo: Copyright 2004-2016 Grame.
+exo@tp.zoo: Copyright 2016-2021 Filipe Coelho.
+exo@tp.zoo: jackdmp comes with ABSOLUTELY NO WARRANTY
+exo@tp.zoo: This is free software, and you are welcome to redistribute it
+exo@tp.zoo: under certain conditions; see the file COPYING for details
+exo@tp.zoo: JACK server starting in realtime mode with priority 10
+exo@tp.zoo: self-connect-mode is "Don't restrict self connect requests"
+exo@tp.zoo: creating alsa driver ... hw:PCH|hw:PCH|1024|3|44100|0|0|nomon|swmeter|-|32bit
+exo@tp.zoo: configuring for 44100Hz, period = 1024 frames (23.2 ms), buffer = 3 periods
+exo@tp.zoo: ALSA: final selected sample format for capture: 32bit integer little-endian
+exo@tp.zoo: ALSA: use 3 periods for capture
+exo@tp.zoo: ALSA: final selected sample format for playback: 32bit integer little-endian
+exo@tp.zoo: ALSA: use 3 periods for playback
+exo@tp.zoo: start: [{spawn,"/nix/store/mmwlrxnff07z2dqmgbkl744n271fgdxk-synth_tools/linux/jack_control.dynamic.host.elf jack_control"},
+        [{packet,1},binary,exit_status]]
+exo@tp.zoo: child_mfa: {jack_client,<<"jack_clock">>}
+exo@tp.zoo: Cmd = "jack_clock.dynamic.host.elf"
+exo@tp.zoo: child_mfa: {jack_client,<<"jack_erl">>}
+exo@tp.zoo: Cmd = "jack_erl.dynamic.host.elf"
+exo@tp.zoo: child_mfa: {jack_client,<<"jack_synth">>}
+exo@tp.zoo: Cmd = "jack_synth.dynamic.host.elf"
+exo@tp.zoo: CmdLine: /nix/store/mmwlrxnff07z2dqmgbkl744n271fgdxk-synth_tools/linux/jack_clock.dynamic.host.elf
+exo@tp.zoo: CmdLine: /nix/store/mmwlrxnff07z2dqmgbkl744n271fgdxk-synth_tools/linux/jack_erl.dynamic.host.elf
+exo@tp.zoo: CmdLine: /nix/store/mmwlrxnff07z2dqmgbkl744n271fgdxk-synth_tools/linux/jack_synth.dynamic.host.elf
+exo@tp.zoo: exo_port: open_port({spawn,"/nix/store/mmwlrxnff07z2dqmgbkl744n271fgdxk-synth_tools/linux/jack_clock.dynamic.host.elf"},[use_stdio,binary,exit_status,{packet,4}])
+exo@tp.zoo: exo_port: open_port({spawn,"/nix/store/mmwlrxnff07z2dqmgbkl744n271fgdxk-synth_tools/linux/jack_erl.dynamic.host.elf"},[use_stdio,binary,exit_status,{packet,4}])
+exo@tp.zoo: exo_port: open_port({spawn,"/nix/store/mmwlrxnff07z2dqmgbkl744n271fgdxk-synth_tools/linux/jack_synth.dynamic.host.elf"},[use_stdio,binary,exit_status,{packet,4}])
+exo@tp.zoo: JACK MIDI <-> ALSA sequencer MIDI bridge, version 9 built on Wed Dec 31 19:00:00 1969
+exo@tp.zoo: Copyright 2006,2007 Dmitry S. Baikov
+exo@tp.zoo: Copyright 2007,2008,2009,2011,2012 Nedko Arnaudov
+exo@tp.zoo: 
+exo@tp.zoo: Bridge starting...
+exo@tp.zoo: Using JACK server 'default'
+exo@tp.zoo: Hardware ports will be exported.
+exo@tp.zoo: exo_midi:jack_notify({client,reg,"jack_clock"})
+exo@tp.zoo: Connection failure: Connection refused
+exo@tp.zoo: pa_context_connect() failed: Connection refused
+exo@tp.zoo: Connection failure: Connection refused
+exo@tp.zoo: pa_context_connect() failed: Connection refused
+exo@tp.zoo: exo_midi:jack_notify({client,reg,"jack_clock-01"})
+exo@tp.zoo: exo_midi:jack_notify({client,reg,"jack_synth"})
+exo@tp.zoo: exo_midi:jack_notify({port,reg,in,"jack_clock:in"})
+exo@tp.zoo: exo_midi:jack_notify({port,reg,out,"jack_clock:out"})
+exo@tp.zoo: exo_midi:jack_notify({client,reg,"a2j"})
+exo@tp.zoo: exo_midi:jack_notify({port,reg,in,"jack_clock-01:in"})
+exo@tp.zoo: exo_midi:jack_notify({port,reg,out,"jack_clock-01:out"})
+exo@tp.zoo: Bridge started
+exo@tp.zoo: Press ctrl-c to stop the bridge
+exo@tp.zoo: exo_midi:jack_notify({port,reg,in,"jack_synth:midi_in_0"})
+exo@tp.zoo: port created: Midi Through (capture): Midi Through Port-0
+exo@tp.zoo: port created: Midi Through (playback): Midi Through Port-0
+exo@tp.zoo: exo_midi:jack_notify({port,reg,out,"jack_synth:audio_out_0"})
+exo@tp.zoo: exo_midi:jack_notify({port,reg,out,"a2j:Midi Through (capture): Midi Through Port-0"})
+exo@tp.zoo: exo_midi:jack_notify({port,reg,in,"a2j:Midi Through (playback): Midi Through Port-0"})
+
+
+My guess is that client kill, start needs to be sequenced so jackd
+sees the kill before the new register.
+
+EDIT: No it was just a duplicate name, jack_erl still had jack_clock
+name from cloning the code.
+
+
+Entry: try the restart
+Date: Sat Sep  9 10:38:35 AM EDT 2023
+
+So it works now.
+Next: Let's actually try a restart.
+
+
+Entry: restart
+Date: Sun Sep 10 06:25:43 AM EDT 2023
+
+Two things: build the elf, change the directory in restart.
+
+Got the rule working, but the stop,start sequence doesn't seem to be
+correct yet wrt jack daemon.
