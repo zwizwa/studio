@@ -6754,3 +6754,264 @@ Two things: build the elf, change the directory in restart.
 
 Got the rule working, but the stop,start sequence doesn't seem to be
 correct yet wrt jack daemon.
+
+
+Entry: wiring is physical-like
+Date: Mon Sep 11 09:54:28 AM EDT 2023
+
+Think in terms of physical wires, because that is going to be the base
+of all connections.  This also means that each node has its own wiring
+setup, and the global wiring setup is a collection of nodes.
+
+
+Entry: things to try
+Date: Mon Sep 11 09:55:49 AM EDT 2023
+
+Does midi work over jack network connections?
+
+Ok how do i test this?
+
+
+
+Entry: one big patch
+Date: Mon Sep 11 10:11:46 AM EDT 2023
+
+Maybe the next step should be to use Haskell to create the big patch
+abstraction that has everything, then compile that to a collection of:
+
+1. jack instances on physical hosts, exposing physical ports and CPU
+
+2. per jack client network
+
+3. connections "inside" a jack client or "behind" a hardware port,
+   e.g. Pd, some C code on host, or uC code
+
+How do I manage this?
+
+It is about processing graphs and subgraphs, i.e. a compiler problem.
+So the thing to learn is to learn to work with graphs.
+
+They are directional graphs combined with some form of delay element.
+
+
+
+Entry: jack_net
+Date: Mon Sep 11 11:30:38 AM EDT 2023
+
+netmanager, netadapter
+
+zoe:
+jack_load netmanager
+
+
+Sep 11 11:32:48 zoe exo_vm[13029]: exo_midi:jack_notify({client,reg,"jack_load"})
+Sep 11 11:32:48 zoe exo_vm[13029]: exo_midi:jack_notify({client,reg,"netmanager"})
+Sep 11 11:32:48 zoe exo_vm[13029]: Starting Jack NetManager
+Sep 11 11:32:48 zoe exo_vm[13029]: Listening on '225.3.19.154:19000'
+Sep 11 11:32:48 zoe exo_vm[13029]: exo_midi:jack_notify({client,unreg,"jack_load"})
+
+mimas:
+jack_load netadapter -i '-C 4'
+
+Sep 11 11:35:12 zoe exo_vm[13029]: Sending parameters to mimas...
+Sep 11 11:35:12 zoe exo_vm[13029]: exo_midi:jack_notify({client,reg,"mimas"})
+Sep 11 11:35:12 zoe exo_vm[13029]: Syncing with latency = 0
+Sep 11 11:35:12 zoe exo_vm[13029]: exo_midi:jack_notify({port,reg,in,"mimas:to_slave_1"})
+Sep 11 11:35:12 zoe exo_vm[13029]: Syncing with latency = 1
+Sep 11 11:35:12 zoe exo_vm[13029]: New NetMaster started
+Sep 11 11:35:12 zoe exo_vm[13029]: **************** Network parameters ****************
+Sep 11 11:35:12 zoe exo_vm[13029]: Name : mimas
+Sep 11 11:35:12 zoe exo_vm[13029]: Protocol revision : 8
+Sep 11 11:35:12 zoe exo_vm[13029]: MTU : 1500
+Sep 11 11:35:12 zoe exo_vm[13029]: Master name : zoe
+Sep 11 11:35:12 zoe exo_vm[13029]: Slave name : mimas
+Sep 11 11:35:12 zoe exo_vm[13029]: ID : 1
+Sep 11 11:35:12 zoe exo_vm[13029]: Transport Sync : no
+Sep 11 11:35:12 zoe exo_vm[13029]: Send channels (audio - midi) : 4 - 0
+Sep 11 11:35:12 zoe exo_vm[13029]: Return channels (audio - midi) : 2 - 0
+Sep 11 11:35:12 zoe exo_vm[13029]: Sample rate : 44100 frames per second
+Sep 11 11:35:12 zoe exo_vm[13029]: Period size : 64 frames per period
+Sep 11 11:35:12 zoe exo_vm[13029]: exo_midi:jack_notify({port,reg,in,"mimas:to_slave_2"})
+Sep 11 11:35:12 zoe exo_vm[13029]: Network latency : 2 cycles
+Sep 11 11:35:12 zoe exo_vm[13029]: SampleEncoder : Float
+Sep 11 11:35:12 zoe exo_vm[13029]: Slave mode : sync
+Sep 11 11:35:12 zoe exo_vm[13029]: ****************************************************
+Sep 11 11:35:12 zoe exo_vm[13029]: Waiting for a slave...
+Sep 11 11:35:12 zoe exo_vm[13029]: exo_midi:jack_notify({port,reg,in,"mimas:to_slave_3"})
+Sep 11 11:35:12 zoe exo_vm[13029]: exo_midi:jack_notify({port,reg,in,"mimas:to_slave_4"})
+Sep 11 11:35:12 zoe exo_vm[13029]: exo_midi:jack_notify({port,reg,out,"mimas:from_slave_1"})
+Sep 11 11:35:12 zoe exo_vm[13029]: exo_midi:jack_notify({port,reg,out,"mimas:from_slave_2"})
+
+Sep 11 11:35:12 mimas exo_vm[102652]: exo_midi:jack_notify({client,reg,"jack_load"})
+Sep 11 11:35:12 mimas exo_vm[102652]: exo_midi:jack_notify({client,reg,"netadapter"})
+Sep 11 11:35:12 mimas exo_vm[102652]: Ringbuffer automatic adaptative mode size = 4096 frames
+Sep 11 11:35:12 mimas exo_vm[102652]: exo_midi:jack_notify({port,reg,in,"netadapter:playback_1"})
+Sep 11 11:35:12 mimas exo_vm[102652]: NetAdapter started in sync mode without Master's transport sync.
+Sep 11 11:35:12 mimas exo_vm[102652]: exo_midi:jack_notify({port,reg,in,"netadapter:playback_2"})
+Sep 11 11:35:12 mimas exo_vm[102652]: Waiting for a master...
+Sep 11 11:35:12 mimas exo_vm[102652]: exo_midi:jack_notify({port,reg,out,"netadapter:capture_1"})
+Sep 11 11:35:12 mimas exo_vm[102652]: exo_midi:jack_notify({port,reg,out,"netadapter:capture_2"})
+Sep 11 11:35:12 mimas exo_vm[102652]: Initializing connection with zoe...
+Sep 11 11:35:12 mimas exo_vm[102652]: **************** Network parameters ****************
+Sep 11 11:35:12 mimas exo_vm[102652]: Name : mimas
+Sep 11 11:35:12 mimas exo_vm[102652]: Protocol revision : 8
+Sep 11 11:35:12 mimas exo_vm[102652]: MTU : 1500
+Sep 11 11:35:12 mimas exo_vm[102652]: Master name : zoe
+Sep 11 11:35:12 mimas exo_vm[102652]: Slave name : mimas
+Sep 11 11:35:12 mimas exo_vm[102652]: exo_midi:jack_notify({port,reg,out,"netadapter:capture_3"})
+Sep 11 11:35:12 mimas exo_vm[102652]: ID : 1
+Sep 11 11:35:12 mimas exo_vm[102652]: Transport Sync : no
+Sep 11 11:35:12 mimas exo_vm[102652]: Send channels (audio - midi) : 4 - 0
+Sep 11 11:35:12 mimas exo_vm[102652]: Return channels (audio - midi) : 2 - 0
+Sep 11 11:35:12 mimas exo_vm[102652]: Sample rate : 44100 frames per second
+Sep 11 11:35:12 mimas exo_vm[102652]: Period size : 64 frames per period
+Sep 11 11:35:12 mimas exo_vm[102652]: exo_midi:jack_notify({port,reg,out,"netadapter:capture_4"})
+Sep 11 11:35:12 mimas exo_vm[102652]: Network latency : 2 cycles
+Sep 11 11:35:12 mimas exo_vm[102652]: SampleEncoder : Float
+Sep 11 11:35:12 mimas exo_vm[102652]: Slave mode : sync
+Sep 11 11:35:12 mimas exo_vm[102652]: ****************************************************
+Sep 11 11:35:12 mimas exo_vm[102652]: exo_midi:jack_notify({client,unreg,"jack_load"})
+
+
+How to enable midi ports?  The '-i' option doesn't seem to work.
+
+
+
+Entry: new layout
+Date: Mon Sep 11 01:43:31 PM EDT 2023
+
+zoe is for analog synths, midi controllers and maybe digital synths/pd
+- it has direct in for all the synths + maybe also wire up the feedback thing
+
+mimas 
+- digital mixer for ad-hoc things
+- extra analog tap points for modular setup
+- extra pd
+
+zoo
+- development station with possible transport to mimas, synced to zoe
+- extra pd
+
+
+
+I do want to take the fastrack pro + m93p out of the picture, and also
+the behringer mixer.  Things will get too complicated.
+
+EDIT: Replaced fastrack pro with connection to layla mimas.  This does
+get rid of the mixer knob but I might be able to compensate.  Also
+replaced the USB behringer mixer wiht the 1202 analog.
+
+
+
+
+Entry: next
+Date: Mon Sep 11 03:28:21 PM EDT 2023
+
+using pd is not necessary
+can just do jack clients
+
+this makes the whole network a mesh of inter-jack (netmanager,
+netadapeter), jack, and intra-jack (modules making up a jack client).
+
+
+
+Entry: what jack clients do i need?
+Date: Mon Sep 11 03:39:53 PM EDT 2023
+
+On zoe (and mimas):
+- recorder
+- mixer + effects rack
+- midi sequencer
+
+Separately, a drum machine / sample mangler, tying into the recorder.
+
+Mimas has 64g memory.
+
+I want to do this as an eDSL in Haskell using GADTs.  First on a
+"coarse grain" scale, where it glues together C programs, then also
+build the interals of those.
+
+
+
+Entry: jack netadapter midi
+Date: Wed Sep 13 07:25:25 AM EDT 2023
+
+Midi seems to be disabled by default.
+
+So just work around that for now.  All midi is connected to zoe, and
+should be bridged separately.
+
+I'm wondering if it makes sense to just get rid of zoe altogether,
+because I have a bunch of i/o now.  Maybe I'm making this way too
+complicated.
+
+I'm building this distributed system but what I really want is
+something centralized.  The thing is that 16 i/o is more than enough
+for what I want to do, until I start doing more analog.
+
+
+Sommary:
+- mimas is for soft synths, Pd, recording
+- zoe is for midi, synth input, maybe some effects
+
+Does mimas need midi?
+Yes, for synth control.
+
+
+I need a different mindset.  More like "hardware has arbitrary
+limitations, just work with that".  Instead of trying to do everything
+in a general way.
+
+Basically, the "setup" is fixed.  Don't remove anything.  Only add.
+This is just for playing.  Doesn't need to go out.  It is a staging
+area.
+
+This is going to be difficult to resist or internalize.
+
+Basically: the jack daemons are a tool.  Configuration doesn't need to
+be pretty.
+
+
+Entry: emu10k1
+Date: Wed Sep 13 07:47:17 AM EDT 2023
+
+It would be useful mostly for its effects processor, since it has low
+latency i/o (i think).
+
+A similar thing would be possible on the layla dsp as well maybe?  But
+doesn't seem that firmware is open.
+
+For later.
+
+
+
+
+Entry: erl midi
+Date: Wed Sep 13 08:20:21 AM EDT 2023
+
+That seems to be the obvious next step.
+
+Also regarding absence of jack midi, maybe just do Pd protocol, since
+Pd doesn't really have a working midi setup atm either.
+
+Let's do Pd first.  That can already embed midi.  Then make the erl
+protocol work on top of that.
+
+Maybe this should just do TCP.
+
+I think maybe I want to have Pd start control also managed by Erlang.
+Then there could be a dedicated channel set up that connects the local
+Erlang to a Pd instance.  Would make it easier to start up distributed
+stuff as well
+
+
+
+Entry: erl Pd
+Date: Wed Sep 13 08:40:11 AM EDT 2023
+
+So do Pd first.  If there is access to a display, start it with a gui,
+otherwise without.
+
+
+
+
