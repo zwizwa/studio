@@ -7012,6 +7012,180 @@ Date: Wed Sep 13 08:40:11 AM EDT 2023
 So do Pd first.  If there is access to a display, start it with a gui,
 otherwise without.
 
+I'm not really thinking this through.
+
+I would like to put this behind the same interface as the other jack
+clients, where the binary takes the {packet,4} protocol.  So that will
+need some kind of wrapper.
+
+Or, make a different wrapper for jack clients that do not support
+{packet,4}.
+
+Man I get tired of this glue code.
+
+But it would be worth it to have Pd bridged properly.  Probably should
+do TCP so it can go in an out of Erlang.
+
+So what do I want here?
+
+- Wrapper binary that accepts {packet,4}.
+- Starts Pd with control patch containing netreceive
+- Connects to TCP
+
+Can this be done in Erlang?
 
 
+Dammit I found busywork again...
+
+socat is not properly killing Pd
+probably it ignores signal
+
+so what is socat actually doing?
+grepping for kill in *.c brings up:
+tom@luna:/i/tom/git/socat$ grep -re kill *.c
+sycls.c:   Debug2("kill("F_pid", %d)", pid, sig);
+sycls.c:   retval = kill(pid, sig);
+sycls.c:   Debug1("kill() -> %d", retval);
+xioclose.c:	       Msg2(errno==ESRCH?E_INFO:E_WARN, "kill(%d, SIGTERM): %s",
+xioinitialize.c:   we do not want the program to be killed by the first tcp-l sub process, it's
+xioinitialize.c:   better if it survives all sub processes. Thus, it must not be killed when
+xioinitialize.c:static int xio_nokill(xiofile_t *sock) {
+xioinitialize.c:      if ((result = xio_nokill((xiofile_t *)sock->dual.stream[0])) != 0)
+xioinitialize.c:      result = xio_nokill((xiofile_t *)sock->dual.stream[1]);
+xioinitialize.c:      result2 = xio_nokill(sock1);
+xioopts.c:	IF_TERMIOS("crtkill",	&opt_echoke)
+xioopts.c:	IF_TERMIOS("kill",	&opt_vkill)
+xioopts.c:	IF_TERMIOS("vkill",	&opt_vkill)
+xio-progcall.c:      /* exec:...,pty did not kill child process under some circumstances */
+xioshutdown.c:static pid_t socat_kill_pid;	/* here we pass the pid to be killed in sighandler */
+xioshutdown.c:static void signal_kill_pid(int dummy) {
+xioshutdown.c:   Notice("SIGALRM while waiting for wo child process to die, killing it now");
+xioshutdown.c:   Kill(socat_kill_pid, SIGTERM);
+xioshutdown.c:	    therefore we have to do the kill in the signal handler */
+xioshutdown.c:	    act.sa_handler = signal_kill_pid;
+xioshutdown.c:	 socat_kill_pid = sock->stream.para.exec.pid;
+xiosignal.c:	    Warn2("kill("F_pid", %d): %m",
+xio-termios.c:const struct optdesc opt_vkill    = { "vkill",  "kill",  OPT_VKILL,    GROUP_TERMIOS, PH_FD, TYPE_BYTE, OFUNC_TERMIOS_CHAR, VKILL };
+
+probably enabling Notice() would give some more information
+
+
+
+Another way is to make an external that reads stdin.
+
+socat -d -d -d - EXEC:pd.local
+
+2023/09/13 09:53:26 socat[186835] I transferred 1 bytes from 0 to 5
+2023/09/13 09:53:28 socat[186835] N socket 1 (fd 0) is at EOF
+2023/09/13 09:53:28 socat[186835] I shutdown(5, 1)
+2023/09/13 09:53:29 socat[186835] I poll timed out (no data within 0.500000 seconds)
+2023/09/13 09:53:29 socat[186835] I shutdown(5, 2)
+2023/09/13 09:53:29 socat[186835] N exiting with status 0
+
+sycls.c:
+Info2("shutdown(%d, %d)", fd, how);
+
+
+You know I'm just going to make a manager for this, instead of socat.
+Maybe something can be learned.
+
+
+
+Making a wrapper C program.
+Getting stuck at Pd not parsing data correctly. WTF.
+
+EDIT: Used wireshark to follow TCP stream. It was sending the nul
+string terminator.
+
+
+
+Entry: midi clock sync
+Date: Thu Sep 14 06:26:27 AM EDT 2023
+
+If the sound cards are synchronized, then any drum machines can have
+their own local sync.
+
+The time base is on zoe.  So let's see if it is possible to get the
+time base on mimas syncrhonized.
+
+Simplest way to do this is to put these things on scope.  Make two bp
+boards with sync.
+
+Actually it's enough to trigger bursts on the midi clock.
+
+
+
+Entry: Go back to "every knob an ip address"
+Date: Thu Sep 14 06:30:27 AM EDT 2023
+
+Is that currently possible?
+
+I still want a list of knobs to map to a list of destinations.  Really
+this is midi learn.
+
+
+
+Entry: How to get out of the impasse?
+Date: Thu Sep 14 06:36:00 AM EDT 2023
+
+What's the next thing to build?
+
+I want to start making beats, so the sampler/sequencer is most important.
+
+
+
+Entry: sampler
+Date: Thu Sep 14 06:39:20 AM EDT 2023
+
+One issue with looper is slave mode.
+
+For events this is not such a big deal, so it looks like it's going to
+be necessary to make the loops auto-segment?
+
+So maybe start there.
+
+Or otherwise, the looper is the time base.  That would be much
+simpler.  Then it can add groove as well.
+
+So yeah I'm going to need groove.
+
+So let's focus on groove.
+
+It would be nice if multiple clients could re-use the sample library,
+so maybe write that as a service?
+
+This can be done in Erlang.  Mimas can hold the library and do the
+processing.  It has plenty of memory.  The processing can probably be
+done in a high level language since it will be background, so do it in
+Haskell?
+
+Or let's use Rust's multi-threading.
+
+So the sample service solves "prepare me a flat sample".  This can
+then be written to disk and mmapped.
+
+
+
+Example:
+
+- sample lib prepares a flat sample and a groove structure
+
+- clock.c uses that to play it back on its audio channel, deriving
+  midi clock from it
+
+- then extend it with groove
+
+
+
+Entry: back to what i want
+Date: Thu Sep 14 07:02:17 AM EDT 2023
+
+Really just a simple way to play back loops.
+Representation could just be rendered, i.e. flat files.
+Which also makes it easy to import them into pd, tabread4.
+
+So if I focus on building the sampler in Pd, and then do all the
+infrastructure around that to build the samples, it should be fine.
+
+So first, I need a sync betwen Pd and midi.
 

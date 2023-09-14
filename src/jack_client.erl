@@ -1,3 +1,8 @@
+%% FIXME: The name "jack_client" does not cover it.
+%%
+%% This is really "Erlang Midi Client" or something, i.e. anything
+%% that talks the protocol on stdin.
+
 %% Standardized wrapper for synth_tools jack clients.
 %% These all have a midi port on stdio.
 
@@ -102,7 +107,7 @@ handle_proc(Msg, State) ->
         true ->
             State1;
         false ->
-            log:info("unknown: ~p~n",[Msg]),
+            log:info("jack_client: unknown: ~p~n",[Msg]),
             State1
     end.
 

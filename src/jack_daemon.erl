@@ -142,12 +142,16 @@ start_client(Name, State=#{ hubs := Hubs, notify := Notify, spawn_port := SpawnP
     {ok, Pid} = 
         case Name of
 
+            %% FIXME: Should these be started here?
+
             %% Main MIDI clock source (synth_tools)
-            clock -> jack_client_proc(State, <<"jack_clock">>);
+            clock -> jack_client_proc(State, <<"clock">>);
+
             %% Erlang to Jack port bridge (synth_tools)
-            erl   -> jack_client_proc(State, <<"jack_erl">>);
+            erl   -> jack_client_proc(State, <<"erl">>);
+
             %% Example MIDI synth (synth_tools)
-            synth -> jack_client_proc(State, <<"jack_synth">>);
+            synth -> jack_client_proc(State, <<"synth">>);
 
             %% Upstream alsa to jack midi bridge
             a2jmidid -> jack_a2jmidid:start_link(#{});
