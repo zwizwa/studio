@@ -11,6 +11,8 @@
          proc/1, handle_proc/2
         ]).
 
+-define(TAG_STREAM, 16#FFFB).
+
 %% Start a processor or synth.
 proc(#{ name := Name,  %% basename
         spawn_port := _SpawnPort }=Config) ->
@@ -77,6 +79,25 @@ handle_proc(restart, State) ->
 
 handle_proc({set_dir, Dir}, State) ->
     maps:put(dir, Dir, State);
+
+handle_proc({midi, PortNb, Midi}, State = #{ port := Port }) when is_binary(Midi) ->
+    %% Use TAG_STREAM for midi ports.
+    Msg = <<?TAG_STREAM:16, PortNb:16, Midi/binary>>,
+    exo:info("midi ~p~n", [Msg]),
+    port_command(Port, Msg),
+    State;
+handle_proc({midi, PortNb, Cmd}, State) ->
+    F = fun(Midi) ->
+                handle_proc({midi, PortNb, Midi}, State)
+        end,
+    case Cmd of
+        start -> F(<<16#FA>>);
+        _ -> State
+    end;
+
+
+handle_proc({midi, Midi}, State) ->
+    handle_proc({midi, 0, Midi}, State);
 
 %% FIXME: Add synchronous restart RPC.
 %% This will restart and send a reply when device sends 0xFE after startup.

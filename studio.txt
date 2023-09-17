@@ -7189,3 +7189,188 @@ infrastructure around that to build the samples, it should be fine.
 
 So first, I need a sync betwen Pd and midi.
 
+EDIT: Secondly, this is not a recorder.  How to make a recorder?
+
+
+
+
+
+Entry: is redo really necessary?
+Date: Thu Sep 14 08:04:46 AM EDT 2023
+
+E.g. for i.erl manual startup it's probably enough to use exo:need/1.
+
+
+
+Entry: Solve the Pd midi thing
+Date: Thu Sep 14 11:28:03 AM EDT 2023
+
+Sync + midi controllers (knobs).
+
+Yeah let's just completely forget about Pd midi.
+Solve it in the "frontend".
+
+
+
+Entry: TD-03 midi implementation
+Date: Thu Sep 14 12:33:55 PM EDT 2023
+
+https://303patterns.com/td3-midi.html
+
+What do I want?  A load/save utility.  Something that creates a jack
+port, connects to the TD-03 and loads/saves the current pattern.
+
+
+
+Entry: bad view
+Date: Thu Sep 14 09:34:01 PM EDT 2023
+
+Maybe what is happening now is dispelling the illusion that any of
+this is easy.  Sure there is a lot of low hanging fruit, but what I'm
+trying to do is not that.
+
+
+Entry: pick something
+Date: Fri Sep 15 08:43:52 AM EDT 2023
+
+Keep coming back to this: I need to pick something and stick to
+it. then fix whatever secondary problem pops up.
+
+
+Entry: sync pd to drum machines
+Date: Fri Sep 15 08:44:56 AM EDT 2023
+
+Why was this such a problem?
+Because there is no midi.
+
+What about just making a midi to audio bridge.
+
+You know it can actually be solved by making Pd master, but relying in
+things being master is a bad idea in this distributed setup, so start
+with slave first.
+
+Most reliable is probably to use jack audio.
+
+EDIT: Alright I have a squarewave jack out.  Should be enough for now.
+
+
+
+
+Entry: i need new blood
+Date: Fri Sep 15 10:46:05 AM EDT 2023
+
+Something else to break this impasse because I am really stuck.
+
+Maybe it's time to continue with RTIC?
+Maybe it's time to do RTIC in C?
+
+I think I need to build an actual scheduler in C.
+
+
+Entry: korg sync
+Date: Fri Sep 15 11:34:03 AM EDT 2023
+
+5V, 276 ms period
+
+(/ 1 0.276) 3.623188405797101 Hz
+
+(/ 140 60.0)  2.33 Hz is 140bpm
+
+
+Things I need to test this:
+
+- a simple way to set bpm.  maybe use the netsend back?  I really want
+  a monolith, this is ridiculous.
+
+
+
+Trying again with actual 140 bpm
+
+232ms
+
+(* (/ 48 44.1) (/ 1.0 0.232) 30)
+
+4.310344827586206
+
+
+
+
+
+Entry: TODO
+Date: Fri Sep 15 11:54:54 AM EDT 2023
+
+- clock should use actual sample rate
+- send start/stop message via midi, test on volcas
+- use dedicated controller for start/stop (m-audio)
+- send tempo message, maybe also midi?
+- double timebase for volcas
+
+
+
+
+Entry: abstract away jack completely?
+Date: Fri Sep 15 01:04:44 PM EDT 2023
+
+The thing is that I want to connect everything to everything, and
+having to cross implementation borders is a huge impediment,
+especially when there are loops involved.
+
+Maybe the central part should just be pd.
+
+
+I don't seem to be able to make up my mind...
+
+
+What about this: deriving the midi clock as audio from the midi pulses
+does create a lot of jitter, so it might be best to do it the other
+way around.  Let the base waveform for the clock be audio.
+
+EDIT: Works
+
+I'm happy with it.
+
+
+
+Entry: start from erlang (and midi)
+Date: Fri Sep 15 03:17:41 PM EDT 2023
+
+I want this to work:
+
+i:clock() ! start.
+
+
+
+Entry: midi and Pd
+Date: Sat Sep 16 08:16:14 AM EDT 2023
+
+So Pd clock is working.  What I miss mostly is a bridge from Pd to the
+synths.  How to get midi out?
+
+It seems best not to use MIDI in Pd at all, just continue with the
+Erlang or FUDI/netsend.
+
+So let's just try this.  I need:
+
+1. a way to set clock tempo from Pd and midi, so it can be used musically
+2. sequencing for the midi equipment
+
+
+Entry: just continue
+Date: Sat Sep 16 11:29:42 AM EDT 2023
+
+Prime objective is always to work towards a usable live improv setup.
+
+
+Entry: start/stop
+Date: Sun Sep 17 06:28:59 AM EDT 2023
+
+Do the basic thing: make sure that
+- start/stop button on midi controller works
+- i:clock() ! {midi,<<16:FA>>} works
+
+side project:
+- midi logger
+- jack/erl bridge
+- maybe restore epid?
+
+ 
