@@ -122,10 +122,9 @@ need_clients(State) ->
       maps:from_list(
         [{Name,start_client(Name, State)}
          || Name <- [control   %% RPC
-                    %%,midi      %% Messages (old Erlang bridge)
-                    ,clock     %% synth_tools jack_clock.c
-                    ,erl       %% synth_tools jack_erl.c (new Erlang bridge)
-                    ,synth     %% synth_tools jack_synth.c
+                    ,clock     %% synth_tools clock.c
+                    ,hub       %% synth_tools hub.c (MIDI / Erlang hub)
+                    ,synth     %% synth_tools synth.c
                     ,a2jmidid  %% upstream alsa to jack midi bridge
                     ]]),
       State).
