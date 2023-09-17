@@ -91,7 +91,9 @@ handle_proc({midi, PortNb, Cmd}, State) ->
                 handle_proc({midi, PortNb, Midi}, State)
         end,
     case Cmd of
-        start -> F(<<16#FA>>);
+        start    -> F(<<16#FA>>);
+        continue -> F(<<16#FB>>);
+        stop     -> F(<<16#FC>>);
         _ -> State
     end;
 

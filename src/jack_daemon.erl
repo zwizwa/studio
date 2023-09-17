@@ -147,8 +147,8 @@ start_client(Name, State=#{ hubs := Hubs, notify := Notify, spawn_port := SpawnP
             %% Main MIDI clock source (synth_tools)
             clock -> jack_client_proc(State, <<"clock">>);
 
-            %% Erlang to Jack port bridge (synth_tools)
-            erl   -> jack_client_proc(State, <<"erl">>);
+            %% Centralized midi hub from synth_tools.
+            hub   -> jack_client_proc(State, <<"hub">>);
 
             %% Example MIDI synth (synth_tools)
             synth -> jack_client_proc(State, <<"synth">>);

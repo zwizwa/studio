@@ -7373,4 +7373,34 @@ side project:
 - jack/erl bridge
 - maybe restore epid?
 
- 
+
+EDIT: Alright, start/stop is working via Erlang.
+
+Not sure why it didn't work via midi controller, but that's easy
+enough to figure out.
+
+So next: actual setup with sample player from Pd?
+
+
+Entry: next: midi monolyth
+Date: Sun Sep 17 08:02:48 AM EDT 2023
+
+Midi routing/filtering is an annoying issue, so it should be done in a
+monolyth to avoid a lot of duplication and "where do i put this?"
+problems.
+
+
+
+Entry: get digital audio into a microcontroller
+Date: Sun Sep 17 09:39:06 AM EDT 2023
+
+I have plenty of s/pdif outputs.  It might be a good idea to use the
+stm32f peripheral to sync to that, instead of trying to work with word
+clock and a separate data channel.
+
+How does the input work?  The delta1010 uses an rs485 receiver I think.
+
+
+( EDIT: Another distraction. Stay on target. )
+
+
