@@ -20,7 +20,7 @@ proc(#{ name := Name,  %% basename
      serv:start(
        {handler,
         fun() ->
-                log:set_info_name({rai,Name}),
+                log:set_info_name({jack_client,Name}),
                 Self = self(),
                 Self ! start,
                 %% By default, take the processors that are compiled
@@ -82,6 +82,7 @@ handle_proc({set_dir, Dir}, State) ->
 
 handle_proc({midi, PortNb, Midi}, State = #{ port := Port }) when is_binary(Midi) ->
     %% Use TAG_STREAM for midi ports.
+    %% FIXME: Use a dedicated format for the old 8-bit port + stamp format.
     Msg = <<?TAG_STREAM:16, PortNb:16, Midi/binary>>,
     exo:info("midi ~p~n", [Msg]),
     port_command(Port, Msg),
@@ -113,9 +114,14 @@ handle_proc({Port,{data,<<255,253>>}},
     obj:reply(ReplyTo, ok),
     maps:remove(ping_reply_to, State);
 
+handle_proc({Port,{data,<<MidiPort:16,Midi/binary>>}},
+            State = #{port := Port}) ->
+    log:info("jack_client: midi: ~p~n", [{MidiPort,Midi}]),
+    State;
+
 handle_proc({Port,{exit_status,_}=E}, State = #{port := Port}) ->
     %% Don't crash the process, just issue a warning.
-    log:info("WARNING: ~p~n",[E]),
+    %% log:info("WARNING: ~p~n",[E]),
     maps:remove(port, State);
 
 handle_proc(Msg={_,dump},State) ->

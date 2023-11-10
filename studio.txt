@@ -7404,3 +7404,1603 @@ How does the input work?  The delta1010 uses an rs485 receiver I think.
 ( EDIT: Another distraction. Stay on target. )
 
 
+
+
+Entry: midi hub
+Date: Sun Sep 17 11:15:35 AM EDT 2023
+
+I have the C skeleton.
+
+Maybe add pd and clock to the monolith as well.
+I guess this should evolve naturally.
+Find an internal composition mechanism first.
+
+Ok so ideas are starting to come.
+Just some resistance to actually doing something.
+
+I'm going to need a way to handle the idea of "mixer".
+
+On hardware setups these can be hardware mixers.
+
+On luna + laptops, these will be midi controllers and likely jack
+clients.
+
+Should hub an mixer be the same process?  Probably not.
+
+
+
+
+Entry: sync
+Date: Sun Sep 17 01:15:24 PM EDT 2023
+
+The word clock pulse is 0V-5V
+
+
+
+Entry: what next?
+Date: Sun Sep 17 01:16:38 PM EDT 2023
+
+- synth for bass & bd generation
+- mixer with worlde control
+
+build both at the same time.  only need a mixer once there are two sources!
+
+
+i just want to do weird shit, disguised as techno
+
+
+next step: make sure start is propagating to pd
+
+EDIT: alright, got it.  just did the simple thing.
+
+
+
+Entry: start/stop
+Date: Mon Sep 18 05:31:23 AM EDT 2023
+
+Basically, harp on a bit on sync.  If sample clocks are locked then it
+is not necessary to send a clock signal, only the half period.
+
+
+Entry: too much variability
+Date: Mon Sep 18 05:39:02 AM EDT 2023
+
+The issues are:
+
+- pd doesn't support jack midi, so i have to go via netsend, and i
+  don't know if i can trust that to send sync messages
+
+- one way around it is to not send clock at all to pd, and do all
+  sequencing in a jack midi thread
+
+Ok I got something.
+
+But it might still be simplest to just use start/stop and a 16th note
+tick, then let Pd do its own sequencing e.g. for polyrythms.  Maybe
+also take a listen to see how tight it is?
+
+
+
+Entry: distributed mixer
+Date: Mon Sep 18 06:47:19 AM EDT 2023
+
+Maybe it's good to not rely on multiple channel out and a monolythic
+mixer, but to distribute the mix/filter controls with messages, and
+accumulate onto mixer bus early.
+
+Basically, all jack clients have a main stereo out, and each of these
+outputs has the usual mixer strip functionality attached: filter, pan.
+
+The effects send then needs to be done differently.  That does need a
+separate output.
+
+
+The principle here is a form of loop fusion/deforestation, moving
+operations into the inner loop, instead of splatting them out into
+temporary buffers.  Internal channels are cheap, external channels are
+harder to deal with.
+
+
+If I use the accumulation approach then it is easy to chain computers
+via spdif, without the need for jack netsend.  This would make it easy
+to put the development desk into a performance.  Final mix could stil
+be sent via net, as delay is not so important for recording.
+
+
+
+
+
+
+Entry: pd clock stuff
+Date: Mon Sep 18 07:00:25 AM EDT 2023
+
+So basic idea is to use CC c n v to encode arbitrary events from hub.c -> pd
+I think this is enough to actually get started making techno.
+Next up: build some patches, and solve the mixer issue.
+
+So in Pd:
+- chan 0: single ended events
+- chan 1: mixer, 127 channels, 127 levels
+
+
+
+Entry: Think about effects
+Date: Mon Sep 18 07:09:56 AM EDT 2023
+
+The only global effect is reverb, which is also post-fader.
+
+That can be solved by a single reverb effect and multiple inputs with
+input filters.
+
+All the other effects should probably be contained in the instruments
+themselves.  This is also how it works in practice.
+
+
+
+Entry: This is what I wanted
+Date: Mon Sep 18 08:25:34 AM EDT 2023
+
+I now have some C code for midi processing that can easily reload in a
+running system.
+
+
+
+Entry: hub.c Erlang out
+Date: Mon Sep 18 10:00:58 AM EDT 2023
+
+Next is a way to bring MIDI events back into Erlang.
+
+Was looking in jack_midi.c but it's not as I expect.
+Have to actually read it.
+
+EDIT: Ok it just used a write in the jack thread.
+
+
+Entry: next
+Date: Mon Sep 18 06:53:49 PM EDT 2023
+
+Maybe it is time for some music now?
+
+I think the infra is mostly there, except for the distributed mixer
+but it seems that can be built incrementally.
+
+Also, maybe it is time to consolidate around the yamaha?  Basically,
+eliminate zoe?  I think I have enough i/o to rewire everything.
+
+Maybe move the spirit to the other rack?
+
+Anyway, let's stick to what is there now.  Having a feeling I'm going
+to move to a software mixer anyway, or maybe ardour.
+
+
+
+Entry: shiny new toy syndrome
+Date: Mon Sep 18 06:58:38 PM EDT 2023
+
+Time to admit that I don't really have a plan.
+So let's enjoy not having a plan for a while.
+
+
+Entry: issue with midi clock out
+Date: Mon Sep 18 08:02:30 PM EDT 2023
+
+it's as if it is dropping bytes to the 4i4o
+
+ok it seems it is time to build something else, or get a midi through box
+
+
+Entry: next
+Date: Tue Sep 19 06:17:15 AM EDT 2023
+
+Started bidding on a midi thru box to attempt to solve the clock issue
+and retire the 4x midi out.
+
+Maybe time to first focus on the digital drum machine.
+
+Do I collect a todo list and get depressed, or do I focus on ideas
+that just come up.  I guess I already have payed work to practice
+structured approach and working through resentment.  This is a hobby,
+really, so only fun stuff and things that are really clear.
+
+I think I want to do a mixer next.  Build a Pd patch with 9 channels
+and use the easycontrol to control it:
+
+- bas & bass drum synth
+- sampled loops
+- reverb
+
+Then in a second iteration, create the akai fire step sequencer.
+
+
+
+Entry: snapshotting
+Date: Tue Sep 19 06:40:16 AM EDT 2023
+
+How do to this better?
+
+Snapshot should capture the current state, but should not touch any
+connections that are stored for clients that are not active.
+
+How to implement?
+
+Transaction:
+- Delete all connections that have both clients active
+- Add all current connections
+
+But it really might be simpler to catch the user actions directly into
+the database, and then just snapshot that to /etc/net
+
+I do want the .csv files, but while the db is there, better to use it
+directly.  The "root" doesn't really matter in practice.  It's easy
+enough to rebuild state once it gets lost, or on a new host.
+
+
+
+Entry: First step is bass + bassdrum and mixer
+Date: Tue Sep 19 06:58:06 AM EDT 2023
+
+...
+
+Idea for controller movement: instead of recording knob motion, try to
+do it with "envelope kinds".
+
+
+
+
+Entry: Is there too much gear?
+Date: Tue Sep 19 03:47:11 PM EDT 2023
+
+Probably.  The zoe is not really necessary.
+
+I keep getting stuck on no inspiration, or that the next step is again
+rewiring something.  There isn't really a line that runs through this.
+
+
+Entry: Analog synth
+Date: Tue Sep 19 03:54:49 PM EDT 2023
+
+Split it up.
+
+The delta1010 can do +4dB line level, which probably works well with
+the modular.
+
+https://en.wikipedia.org/wiki/Line_level
++4dBu  Vpp 3.472
+-10dBV Vpp 0.894
+
+
+There is going to be a new box arriving that can host both delta
+cards.  Or just keep it the way it is now: one delta1010 in the play
+room and one in the dev room.
+
+But move the synths to the digital mixer.
+
+
+
+Entry: what do the synths want to do?
+Date: Tue Sep 19 04:10:42 PM EDT 2023
+
+The modular wants to be born.
+Use a delta1010 as interface.
+
+Standardize on 3.5mm jacks.  Buy this:
+https://www.ebay.com/itm/383289728307
+But first make sure that the stereo adapters are ok.
+Should be fine.
+
+Leave it spit between zoe and zoo.
+
+
+The other synths want easy effects, so connect them to the o1v.
+
+
+So don't do this yet.  Because it is again just busywork.
+
+Except for the o1v...  But wait until the midi thru box arrives, see
+how it feels by then.
+
+
+The O1v makes sense because it saves a step of analog cabling: no
+direct out is needed, because that can go straight to the adat port.
+
+So maybe just go ahead and set this up.
+
+
+
+
+Entry: rewired
+Date: Tue Sep 19 08:01:34 PM EDT 2023
+
+Split ayudio into two parts:
+- o1v adat<->mimas connected to analog synths
+- zoe<->delta10 set up with modular, pedals and spirit mixer
+
+Midi is still on zoe.
+
+next: 4 x midi thru box on delta10 midi out for 3 volcas + o1v mixer.
+
+
+Entry: Change the sync
+Date: Tue Sep 19 09:04:55 PM EDT 2023
+
+layla is now master, 44.1
+-> adat -> o1v
+-> spdif -> delta1010 @ zoe
+-> spdif -> delta1010 @ zoo
+
+
+
+Entry: Ethernet
+Date: Fri Sep 22 09:04:25 PM EDT 2023
+
+Ik lost track of that.  I was thinking about how to do more embedded
+things, while thinking about USB which is hopeless really.  But
+Ethernet works well on PC and embedded.
+
+EDIT: The obvious next step here is Rust on that higher end STM board.
+
+
+
+Entry: starting up second card client
+Date: Sat Sep 23 08:25:19 AM EDT 2023
+
+It's not -X.  That is only for midi.
+
+Maybe use --internal-session-file or -C ?
+
+Ok that works.  Syntax is different:
+
+tom@mimas:/etc/net/dsp$ cat internal-layla3g 
+load system_analog audioadapter -d hw:Layla3G,0 -i8 -o8 -r44100
+
+
+
+Entry: Seem to have some startup issues still
+Date: Sat Sep 23 09:41:12 AM EDT 2023
+
+Not clear what goes wrong.  Weird thing is that setting the volume of
+the pd test audio patch made it behave badly.  Mabye a cable issue?
+Load should be the same.
+
+Let's reboot and see if it starts up properly now.
+
+It seems ok now.
+
+But the envy24control is still needed manually to sync to the spdif.
+
+Alright so next step is to look at the source and distill a tool.
+
+
+
+Entry: envy24control
+Date: Sat Sep 23 10:37:09 AM EDT 2023
+
+envy24control.c defines 
+GtkWidget *hw_master_clock_spdif_radio;
+
+which has:
+
+	gtk_signal_connect(GTK_OBJECT(radiobutton), "toggled",
+			  (GtkSignalFunc)internal_clock_toggled, 
+			  (gpointer)"SPDIF");
+
+
+internal_clock_toggled() is in hardware.c
+
+	} else if (!strcmp(what, "SPDIF")) {
+		internal_clock_set(13);
+
+
+
+
+moving along...
+
+there is a config file:
+  config_filename=g_strdup_printf("%s/%s", g_get_user_config_dir(), "envy24control");
+
+So maybe use that instead?
+
+
+
+tom@zoe:/i/tom/exo/synth_tools/linux$ ./envy24.dynamic.host.elf
+found hw:1
+internal_clock = 13
+
+
+
+Entry: i.jack environment
+Date: Sat Sep 23 01:45:06 PM EDT 2023
+
+There are currently two different environemnts.  One is the exo_vm,
+the other is etc-net-run.  They should probably just be the same.
+
+
+
+Entry: removing impediments
+Date: Sun Sep 24 07:39:11 AM EDT 2023
+
+at the embedded level, some impediments:
+
+- syncing to an spdif stream
+- sending data over ethernet
+- driver for the 12 channel envelope/lfo
+- the big stm, anything
+- older axoloti board
+
+clearly some focus is needed here
+it seems that stm32f103 is the simplest next step
+
+
+Entry: volca midi
+Date: Sun Sep 24 07:46:04 AM EDT 2023
+
+I think the keys uses 3 channels for polyphony, so maybe start there.
+First find out if that is actually true.
+No dufus that is not how polyphony works.
+
+https://en.wikipedia.org/wiki/Volca_Keys
+All controls are digital
+
+
+https://drolez.com/blog/music/korg-volca-keys-global-settings.php
+1. MEMORY + power
+2. keys 1-16 correspond to midi channels
+3. REC=save / PLAY=cancel
+
+
+Current channels
+1: keys
+2: bass (changed from 1)
+10: drum
+
+
+
+
+Entry: next: db
+Date: Sun Sep 24 08:33:34 AM EDT 2023
+
+Do as mentioned earlier.
+- Remove all connections for currently active devices
+- Add all current connections
+
+That's just SQL. Switch into that.
+
+
+
+Entry: so what's next?
+Date: Sun Oct  1 06:14:33 AM EDT 2023
+
+There is now firmware control over modular signals.
+
+Would be nice to have midi control, but I am not clear about what
+exactly that should be.
+
+From the other side: USB midi should already just work.  I mostly need
+to wire that up.  The other midi needs some electronic work first.
+
+So maybe focus on USB first.
+
+Then it is probably DSL time.
+
+Before doing USB, make sure that it is possible to reload an
+application without restarting the uc.  E.g. turn off the interrupt,
+reload, restart.  I can test that on the bench setup first.
+
+Ok so workflow-wise: work on two circuits, one (the PDM) on the bench,
+and the PIXI in the modular.
+
+
+
+Entry: getting distracted
+Date: Sun Oct  1 10:59:21 AM EDT 2023
+
+What do I want?
+
+1. midi control of the PIXI
+2. easy way to update code without replugging
+
+Where am I stuck?
+The tether_bl readout does not respond.
+
+EDIT: /dev/midi access does not work when jack is running, so make
+this work in jack.
+
+
+
+Entry: jack debug server
+Date: Sun Oct  1 11:21:23 AM EDT 2023
+
+So I needed a server anyway, so let's just build it in jack.
+
+Recap on sysex: first byte after start byte is manufacturer.
+Everything after that is converted to 8-bit and pushed to 3if as a
+stream.
+
+So this really talks directly to 3if.
+
+The jack debug server should then open a TCP port with just the 3if
+protocol.
+
+EDIT: What about just putting this in the hub?  That way all control
+is from Erlang.  Do I need this to do anything other than Erlang?
+
+Yeah today is not the day though.  I feel there are too many things
+that need to be decided.  What I wanted to do was to simply play with
+this...
+
+
+Entry: next
+Date: Mon Oct  2 06:29:22 AM EDT 2023
+
+The jack server.
+I think I will put it in hub.
+
+So next step there is to do write some Erlang code to talk to devices.
+
+Context-switch into Erlang and add a serializer/deserializer for sysex
+to the hub.
+
+
+Entry: take a step back
+Date: Mon Oct  2 06:33:46 AM EDT 2023
+
+I still feel I am mostly building infrastructure for infrastructure's
+sake.  Is this so?
+
+The debugger would be useful.  I really can't do anything until that
+works properly so yes I do need that.  But does it have to be weird
+again?
+
+What about just making a TCP midi bridge instead and use the existing
+code?
+
+So where does that go?
+
+Seems simplest to make it go into jack_client.erl
+
+No this should be separate.
+
+The hub currently already has multiple midi ports.
+
+
+Entry: midi tethering design
+Date: Mon Oct  2 07:24:56 AM EDT 2023
+
+Make it work with /dev/midiX as it already does. This will make it
+possible to work with a simplified (non-integrated) setup.
+
+Create a bridge that emulates /dev/midiX on TCP.
+
+This should probably be a separate Erlang process, that can then
+connect to jack_client.erl running hub.
+
+
+EDIT: Clarity is not there.  I need to touch too many things.
+
+I'm stuck.  All paths I can see are too complicated.
+
+What surprises me is that I do not enjoy getting into Erlang again.
+What is that about?
+
+Also a depression thing?  Like I've spent so much time on this but it
+is not really living up to what I expected.
+
+Maybe take a hint here: don't do this in Erlang.
+There might be an alsa loopback thing that solves this.
+Or just do a plain TCP to jack bridge.
+Yeah let's do that instead.
+
+I think the underlying thing here is that I am very tired of
+dynamically typed languages.  I'm tired of making stupid mistakes that
+require debugging time.
+
+Anways, the issue with a bridge application is that midi needs to be
+parsed on input.
+
+So I am not going to escape that part.  It should probably be unified
+across all synth_tools code.
+
+
+Entry: standardize the midi parser
+Date: Mon Oct  2 08:15:35 AM EDT 2023
+
+This will need to run on the uc as well, so write it as something that
+can run from ISR.
+
+There is already code that does this for USB.
+
+Just write it for the uc first.  I can do this with the delta1010 on
+the bench.
+
+
+Entry: stack
+Date: Mon Oct  2 08:17:28 AM EDT 2023
+
+The stack is getting deep, here's a trace:
+
+- tether_bl_midi.c changes to talk to 3if
+- database setup for connect
+- studio_midi.c stdio to jack bridge
+- generalized code for TCP parser daemon
+- isr uart midi parser on uc
+- hardware midi setup (opto reference circuit)
+- find old midi cable
+
+
+Most of this is not really necessary yet.  But let's identify the
+parts that really need to run on the uc.
+
+It would be good to have an opto reference circuit anyway.
+
+Let's abandon the hardware stuff for now.  It feels like a
+distraction.  Focus on the midi parser code.
+
+Actually there was code for this already in akay_fire.c
+
+Alright now I am thinking the code should really just be built into
+tether_bl_midi.c
+
+Maybe time to let this sit for a while since I cannot make up my mind.
+
+EDIT: I'm going to integrate jack into tether_bl_midi.c
+
+
+
+Entry: Two pipe system
+Date: Mon Oct  2 09:22:50 AM EDT 2023
+
+I think I want to try something else:
+- pipe to and from main jack thread
+- a poll in the jack thread
+
+EDIT: Ok I have some skeleton set up.  Still missing some pieces.
+Maybe time to run in packet mode?
+
+Because, really, I am not going to run this on anything other than
+Linux so why bother with segmenting...
+
+
+Entry: debugging
+Date: Mon Oct  2 11:45:12 AM EDT 2023
+
+tom@luna:/i/exo/synth_tools/linux$ ./tether_bl_midi.dynamic.host.elf /dev/midi3 info
+info
+ f0 12 02 05 05 58 28 00 08 f7
+ f0 12 02 02 09 04 f7
+ f0 12 06 05 05 10 3d 00 08 f7
+ f0 12 02 02 09 04 f7
+ f0 12 02 05 06 57 31 00 08 f7
+ f0 12 02 01 07 f7
+
+
+tom@luna:/i/exo/synth_tools/linux$ ./tether_bl_midi.dynamic.host.elf test info
+info
+ f0 12 02 05 05 58 28 00 08 f7
+ f0 12 02 02 09 04 f7
+../uc_tools/linux/mod_tether_3if.c: 166: ASSERT FAIL: s->buf[0] == chunk
+
+That is odd.
+Because same data goes in/out.
+
+Put it down for a bit...
+
+EDIT: Ok out buffer did not flush.
+
+Works now, but is slow.  It seems that this jack sysex thing is not
+such a great idea if RPC is involved.
+
+Anyway, it works.  Let's not get distracted further.
+
+Next thing is to make some kind of console server or a GDB stub.
+
+
+Entry: Symbol table
+Date: Mon Oct  2 12:59:12 PM EDT 2023
+
+Something easily accessible from C.
+
+
+Entry: Make a Forth
+Date: Mon Oct  2 01:08:50 PM EDT 2023
+
+That will guarantee joy.
+But maybe best to first get the gdbstub up.
+Build the forth as part of the monitor.
+
+EDIT: Alright I got a bit further with the gdbstub. Fixed a bug in the
+registers read command.  Next is firmware load.
+
+EDIT: Seems to be corruption still.
+
+
+
+(gdb) p/x app_.dac_vals 
+$71 = {0x2fd, 0x2fd, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0x0, 0x0, 0x0, 0x0}
+
+req:m20002414,18
+W: (05) 84 14 24 00 20
+R: (01) 00
+20002414 128
+W: (02) 88 80
+R: (80) fd 02 fd 02 fd 02 fd 02 fd 02 fd 02 fd 02 fd 02 fd 02 fd 02 fd 02 fd 02 ff ff ff ff ff ff ff ff ff ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00 80 00 00 00 54 24 00 20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+rpl:+$fd02fd02ffffffffffffffffffffffff0000000000000000#e8
+
+
+The readout does seem good: 2 vals that should be the same.
+
+fd 02 fd 02 fd 02 fd 02 
+fd 02 fd 02 fd 02 fd 02 
+fd 02 fd 02 fd 02 fd 02
+
+So probably cache.
+
+Ok was just cache indeed.
+
+
+Entry: next
+Date: Wed Oct  4 06:56:33 AM EDT 2023
+
+I think it's time for a midi sequencer first, then do midi control of
+the noise setup via the pixi.
+
+I started on this already, so let's resume.
+What I want is some kind of tracker.
+http://miditracker.org/
+
+I do not want to learn another program though, or create another
+dependency.
+
+I think I want this in language form.
+
+Can't really focus atm...
+
+I need something I can DO.
+What can I do?
+
+
+Entry: midi is so fucking convenient
+Date: Wed Oct  4 09:08:46 AM EDT 2023
+
+So let's continue building hub.c as a plugin mechanism.
+It's basically going to be the DAW substitute.
+
+And focus on just recording, no editing.
+E.g. parameter automation.
+
+I think my abstraction of the problem is too simplistic.
+I keep wanting to dodge it.
+So maybe continue with the gdbstub work first.
+
+Yeah to get anywhere I need to switch to music mindset.
+Maybe do Antti's sequence?
+
+
+
+Entry: different workflow
+Date: Wed Oct  4 01:12:25 PM EDT 2023
+
+Revisit the reset strategy.
+
+So device reset now works properly with the 5ms PA12<-0 hack.
+Jack will reconnect.
+The tether app and connected gdb will not notice a reset.
+
+This is actually quite nice.
+
+So I could do this:
+- monitor command to restart the chip to bootloader only
+- load app via gdb
+- monitor command to start app
+
+Only that the pixo board does not have this boot1 switch.
+
+So it's necessary to implement stop.
+
+The "stop" only needs to disable interrupts.  Enough to be able to
+Flash and reset.  A hardware reset is probably still a good idea to
+make sure the firmware can boot from reset.  So maybe that can be done
+generically?
+
+
+Entry: Just use STLink?
+Date: Thu Oct  5 10:58:37 AM EDT 2023
+
+Maybe this is all not necessary?
+
+The main reason to use the USB monitor + gdbstub is to have a way to
+access it when there is no alternative.
+
+But, with the USB reset working now, I can just use the stlink.
+
+So let's just do that then.
+
+1. Basic Flashing setup is STLINK, with reset connected properly and
+USB reset hack
+
+2. App control is via MIDI + Sysex for some 3if debugging
+functionality
+
+
+
+( What I think is going on here, is that my brain got a bit warped by
+writing these multi-controller applications.  This is not that!  So
+don't overcomplicate it.  These old habbits are hard to shake, but
+maybe good to do something simple actually. )
+
+
+
+Entry: Three sequences
+Date: Fri Oct  6 12:53:50 PM EDT 2023
+
+So I have one filter, two VCAs
+
+Let the pixi:
+- sync to midi clock & start/stop
+- play the sequence
+- create a pattern editor on the akai
+
+
+Entry: localized pattern sequencers
+Date: Fri Oct  6 12:54:46 PM EDT 2023
+
+I think the idea of creating a centralized pattern sequencer is just
+not a good one.  Not for what I want to do.  So build them into the
+devices.
+
+
+Entry: I want to make art installations
+Date: Fri Oct  6 04:19:29 PM EDT 2023
+
+I want to go back to the noise audio and visual.
+This means, OpenGL.
+
+
+
+Entry: qjackctl
+Date: Sat Oct  7 11:24:51 AM EDT 2023
+
+I need an alternative that can display connections on terminal or from
+Erlang exo.  Aim for headless.
+
+
+
+Entry: pixi.c interrupts
+Date: Sat Oct  7 11:43:07 AM EDT 2023
+
+Let's use this firmware to build a basic midi-controlled synth
+controller firmware.
+
+
+
+Entry: midi electrical
+Date: Sat Oct  7 11:55:44 AM EDT 2023
+
+
+Next up is midi UART in.
+
+At the transmit end:
+5V - 220 - (4)
+TX       - (5)
+
+I can probably make this work without opto for now.
+
+Just needs a 5V tolerant RX.
+
+But would also be good to have a reference circuit.
+
+Found 6N136
+
+1 NC         8 C PHOTO (VCC)
+2 A LED      7 B NPN
+3 C LED      6 C NPN
+4 NC         5 E NPN (GND)
+
+
+https://forum.arduino.cc/t/article-arduino-trick-using-a-low-gain-opto-isolator-for-midi/188812
+
+https://lookmumnocomputer.discourse.group/t/6n136-instead-of-6n137-in-midi-circuit/4576
+
+
+Actually the 6N136 I have are SMD.
+Not going to mess with that.
+
+Which RX is 5V tolerant?
+
+Aha. I did find a pack of CNY17-1
+
+Ok it seems to work.
+However I do read that these are not fast enough for MIDI.
+
+
+http://personal.kent.edu/~sbirch/Music_Production/MP-II/MIDI/midi_physical_layer.htm
+
+
+Turn-off time.
+
+The I_F is   5V through 440Ohm
+
+(/ 5000.0 440) 11 mA
+
+The 20mA turnoff of CNY17-1 is 18uS
+The CNY17-2 at 10mA is 23us.
+
+A 31.25kBaud bit is (/ 1000 31.25) 32us
+
+Maybe this is a bit slow indeed.
+I do see quite a difference between 2 different devices though.
+
+Let's try to find some other optos.
+6N138 is what I find everywhere.
+
+Actuall it looks the same as the old one.  And the delay is
+symmetrical with the 1k resistor.
+
+The 0xF8 byte is a 4 bit dip, so should be (* 4 32) 128us, and i
+measure 132us, so not quite symmetrical but 4us in a 32us bit is
+probably ok.
+
+
+Entry: what next?
+Date: Sat Oct  7 02:20:10 PM EDT 2023
+
+I need start/stop to start sequencing a pattern.
+
+EDIT: This "everything is a sequencer" does seem to be a good
+approach.  Especially since I'm really only interested in loops at
+this point.
+
+
+
+
+Entry: index?
+Date: Sat Oct  7 05:26:41 PM EDT 2023
+
+If I want to do polyrhythm, the phase needs to reflect this.
+Maybe keep a couple of phases?
+
+Maybe split patterns and rhythms.
+
+
+
+Entry: 2 VCAs
+Date: Sat Oct  7 08:58:17 PM EDT 2023
+
+I want to do this the following way:
+- figure out which 2 volume knobs make most sense
+- replace them with VCAs
+
+Thinking that maybe the level will be a bit too low?
+
+Maybe just try... not clear how to get started.
+
+EDIT: The thing I want to do is to contain it, make it smaller, less
+of a global hack.
+
+Analysis paralysis...
+
+
+Entry: sequencer
+Date: Sun Oct  8 09:16:33 AM EDT 2023
+
+Let's stick to what is possible: I have 3 CV signals I can use.
+
+What is the problem that is in the way?
+
+- Setpoints: midi controller to map onto CV signal + transfer
+  functions.
+
+- Where to perform the transfer function mapping
+
+- How to represent patterns
+
+- How to represent time/loops.
+
+- State feedback (e.g. console app)
+
+
+About this RTT thing: It doesn't need to be midi or text.  It can be
+the {packet,4} + 2-byte prefix protocol.
+
+
+So it's clear that the final solution to this will look simple, but to
+find it I have to travel a path.  There is no clear next step that
+isn't clouded in doubt.
+
+
+
+Entry: Let's dream about this other kind of synth
+Date: Sun Oct  8 10:41:26 AM EDT 2023
+
+Basically I want to use just digital I/O and maybe some analog
+switches to create a noise box.
+
+I think I already had established a way to "mute" a signal, by
+drowning it out.
+
+Another possibility is to use the analog inputs as switches to +/-
+3v3.
+
+
+
+Entry: simple things that just need doing
+Date: Sun Oct  8 11:02:49 AM EDT 2023
+
+- clean / dump the connection databases
+- decide main controller and map play/stop keys
+
+
+Entry: map pd and jack
+Date: Mon Oct  9 07:43:21 AM EDT 2023
+
+How to map the current jack connectivity to a patch?
+It's not going to work well because jack has named ports.
+I do need a way to easier manage these...
+Can I map it to source?
+
+
+Entry: gui restarts
+Date: Mon Oct  9 07:48:53 AM EDT 2023
+
+How to integrate this better with xmonad?
+
+What I want: specific windows should go to same workspace/location.
+
+
+Entry: fix the db
+Date: Mon Oct  9 07:52:27 AM EDT 2023
+
+When a connection is made: add it.
+When a connection is removed (except on shutdown), remove it.
+
+
+
+
+Entry: super dumb pitch detector
+Date: Mon Oct  9 07:10:26 PM EDT 2023
+
+Assume squarewave in.  Map every edge to an audio grain + use
+subdivision.  This can be done in Pd.
+
+1. Use edges as events: this should keep pitch locked
+
+2. Map the edge density to timbre
+
+
+
+Entry: drums for the br2000
+Date: Mon Oct  9 09:36:43 PM EDT 2023
+
+make 8 x 3 drums
+and top 8 be parameters
+
+only mixes
+
+instead of "volume", use intensity
+e.g. longer decay etc.
+
+make a large selection of random sounds
+and very simple patterns
+
+this could be samples also
+
+
+
+Entry: midi routing
+Date: Tue Oct 10 08:55:44 AM EDT 2023
+
+I want a language for midi routing that translates to efficient C.  I
+think this is now the most important problem.  Fix the stuff that is
+already in hub.c
+
+
+Entry: Pd extern
+Date: Thu Oct 12 12:53:45 PM EDT 2023
+
+...
+
+i also want a wave viewer and a scope
+so maybe revive wvvw?
+
+
+Entry: next
+Date: Thu Oct 12 02:27:58 PM EDT 2023
+
+i have all this space
+make a step
+do the Pd thing
+
+EDIT: doing the Pd thing
+
+Does indeed feel better.  And yes I got annoyed and confused.
+
+
+
+Entry: wave viewer
+Date: Sat Oct 14 12:21:50 PM EDT 2023
+
+It has been coming up a couple of times.  Would also be nice to
+implement the always-on recorder again.  Currently main out is on zoe,
+so maybe put it there.  Can I just restore the old code?
+
+
+
+
+
+
+
+Entry: 
+Date: Tue Oct 17 06:50:00 PM EDT 2023
+
+Connecting keystation to microbrute in qjackctl.
+
+Oct 17 18:47:46 zoe exo_vm[1266]: exo_midi:jack_notify({client,reg,"qjackctl"})
+Oct 17 18:47:59 zoe exo_vm[2101]: assert_write: write(1,0x7f148e74da00,-118) == -1, errno=14, strerror="Bad address"
+Oct 17 18:47:59 zoe exo_vm[1266]: =SUPERVISOR REPORT==== 17-Oct-2023::18:47:59.165393 ===
+Oct 17 18:47:59 zoe exo_vm[1266]:     supervisor: {local,exo_sup}
+Oct 17 18:47:59 zoe exo_vm[1266]:     errorContext: child_terminated
+Oct 17 18:47:59 zoe exo_vm[1266]:     reason: {exit_status,1}
+Oct 17 18:47:59 zoe exo_vm[1266]:     offender: [{pid,<0.322.0>},
+Oct 17 18:47:59 zoe exo_vm[1266]:                {id,jack_daemon},
+Oct 17 18:47:59 zoe exo_vm[1266]:                {mfargs,{exo,start_child,[jack_daemon]}},
+Oct 17 18:47:59 zoe exo_vm[1266]:                {restart_type,permanent},
+Oct 17 18:47:59 zoe exo_vm[1266]:                {significant,false},
+Oct 17 18:47:59 zoe exo_vm[1266]:                {shutdown,brutal_kill},
+Oct 17 18:47:59 zoe exo_vm[1266]:                {child_type,worker}]
+Oct 17 18:47:59 zoe exo_vm[1266]: =SUPERVISOR REPORT==== 17-Oct-2023::18:47:59.165678 ===
+Oct 17 18:47:59 zoe exo_vm[1266]:     supervisor: {local,exo_sup}
+Oct 17 18:47:59 zoe exo_vm[1266]:     errorContext: shutdown
+Oct 17 18:47:59 zoe exo_vm[1266]:     reason: reached_max_restart_intensity
+Oct 17 18:47:59 zoe exo_vm[1266]:     offender: [{pid,<0.322.0>},
+Oct 17 18:47:59 zoe exo_vm[1266]:                {id,jack_daemon},
+Oct 17 18:47:59 zoe exo_vm[1266]:                {mfargs,{exo,start_child,[jack_daemon]}},
+Oct 17 18:47:59 zoe exo_vm[1266]:                {restart_type,permanent},
+Oct 17 18:47:59 zoe exo_vm[1266]:                {significant,false},
+Oct 17 18:47:59 zoe exo_vm[1266]:                {shutdown,brutal_kill},
+Oct 17 18:47:59 zoe exo_vm[1266]:                {child_type,worker}]
+
+
+This goes with a crash in qjackctl (from systemd journal)
+Stack trace of thread 1611:
+#0  0x00007f9a90f4fbda raise (libc.so.6 + 0x3bbda)
+#1  0x00007f9a90f3a533 abort (libc.so.6 + 0x26533)
+#2  0x00007f9a914b4c73 _ZNK14QMessageLogger5fatalEPKcz (libQt5Core.so.5 + 0x99c73)
+#3  0x00007f9a91aebe5c _ZN22QGuiApplicationPrivate25createPlatformIntegrationEv (libQt5Gui.so.5 + 0x125e5c)
+#4  0x00007f9a91aec300 _ZN22QGuiApplicationPrivate21createEventDispatcherEv (libQt5Gui.so.5 + 0x126300)
+#5  0x00007f9a916eb495 _ZN23QCoreApplicationPrivate4initEv (libQt5Core.so.5 + 0x2d0495)
+#6  0x00007f9a91aef26f _ZN22QGuiApplicationPrivate4initEv (libQt5Gui.so.5 + 0x12926f)
+#7  0x00007f9a92591c29 _ZN19QApplicationPrivate4initEv (libQt5Widgets.so.5 + 0x176c29)
+#8  0x0000000000441f8b _ZN19qjackctlApplicationC2ERiPPc (.qjackctl-wrapped + 0x41f8b)
+#9  0x0000000000439959 main (.qjackctl-wrapped + 0x39959)
+#10 0x00007f9a90f3b790 __libc_start_main (libc.so.6 + 0x27790)
+#11 0x0000000000439daa _start (.qjackctl-wrapped + 0x39daa)
+
+Some generic stupid questions:
+- Why can't I immediately see what process crashes at the Erlang side
+
+
+I can actually see that:
+{id,jack_daemon}
+
+Two questions:
+1. it seems the jack daemon itself crashes
+2. who is this:  zoe exo_vm[1742]: assert_write: write(1,0x7f8141f80a00,-118) == -1, errno=14, strerror="Bad address"
+
+Just starting a2j and jack separately does not trigger any issue.
+
+The error is weird.
+The address and size are junk.
+I do want to know who is who...
+
+
+
+Entry: something else happened here
+Date: Wed Oct 18 01:30:28 PM EDT 2023
+
+Oct 18 13:29:34 zoe exo_vm[1251]: Unknown request 4294967295
+Oct 18 13:29:34 zoe exo_vm[1251]: CheckSize error size = 0 Size() = 12
+Oct 18 13:29:34 zoe exo_vm[1251]: CheckRead error
+
+this is indicative of a jack version mismatch
+
+after rebuild that is not happening any more
+but i still get the crash
+
+Let's find out first which process this is.
+
+Oct 18 13:45:00 zoe exo_vm[8898]: assert_write: write(1,0x7fb1171c6a00,-118) == -1, errno=14, strerror="Bad address"
+
+tom@zoe:~$ cat ps.snapshot |grep 8898
+tom         8898  0.0  1.4 183300 116768 ?       SLsl 13:41   0:00 /nix/store/a0ndljxn056h3l3z3wns93am238cyh77-synth_tools/linux/jack_control.dynamic.host.elf jack_control
+
+
+I'm thinking this triggered just now because the string length!
+That char here is signed, should be uint8_t
+
+#define SEND(fmt, ...) {\
+        char buf[256];                                                 \
+        buf[0] = snprintf(buf+1, sizeof(buf)-1,fmt, __VA_ARGS__);      \
+        assert_write(1, (void*)buf, buf[0] + 1);                       \
+    }
+
+
+It's not properly rebuilding it.
+
+Need to fix the underlying problems:
+
+- why is it not rebuilding properly?
+
+- how come i can't see what it is actually building? i do need this
+  visual feedback to see if my system is actually working properly.
+
+Ha!
+This is the one exception that doesn't reload.
+WTF don't make exceptions!
+
+
+
+Entry: db updates
+Date: Wed Oct 18 05:40:53 PM EDT 2023
+
+How to record a delete?
+
+First, what happens when a processor gets killed / resetarted?
+
+Oct 18 17:43:18 luna exo_vm[88273]: exo_midi:jack_notify({connect,false,"system:capture_2","pure_data:input1"})
+Oct 18 17:43:18 luna exo_vm[88273]: exo_midi:jack_notify({connect,false,"pure_data:output0","system:playback_1"})
+Oct 18 17:43:18 luna exo_vm[88273]: exo_midi:jack_notify({connect,false,"pure_data:output1","system:playback_2"})
+Oct 18 17:43:18 luna exo_vm[88273]: exo_midi:jack_notify({port,unreg,in,"pure_data:input0"})
+Oct 18 17:43:18 luna exo_vm[88273]: exo_midi:jack_notify({port,unreg,in,"pure_data:input1"})
+Oct 18 17:43:18 luna exo_vm[88273]: exo_midi:jack_notify({port,unreg,in,"pure_data:input2"})
+Oct 18 17:43:18 luna exo_vm[88273]: exo_midi:jack_notify({port,unreg,in,"pure_data:input3"})
+Oct 18 17:43:18 luna exo_vm[88273]: exo_midi:jack_notify({port,unreg,in,"pure_data:input4"})
+
+So it seems that unreg comes right after the disconnect.  What I want
+to catch is a connect,false that is not immediately followed by a port,unreg
+
+I can't think of a way to do this other than using timing.
+
+I think I'm going to need to make a patcher.
+Also qjackctl is awkward to use remotely.
+So let's get on with it.
+
+Summary:
+- don't do timing based solutions. makes it too complicated and error prone
+- try to record the actions of the patcher itself, e.g. maybe patch qjackctl?
+- write a (universal) patcher, define patches in source files
+
+
+Entry: It's high time to solve the applicative vs. dataflow issue
+Date: Wed Oct 18 05:56:55 PM EDT 2023
+
+The only benefit of dataflow is automatic summing/merging, which might
+be a good idea or not depending on context.  Think about this some
+more.
+
+
+Entry: mod_drum.c
+Date: Thu Oct 19 11:24:37 AM EDT 2023
+
+Basic idea is to use a software timer to do the sequencing.  This
+seems most flexible for algorithmic playback.
+
+What I want is a sequence of CV values to send to the VCA to control
+the noise box, so write that in a test first.
+
+
+Entry: sequencer
+Date: Fri Oct 20 08:06:50 AM EDT 2023
+
+The drum sequencer:
+
+- spawn a sequence
+
+- map a CC to set the value of the sequence to edit it in real time
+
+- to not put too much pressure on the timer storage, only store one
+  next event for each task.  when executed, this schedules the next
+  event
+
+EDIT: Sequencer code made it into the PIXI firmware.  Next up is
+probably playing that sequence then?
+
+
+
+Entry: step sequencer
+Date: Sat Oct 21 08:51:25 AM EDT 2023
+
+Added step sequencer generic state machine on top of the software
+timer.  This opens up the following:
+
+Run the sequencer:
+- inside the stm
+- inside hub.c
+
+The latter might be better.
+
+The core machines are built for ease of implementation, so it makes
+sense to write a layer on top of it, e.g. a compiler.
+
+
+
+
+Entry: compiler
+Date: Sat Oct 21 09:07:39 AM EDT 2023
+
+Move back to Erlang.
+
+The thing is: I am going to keep relying on Erlang for managing
+distributed always-on in-place-editable systems.  I really like that
+idea.  So let's make the compiler work, and let's make it play nice
+with dialyzer.  I.e. use the language is such a way that dialyzer is
+good enough as a type checker.
+
+Alpaca seems to have halted development.
+
+The exo Erlang system is also the only place with a global view to all
+dataflow setups.
+
+Ok it's clear: stick with Erlang.
+Let's revive the old compiler.
+
+The first real issue is to deal with "app vs. connect"
+
+
+Entry: app vs connect
+Date: Sat Oct 21 10:20:48 AM EDT 2023
+
+App can already do fanout.
+
+The issue is the "automatic merge", which exposes the need for a
+list/array operator right away: a summer in the case of audio, and an
+event merger in the case of midi.
+
+
+Entry: revive the music DSL
+Date: Sat Oct 21 08:04:53 PM EDT 2023
+
+It should be lisp syntax so it is easy to navigate in emacs.
+With a mode that can "tweak" numerical constants by +/-.
+
+kp-add / kp-subtract are separate from +/- on main keyboard.
+
+
+Entry: next: drum machine
+Date: Sat Oct 21 10:46:46 PM EDT 2023
+
+There is a sequencer now, so visualising and controlling it with the
+drum controller should be within reach.
+
+
+
+Entry: continuing on stm synth core
+Date: Sun Oct 22 08:46:42 AM EDT 2023
+
+Things I want:
+
+1. USB midi clock
+
+2. Internal midi clock
+
+Both need software interrupts into the midi task.
+This is a bit of work to put the queues in place etc.
+
+
+
+Entry: nice
+Date: Sun Oct 22 07:28:50 PM EDT 2023
+
+Clocking works.  Patched in the VCA and made some noise.
+This is neat really. Thinking about buying more VCA.
+But let it sit for a bit.
+
+Doepfer A-130-8 Octal Linear VCA $89
+https://www.ebay.com/itm/124308876739
+
+But prob ok to just stick with this for now.  Maybe get a neutron.
+
+
+What next?
+- Find a way to program a pattern with midi controllers
+- start/stop doesn't sync properly
+- LCD display
+- more pots
+- CV midi control
+
+
+
+Entry: what next for pixi?
+Date: Mon Oct 23 08:55:52 AM EDT 2023
+
+- second VCA
+- fix start/stop issue
+- more midi controls
+
+
+Entry: that huge mixer
+Date: Mon Oct 23 07:29:01 PM EDT 2023
+
+I would like to do something with it.  Create some kind of dedicated
+circuit.
+
+
+
+
+Entry: idea: go back to the pulse synth
+Date: Fri Oct 27 07:43:16 PM EDT 2023
+
+all outputs are digital, generated from timers.  e.g. just PWM outs.
+
+inputs:
+- schmitt triggers, generating EXTI events, changing states.
+- ADC
+
+those in and outs are then connected using analog circuitry that is
+not digitally controlled, e.g. just pots connected to hi/lo pass filters.
+
+the "mod matrix" is essentially high-Z pwm outputs
+
+basically, "max out the f103"
+
+ideas:
+- use SPI clock in to set SPI playback rate of Flash waveform
+- use open drain for mixing
+- don't use 5V tolerance to keep it simple
+- don't mix SPI with ADC inputs, use one dedicated SPI slave
+- is it really that useful to have multiple channels for pwm?  doesn't seem so, except for LFO
+
+pin map:
+
+See Table 5. STM32F103x8 data sheet, 48 pin.
+
+Use pins available on blue pill.
+Leave one MIDI port and USB port free.
+
+LEFT (reserved)
+
+PA9  MIDI OUT
+PA10 MIDI IN
+
+PA11 USB+
+PA12 USB-
+
+PA15 NC (JTAG)
+PB3  NC
+PB4  NC
+
+RIGHT (reserved)
+PC13 LED
+
+
+LEFT (synth)
+
+PB12   EXTI?
+PB13   SPI CLK
+PB14   SPI MISO
+PB15   SPI MOSI
+PA8    PWM1,1
+
+RIGHT (synth)
+
+PB11   EXTI?
+PB10   EXTI?
+
+PB1,0-A7,6 PWM3,4-1 or ADC (A7,6)
+PA5    ADC
+PA4    ADC
+PA3-0  ADC or PWM2 PWM 1-4
+PC15   EXTI?
+PC14   EXTI?
+
+So that gives 3 independent PWMs
+
+
+
+
+
+todo:
+
+- start with a good digital buffer to get rid of CPU noise.  do this
+  before going to belgium
+
+
+All these tap points can go into the larger mixer.
+
+( Alright I think manic mode is over. )
+
+
+
+Entry: synchronous PWMs
+Date: Fri Oct 27 08:51:00 PM EDT 2023
+
+Does it make sense to make an CV controller where the frequency is
+synchronous to the main pitch?
+
+That actually makes a lot of sense.
+
+Mapping for BP:
+
+
+PB12     EXTI?
+PB13-15  SPI noise / sample
+
+PA8      PWM1,1 subosc
+
+PB11,10  EXTI?
+
+PB1,0-A7,6 PWM3,4-1
+
+PA5,4    ADC
+PA3-0    ADC or PWM2 PWM 1-4
+PC15,14  EXTI?
+
+
+This gives two oscillators with synchronous, PWM control, one square
+PWM and one noise, with some inputs.
+
+
+
+Entry: is there any merit?
+Date: Fri Oct 27 09:01:40 PM EDT 2023
+
+The idea is to be able to do distortion and filtering.  Distortion is
+just schmitt triggering.  Filtering can probably be done using the PWM
+control.
+
+Let's look at the mixer idea.  There are 6 sends, which would go to 6
+ADC inputs to be used as modulation source.
+
+How many outputs are there?
+Let's just use USB for control and get rid of the uart.
+
+27
+
+Minus 6 ananlog in.
+
+21 channels.
+That's a lot
+
+There are 20 sliders
+
+So that's really a perfect match.
+
+I need 20 buffers then.
+
+Maybe start a bit smaller.  This is quite ambitious.
+I do have that matrix mixer.
+But the filtering is essential.
+
+
+
+Entry: use a bank of SVFs
+Date: Fri Oct 27 09:25:47 PM EDT 2023
+
+Plus gain.  Those will give reasonably wide frequency control, then do
+the feedback matrix digitally inside the controller.
+
+So a bank of SVFs and schmitt triggers and a mixer.
+
+What about this: make it pure analog first.  Then make it patchable by
+replacing some of the schmitt triggers with either dig->dig or an->dig
+ports on the uC.
+
+
+
+Entry: how to make this actual
+Date: Fri Oct 27 09:42:22 PM EDT 2023
+
+Build it as a modular.  Create a couple of SVF modules and an STM on
+the board that was intended for it.
+
+
+
+Entry: spirit mixer
+Date: Fri Oct 27 09:50:33 PM EDT 2023
+
+it already has 7 outputs: main(2), bus(2), send(3)
+
+
+Entry: make this thing playable
+Date: Sat Oct 28 08:40:00 AM EDT 2023
+
+What I am trying to store is 2 patterns with CV values.
+Why not just use keyboard input and record it?
