@@ -84,7 +84,7 @@ handle_proc({midi, PortNb, Midi}, State = #{ port := Port }) when is_binary(Midi
     %% Use TAG_STREAM for midi ports.
     %% FIXME: Use a dedicated format for the old 8-bit port + stamp format.
     Msg = <<?TAG_STREAM:16, PortNb:16, Midi/binary>>,
-    exo:info("midi ~p~n", [Msg]),
+    exo:info("jack_client: midi_from_erl ~p ~s~n", [PortNb, tools:hex(Midi)]),
     port_command(Port, Msg),
     State;
 handle_proc({midi, PortNb, Cmd}, State) ->
@@ -116,7 +116,7 @@ handle_proc({Port,{data,<<255,253>>}},
 
 handle_proc({Port,{data,<<MidiPort:16,Midi/binary>>}},
             State = #{port := Port}) ->
-    log:info("jack_client: midi: ~p~n", [{MidiPort,Midi}]),
+    log:info("jack_client: midi_to_erl: ~p ~s~n", [MidiPort, tools:hex(Midi)]),
     State;
 
 handle_proc({Port,{exit_status,_}=E}, State = #{port := Port}) ->

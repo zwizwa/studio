@@ -9004,3 +9004,171 @@ Date: Sat Oct 28 08:40:00 AM EDT 2023
 
 What I am trying to store is 2 patterns with CV values.
 Why not just use keyboard input and record it?
+
+
+
+Entry: hard to understand
+Date: Fri Nov 10 03:40:00 PM CET 2023
+
+Where is the .pd start file specified?
+It is running /i/tom/pd/exo.pd
+
+
+Entry: synthfest checklist
+Date: Fri Nov 10 03:49:38 PM CET 2023
+
+- extension cord to USB2 hub goes in yellow outlet
+- fasttrack pro goes in left front USB3 direct, no hub
+
+
+Entry: next
+Date: Fri Nov 10 07:22:29 PM CET 2023
+
+Ok so do the fucking loop sampler.
+
+So what is the next step?
+The pad makes most sense as a sample trigger.
+
+Simplify:
+- don't use the easycontrol at all
+- and why not? don't use the drum thing either
+
+
+Entry: novation
+Date: Fri Nov 10 07:58:19 PM CET 2023
+
+What can I do with just the novation?
+
+Build a song one track at a time.
+
+There are 8 tracks, with volume corresponding to the sliders.
+
+Button under the track is mute.
+
+The pots are one fixed expression parameter per track.  E.g. lowpass.
+
+The rotary encoders are 7 parameters per instrument.
+So i do want to make sure that sends out relative.
+
+First thing: midi log.
+Basically this should be centralized in the hub.
+
+
+TODO:
+- easily accessible midi event log in hub.c
+
+
+Entry: this really needs conceptual simplification
+Date: Fri Nov 10 08:31:18 PM CET 2023
+
+It all got a bit out of hand...
+
+What I want:
+
+- Everything controllable by commands in i.erl
+  This should be a hard constraint.
+
+- tp + novation + ftpro (keep it simple, make sure it works for
+  synthfest setup)
+
+
+
+Entry: sampler
+Date: Fri Nov 10 10:02:00 PM CET 2023
+
+Buld it inside Pd
+First make a table loader.
+
+The problem is really the data structures.
+So think about that first.
+
+Spend a couple of hours just thinking, imagining how to navigate the structures.
+
+Separate the offline and online structures.
+The only part could maybe just be a sample player.
+
+What is the thing that ultimately sits behind a volume slider?
+Is it a pd patch?
+
+Can I unify?
+
+If I unify, Pd object seems to be the simplest approach.
+
+
+But I also want a language to manipulate everything.
+That should probably be a lisp, like RAI.  There is revivable support code, emacs etc.
+
+Every component of the system should be editable, so keep doing that.
+
+The basic interface to the store is another language.
+
+
+
+So there are really 2 components:
+- the store
+- the player
+
+While the player is running, i want to be able to manipulate the store.
+
+The store is essentially just a collection of files that is edited in-place.
+
+It really needs to be erlang.
+
+If I want a lisp on erlang I can use LFE.
+
+
+
+Entry: more crashes at startup on tethys
+Date: Sat Nov 11 11:44:19 AM CET 2023
+
+hub.c dumped core
+
+#0  0x00007f1bb5394e57 kill (libc.so.6 + 0x3be57)
+#1  0x0000000000401416 main (clock.dynamic.host.elf + 0x1416)
+#2  0x00007f1bb5380790 __libc_start_main (libc.so.6 + 0x27790)
+#3  0x000000000040162a _start (clock.dynamic.host.elf + 0x162a)
+
+There are 3 that failed in assert:
+
+Nov 11 11:43:37 tethys exo_vm[79401]: linux/clock.c: 154: ASSERT FAIL: client
+
+Because:
+
+Nov 11 11:43:37 tethys exo_vm[79403]: jack server is not running or cannot be started
+
+It runs now.  Likely because jack was already running.
+
+
+Entry: pd as proxy?
+Date: Sat Nov 11 12:50:35 PM CET 2023
+
+Does it make sense to encode all jack midi connections in Pd?
+I really need the uniformity, but I don't think that will really work well.
+
+
+Entry: i am lost again
+Date: Sat Nov 11 12:53:53 PM CET 2023
+
+So Pd runs on tethys.  Let's switch back to tp.
+Now I want pd to open on a dedicated display.
+Is that possible?
+
+I keep finding these arbitrary points of contention...
+
+
+Entry: next
+Date: Sun Nov 12 09:14:32 AM CET 2023
+
+so indeed, simplification is the way
+
+so what next?
+i think the connection db
+that currently works but is very awkward to use
+
+anyway, just skip that part. it works.
+focus on the novation
+
+next is hub debug
+EDIT: that can just be to_erl
+
+next up: make sure the controller data ends up in pd.
