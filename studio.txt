@@ -9366,7 +9366,76 @@ Two things need to happen:
 - Editing the Erlang form of the pattern
 
 
-Entry: 
+test_studio_seq:record().
+[start,
+ {on,21248,0,36,19},
+ {off,29312,0,36,56},
+ {on,36480,0,37,22},
+ {off,41792,0,37,8},
+ {on,51072,0,42,40},
+ {off,56448,0,42,36},
+ {on,62976,0,36,61},
+ {off,68864,0,36,61},
+ stop]
+
+EDIT: I think i'm going to use the stop as a loop point instead.
+EDIT: No that's just really awkward.  Use the last note.
+
+It's necessary to hear it
+
+What about this:
+- Turn off record, at the first next note, play the pattern.
+
+
+
+Entry: random shit going wrong
 Date: Tue Nov 14 02:52:04 PM CET 2023
 
 debugging is still hard
+now totally unexplained, no sound.
+
+restarted it, switched config to 44.1kHz
+now i get something distorted
+
+and now it seems to run ok
+
+this is weird...
+
+
+
+Entry: replug everything
+Date: Tue Nov 14 03:14:27 PM CET 2023
+
+I want to get to a point where I can unplug the audio interface and
+everything shuts down, and i replug it and everything starts up again.
+
+
+
+Entry: pattern
+Date: Tue Nov 14 03:24:14 PM CET 2023
+
+Take a break...  Going the right way.
+
+
+
+Entry: next
+Date: Tue Nov 14 05:23:54 PM CET 2023
+
+I think I know what I want.  First note after record sets the loop
+point.
+
+No.  Use the record button to loop.
+
+I think this might be simpler to do as a C state machine.
+
+
+Entry: next
+Date: Tue Nov 14 07:56:36 PM CET 2023
+
+Another way to do it is to play it twice.
+That way averaging can be used also.
+
+I like that idea.  Keeps it more uniform.
+
+So it seems I'll be writing a loop processor.  A thing that takes
+loops and processes them.
