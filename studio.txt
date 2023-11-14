@@ -9172,3 +9172,201 @@ next is hub debug
 EDIT: that can just be to_erl
 
 next up: make sure the controller data ends up in pd.
+
+
+
+Entry: further simplifications
+Date: Sun Nov 12 10:23:29 AM CET 2023
+
+The reasons to use jack ports:
+- Because I have to, e.g. Pd, a2j
+- To split off software that is exposed externally
+- To use multiprocessing
+
+For any other music making business, it might be simplest to let Pd
+do the hosting.
+
+
+Entry: libpd
+Date: Sun Nov 12 10:26:06 AM CET 2023
+
+Just headless?
+
+
+Entry: plugdata
+Date: Sun Nov 12 10:29:54 AM CET 2023
+
+Pd wrapped as a JUCE plugin.
+
+
+Entry: actual setup
+Date: Sun Nov 12 10:30:43 AM CET 2023
+
+Laptop
+FTPro
+Remote25
+
+hub.c will process Remote25 input
+
+some knobs are bad
+
+what do i need?
+a way to map the CCs to Pd send
+I don't want to use routing.
+
+Or do I?
+
+I guess that is the question: use name-based routing or use visual routing.
+
+What would be ideal?
+To be able to midi learn.
+
+That might not be necessary.
+
+The unit is the channel / generator.  Per generator there are 2
+buttons, 1 slider, 1 knob dedicated, and 7 relative knobs/buttons for
+currently selected channel.
+
+So it really just needs 4 + 7 relative addresses.  Probably easy
+enough to use visual routing.
+
+Let's just map it to midi.
+
+I would like to figure out first if the rotaries can be incremental.
+
+I can probably fake this.  It's easy enough to see what direction
+something is going.  This can then be mapped back to incremental.
+
+So the transformation will be this:
+
+ctrl <chan> <nb> <val>
+            0: vol
+            1: mute
+            2: expr
+            3: accent?
+
+buttons are set to momentary
+
+
+            
+Entry: mapping / routing ok
+Date: Sun Nov 12 06:38:07 PM CET 2023
+
+Now how to do this at the pd end?
+
+Maybe have a single performance patch that routes and instantiates 8
+track patches?
+
+Or just instantiate everything, and have a selection of routing
+patches.
+
+I don't know... build something that works.
+
+Before any of that, I want to run Pd on a remote display.  Would
+probably be simplest to use raw X instead of ssh.
+
+
+Entry: summary
+Date: Mon Nov 13 10:13:16 AM CET 2023
+
+Routing works.  The next step is to build midi controlled instruments
+and sequencers.
+
+To sidestep the instrument question, it's probably best to use samples
+at first.
+
+Start/stop is still a pain.  Not just one problem it seems.  Just
+things not working properly.  Some clarity would help.
+
+The main problem is that what I want to do is inherently hard: gluing
+shit that doesn't have the necessary semantics...
+
+
+
+Entry: next
+Date: Mon Nov 13 01:43:32 PM CET 2023
+
+Started filling in some things.  It's clear I just need to do a step
+then see what's next after.  Can't really plan this.
+
+Next thing I need is a scale adjust.  Map midi 0-127 to some useful
+number scale.
+
+EDIT: So took a couple of hours to figure out the x display tcp thing,
+but it works now.
+
+
+
+
+Entry: recorder
+Date: Mon Nov 13 05:51:49 PM CET 2023
+
+Start out by playing the beat, which starts on t=0 and the last note
+is endx.  This gives the time base.
+
+Record everything else on top of that.
+
+So let track 0 be the base rhythm.  Everything else is snapped to the
+grid.
+
+
+
+sequence:
+
+- enable record
+- store each keypress / release event
+- disable record
+- delete last keypress, use as loop point
+- set tempo based on this information
+
+
+
+Entry: recorder in erlang?
+Date: Tue Nov 14 11:22:45 AM CET 2023
+
+Since I'll be doing some processing, it might be good to keep that
+part in Erlang, and keep only the playback code in C.
+
+Problem is overview...
+
+Yes since this is about data, it should be handled somewhere that the
+data can easily be manipulated and stored.  That would probably mean
+sqlite.
+
+Is it enough to use standard timecode?
+Say 30fps frame rate, resolution is 33ms
+
+Seems a bit low.
+
+midi is about 1 command per millisecond.
+
+I think I want an ad-hoc protocol between hub.c and erlang side.
+
+EDIT: Got it to the point:
+{record,Msg} where Msg is
+
+start
+stop
+{on,1308416,0,29,48}
+{off,1316160,0,29,71}
+
+{on|off,Timestamp,Track,Note,Vel}
+
+The timestamp is number of samples since record.
+
+So what's next?
+
+Record something and put it in an erlang expect test.
+Would be nice to get that going again.
+
+Interface for that would be through exo_vm script.
+
+Two things need to happen:
+- A way to upload a pattern to the hub.c pattern sequencer
+- Editing the Erlang form of the pattern
+
+
+Entry: 
+Date: Tue Nov 14 02:52:04 PM CET 2023
+
+debugging is still hard

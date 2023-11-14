@@ -12,6 +12,7 @@
         ]).
 
 -define(TAG_STREAM, 16#FFFB).
+-define(TAG_PTERM, 16#FFEE).
 
 %% Start a processor or synth.
 proc(#{ name := Name,  %% basename
@@ -114,9 +115,33 @@ handle_proc({Port,{data,<<255,253>>}},
     obj:reply(ReplyTo, ok),
     maps:remove(ping_reply_to, State);
 
-handle_proc({Port,{data,<<MidiPort:16,Midi/binary>>}},
+handle_proc({Port,{data,<<?TAG_PTERM:16,Pterm/binary>>}},
+            State = #{port := Port}) ->
+    Term = type:decode({pterm,Pterm}),
+    log:info("jack_client: pterm: ~p~n", [Term]),
+    State;
+
+handle_proc({Port,{data,<<?TAG_STREAM:16,MidiPort:16,Midi/binary>>}},
             State = #{port := Port}) ->
     log:info("jack_client: midi_to_erl: ~p ~s~n", [MidiPort, tools:hex(Midi)]),
+    case MidiPort of
+        %% Ad hoc remote25 recorder port.
+        5 ->
+            log:info("jack_client: record: ~s~n", [tools:hex(Midi)]),
+            case Midi of
+                <<16#F0,16#13,_/binary>> ->
+                    ok;
+                _ ->
+                    ok
+                end;
+        _ ->
+            ok
+    end,
+    State;
+
+handle_proc({Port,{data,Data}},
+            State = #{port := Port}) ->
+    log:info("jack_client: unknown: ~p~n", [Data]),
     State;
 
 handle_proc({Port,{exit_status,_}=E}, State = #{port := Port}) ->
