@@ -9439,3 +9439,125 @@ I like that idea.  Keeps it more uniform.
 
 So it seems I'll be writing a loop processor.  A thing that takes
 loops and processes them.
+
+
+Entry: a split loop
+Date: Tue Nov 14 11:51:55 PM CET 2023
+
+(exo@tp.zoo)32> test_studio_seq:t().
+test_studio_seq:t().
+{466,
+ [{0,{0,on,36,19}},
+  {105,{0,off,36,56}},
+  {212,{0,on,37,22}},
+  {299,{0,off,37,8}}]}
+
+That's basically it.
+
+From this,
+1. the sequencer's timing can be set, assuming say 1/2 bar loops, and
+2. this can then be rebased to midi grid: 24 ticks per quarter note
+
+
+
+One thing is clear: relative time encoding is a pain.  So just pay the
+price of an extra subtraction and keep the pattern flat?
+
+EDIT: That conflicts with the ability to insert void events if the
+time difference exceeds the timer range.  So keep it like this in the
+implementation.
+
+Sidetrack: where is the "iterate state over a list" thing?
+
+Edit: simpler to just use zip and list tail/drop etc...
+
+I think this would work:
+
+(exo@tp.zoo)68> test_studio_seq:t().
+test_studio_seq:t().
+#{pattern =>
+      [{{event,{0,on,36,19}},{delay,105}},
+       {{event,{0,off,36,56}},{delay,107}},
+       {{event,{0,on,37,22}},{delay,87}},
+       {{event,{0,off,37,8}},{delay,167}}],
+  seq =>
+      {466,
+       [{0,{0,on,36,19}},
+        {105,{0,off,36,56}},
+        {212,{0,on,37,22}},
+        {299,{0,off,37,8}}]}}
+
+
+So the next thing here is to change the pattern sequencer in hub.c to
+allow for encoding of these events.
+
+Next:
+- rebase on top of midi clock instead of absolute
+- add representation of events + port encoding to hub.c
+
+
+Entry: ports and channels
+Date: Wed Nov 15 12:05:19 PM CET 2023
+
+The distinction is just implementation so should probably be hidden as
+much as possible, but I already have a tension between port names and
+port numbers.
+
+So maybe tackle that first.
+
+Or not.  It can be hardcoded for now.
+
+What is important though is to set up an interface for the sequencer.
+This could use TAG_U32
+
+
+Entry: storage model for midi sequence
+Date: Wed Nov 15 12:11:14 PM CET 2023
+
+I want to be able to run this on an f103 so keep it simple.
+
+Currently the pattern step just has 16 bits for an event.
+
+struct pattern_step {
+    /* Do event, then wait for delay ticks. */
+    uint16_t event;
+    uint16_t delay;
+};
+
+It seems best to use a separate allocator for events, e.g. a free
+stack.
+
+
+
+Entry: sequencer memory allocation
+Date: Wed Nov 15 01:14:04 PM CET 2023
+
+It seems best to use a single pool of events shared by multiple
+patterns.  Each step then contains a pointer to the next event.  Those
+can then just be linked in a loop.
+
+EDIT: Alright I have a step pool.
+
+Now, is it necessary to have a sequence pool?  Or can this just go
+into the timer directly?
+
+E.g. timer event could point to the step index, which can then just
+loop around.
+
+
+
+Entry: sequencer pattern state
+Date: Wed Nov 15 02:28:34 PM CET 2023
+
+I think I just made a big change.  The sequencer tasks do not have
+(variable) state, only the global sequencer context.  The patterns
+should be enough to make this work really.  So let's move that to its
+conclusion.
+
+Alright changed the base representation.  Everything is indexed (no
+pointers), and the application provides the event dispatch function.
+
+Next: how to create/edit patterns?
+
+The start of the pattern is registered separately, so it's always
+possible to edit it from there.
