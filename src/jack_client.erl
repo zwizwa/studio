@@ -30,7 +30,9 @@ proc(#{ name := Name,  %% basename
                                    %% ["/i/exo/synth_tools"]
                                    [os:getenv("SYNTH_TOOLS")]),
                 maps:merge(
-                  #{ dir => Dir},
+                  #{ dir => Dir,
+                     tape => []
+                   },
                   Config)
         end,
         fun ?MODULE:handle_proc/2})}.
@@ -117,23 +119,25 @@ handle_proc({Port,{data,<<255,253>>}},
 
 handle_proc({Port,{data,<<?TAG_PTERM:16,Pterm/binary>>}},
             State = #{port := Port}) ->
+    Tape = maps:get(tape, State, []),
     Term = type:decode({pterm,Pterm}),
     log:info("jack_client: pterm: ~p~n", [Term]),
-    State;
+    case Term of
+        {record, start} ->
+            maps:put(tape, [], State);
+        {record, stop} ->
+            log:info("Tape=~p~n", [lists:reverse(Tape)]),
+            maps:put(tape, [], State);
+        {record, Cmd} ->
+            maps:put(tape, [Cmd|Tape], State);
+        _ ->
+            State
+    end;
 
 handle_proc({Port,{data,<<?TAG_STREAM:16,MidiPort:16,Midi/binary>>}},
             State = #{port := Port}) ->
     log:info("jack_client: midi_to_erl: ~p ~s~n", [MidiPort, tools:hex(Midi)]),
     case MidiPort of
-        %% Ad hoc remote25 recorder port.
-        5 ->
-            log:info("jack_client: record: ~s~n", [tools:hex(Midi)]),
-            case Midi of
-                <<16#F0,16#13,_/binary>> ->
-                    ok;
-                _ ->
-                    ok
-                end;
         _ ->
             ok
     end,

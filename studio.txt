@@ -9561,3 +9561,50 @@ Next: how to create/edit patterns?
 
 The start of the pattern is registered separately, so it's always
 possible to edit it from there.
+
+EDIT: Patterns now have:
+- start (resume at last->next)
+- drop (delete all events from a pattern)
+- add (add a single event at the end of a pattern)
+
+So what next?
+- on record->off post-process the recording into a pattern cycle
+- convert it to binary command
+- implement binary command interface (TAG_U32?)
+
+So it seems the first thing is that command interface.
+
+Let's not re-invent the TAG_U32 thing.  A lot of thought went into it,
+and it solves an actual problem, so just reuse.
+
+
+
+Entry: loop config
+Date: Wed Nov 15 05:09:17 PM CET 2023
+
+press record
+press play to announce the number of notes = n
+play the n notes followed by the last one
+
+pattern will start looping
+
+so this is only for the initial pattern
+all the rest of the recording will be against the other time base
+
+then it's also clear that if play is pressed at all when record is on
+
+
+Entry: record mmc?
+Date: Wed Nov 15 05:19:30 PM CET 2023
+
+remote 25 can be set to mmc
+how does that effect record?
+
+
+
+Entry: what to fix before leaving?
+Date: Thu Nov 16 10:48:30 AM CET 2023
+
+the recorder would be nice.  not sure if that can be done already.
+maybe just context switch into different hardware.
+

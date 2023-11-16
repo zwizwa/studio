@@ -2,18 +2,19 @@
 -compile([export_all]).
 
 seq() ->
-    [{on,21248,0,36,19},
-     {off,29312,0,36,56},
-     {on,36480,0,37,22},
-     {off,41792,0,37,8},
-     {on,51072,0,42,40},
-     {off,56448,0,42,36},
-     {on,62976,0,36,61},
-     {off,68864,0,36,61}
-    ].
-stuff(Seq) ->
-    [{Time div 64,{Track,Evt,Note,Vel}}
-     || {Evt,Time,Track,Note,Vel} <- Seq].
+    %% Sequence as recorded by hub.c / jack_client.erl
+    [{19520,{on,0,60,4}},
+     {28544,{off,0,60,41}},
+     {35200,{on,0,66,48}},
+     {40896,{off,0,66,28}},
+     {49728,{on,0,66,28}},
+     {56640,{off,0,66,7}},
+     {59520,{on,0,60,35}},
+     {66048,{off,0,60,31}},
+     {74240,{on,0,66,24}},
+     {81664,{off,0,66,18}},
+     {88576,{on,0,66,48}},
+     {94912,{off,0,66,71}}].
 
 %% Sequences are [{Timestamp, Stuff}].
 %% Normalize to T=0, average timestamp, pick first payload.
@@ -49,7 +50,7 @@ split_loop() ->
     split_loop(Seq).
 
 t() ->
-    Seq = split_loop(stuff(seq())),
+    Seq = split_loop(seq()),
     #{seq => Seq, pattern => pattern(Seq)}.
 
 
