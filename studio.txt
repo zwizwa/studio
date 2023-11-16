@@ -9608,3 +9608,9 @@ Date: Thu Nov 16 10:48:30 AM CET 2023
 the recorder would be nice.  not sure if that can be done already.
 maybe just context switch into different hardware.
 
+
+
+Entry: recorder rebase
+Date: Thu Nov 16 03:09:00 PM CET 2023
+
+

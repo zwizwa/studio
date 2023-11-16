@@ -27,8 +27,8 @@ split_loop(Seq) ->
     {Len,
      lists:zipwith(
        fun({F,Stuff},{S,_DropStuff}) -> {(F+S) div 2, Stuff} end,
-       F1 = rebase0(F),
-       S1 = rebase0(S))}.
+       F1 = time_shift(F),
+       S1 = time_shift(S))}.
 
 %% Convert to pattern sequencer form: each entry contains the delay to
 %% the next entry, which is simpler to implement.  Pattern needs to
@@ -41,17 +41,37 @@ pattern({Len,Seq=[{0,_}|_]}) ->
       Seq,
       tl(Seq) ++ [{Len,loop}]).
 
-%% Rebase time scale to T=0 for first event.
-rebase0(Lst=[{T0,_}|_]) ->
+%% Shift the time tags to T=0 for first event.
+time_shift(Lst=[{T0,_}|_]) ->
     [{T-T0,Stuff} || {T,Stuff}<-Lst].
+
+%% Change the time scale from audio samples to midi clock ticks.
+time_scale(NbClocks, Seq={Len, Evts}) ->
+    %% 1. Given the number of logical ticks we want (24 per quarter
+    %%    note), find the time div.  Use floating point to compute
+    %%    this to get better resolution for the individual timestamps.
+    SamplesPerClock = round(Len / NbClocks),
+
+    %% 2. Scale each timestamp and round to grid.
+    Evts1 = [{round(T / SamplesPerClock), Stuff} || {T,Stuff} <- Evts],
+    {SamplesPerClock, {NbClocks, Evts1}}.
+
+%% FIXME: The idea is to always represent tempo as an integer multiple
+%% of the sample frequency.  Maybe even a double, to allow to derive a
+%% square wave as well.  What effect does that have on the clocks?
 
 split_loop() ->
     Seq = [{T,stuff} || T <- [0,1,2,4,5,6]],
     split_loop(Seq).
 
+
 t() ->
     Seq = split_loop(seq()),
-    #{seq => Seq, pattern => pattern(Seq)}.
+    SeqClock = time_scale(24 * 2, Seq),
+    {_Scale, Seq1} = SeqClock,
+    #{samples => Seq,
+      midi_clock => SeqClock,
+      pattern => pattern(Seq1)}.
 
 
     
