@@ -12,7 +12,8 @@
         ]).
 
 -define(TAG_STREAM, 16#FFFB).
--define(TAG_PTERM, 16#FFEE).
+-define(TAG_PTERM,  16#FFEE).
+-define(TAG_U32,    16#FFF5).
 
 %% Start a processor or synth.
 proc(#{ name := Name,  %% basename
@@ -143,10 +144,11 @@ handle_proc({Port,{data,<<?TAG_STREAM:16,MidiPort:16,Midi/binary>>}},
     end,
     State;
 
-handle_proc({Port,{data,Data}},
-            State = #{port := Port}) ->
-    log:info("jack_client: unknown: ~p~n", [Data]),
-    State;
+%% Mixins will also handle Port data so don't add a catch-all here.
+%handle_proc({Port,{data,Data}},
+%            State = #{port := Port}) ->
+%    log:info("jack_client: unknown: ~p~n", [Data]),
+%    State;
 
 handle_proc({Port,{exit_status,_}=E}, State = #{port := Port}) ->
     %% Don't crash the process, just issue a warning.
@@ -159,7 +161,8 @@ handle_proc(Msg={_,dump},State) ->
 
 %% Delegate to mixins at tail end.
 handle_proc(Msg, State) -> 
-    Mixins = [fun epid:mixin/3, fun tag_u32:mixin/3],
+    Mixins = [fun epid:mixin/3,
+              fun tag_u32:mixin/3],
     {Handled, State1} = serv:delegate(Mixins, Msg, State),
     case Handled of
         true ->

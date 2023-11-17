@@ -9613,4 +9613,68 @@ maybe just context switch into different hardware.
 Entry: recorder rebase
 Date: Thu Nov 16 03:09:00 PM CET 2023
 
+EDIT: Ok was straightforward
 
+
+Entry: tag_u32
+Date: Thu Nov 16 04:46:12 PM CET 2023
+
+That's the next thing on the list.
+Started putting a handler in hub.c
+
+EDIT: I think I have something that should be able to list a
+directory.  So next is to add the Erlang support for this.
+
+Probably tag_u32:dir/1 is the place to start.
+
+tag_u32:dir(i:hub()).
+
+That hangs.
+But it's a start.
+
+Move forward a bit.  I get a TAG_U32 packet back in jack_client.erl
+Looking at lab_board.erl which has a handler calling:
+tag_u32:req_u32_reply(Tag, Rest, BTail);
+
+How does that function know where things go?
+
+The call works like this:
+
+call(Pid, Path, Bin) ->
+    %% FIXME: Later, use only resolved paths.
+    NPath = resolve(Pid, Path),
+    %% log:info("tag_u32:call ~p~n", [{Path,Bin}]),
+    obj:call(Pid, {req_u32, NPath, Bin}, 2000).
+
+If Pid doesn't know about req_u32 what then?
+
+Ok so jack_client has the tag_u32 mixing.
+
+Ok so I don't actually need to handle it then?
+The mixin should be handling the TAG_U32
+
+EDIT: There was a catch-all before the mixing handler.
+Seems to work now:
+
+(exo@tp.zoo)100> tag_u32:dir(i:hub()).
+tag_u32:dir(i:hub()).
+{[{testcmd,cmd}],#{}}
+
+Entry: the actual tag_u32 calls
+Date: Thu Nov 16 08:44:32 PM CET 2023
+
+- clear pattern
+- add event to pattern
+- set tempo
+
+
+Entry: calls in place
+Date: Fri Nov 17 09:23:17 AM CET 2023
+
+(exo@tp.zoo)8> tag_u32:call(i:hub(),[pat_clear, 1])
+{[0],<<>>}
+
+Nov 17 09:22:31 tp exo_vm[480231]: FIXME: clear pattern nb = 1
+
+next: make the events numeric.
+E.g. combine track and note on/off into midi byte, use track as channel.

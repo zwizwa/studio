@@ -2,19 +2,23 @@
 -compile([export_all]).
 
 seq() ->
+    %% Better to work with numerical codes from the start, since
+    %% everything ends up as a tag_u32 call.
+    On = 9,
+    Off = 8,
     %% Sequence as recorded by hub.c / jack_client.erl
-    [{19520,{on,0,60,4}},
-     {28544,{off,0,60,41}},
-     {35200,{on,0,66,48}},
-     {40896,{off,0,66,28}},
-     {49728,{on,0,66,28}},
-     {56640,{off,0,66,7}},
-     {59520,{on,0,60,35}},
-     {66048,{off,0,60,31}},
-     {74240,{on,0,66,24}},
-     {81664,{off,0,66,18}},
-     {88576,{on,0,66,48}},
-     {94912,{off,0,66,71}}].
+    [{19520,{On,0,60,4}},
+     {28544,{Off,0,60,41}},
+     {35200,{On,0,66,48}},
+     {40896,{Off,0,66,28}},
+     {49728,{On,0,66,28}},
+     {56640,{Off,0,66,7}},
+     {59520,{On,0,60,35}},
+     {66048,{Off,0,60,31}},
+     {74240,{On,0,66,24}},
+     {81664,{Off,0,66,18}},
+     {88576,{On,0,66,48}},
+     {94912,{Off,0,66,71}}].
 
 %% Sequences are [{Timestamp, Stuff}].
 %% Normalize to T=0, average timestamp, pick first payload.
@@ -30,16 +34,21 @@ split_loop(Seq) ->
        F1 = time_shift(F),
        S1 = time_shift(S))}.
 
-%% Convert to pattern sequencer form: each entry contains the delay to
-%% the next entry, which is simpler to implement.  Pattern needs to
-%% start at 0 for this to work.
-pattern({Len,Seq=[{0,_}|_]}) ->
+%% Convert to pattern sequencer commands, setting global tempo,
+%% clearing pattern and adding steps.  Each step is an event and the
+%% delay to the next event.  Pattern needs to start at 0 for this to
+%% work.
+pattern(PatNb, {ClockDiv, {Len,Seq=[{0,_}|_]}}) ->
+    [[clock_div, ClockDiv],
+     [pat_clear, PatNb]] ++
     lists:zipwith(
       fun({T,Stuff},{Tnext,_}) ->
-              {{event,Stuff},{delay,Tnext-T}}
+              {Type, Track, Arg1, Arg2} = Stuff,
+              Delay = Tnext - T,
+              [pat_add, PatNb, Type, Track, Arg1, Arg2, Delay] 
       end,
       Seq,
-      tl(Seq) ++ [{Len,loop}]).
+      tl(Seq) ++ [{Len, sentinel_ignored}]).
 
 %% Shift the time tags to T=0 for first event.
 time_shift(Lst=[{T0,_}|_]) ->
@@ -68,10 +77,9 @@ split_loop() ->
 t() ->
     Seq = split_loop(seq()),
     SeqClock = time_scale(24 * 2, Seq),
-    {_Scale, Seq1} = SeqClock,
     #{samples => Seq,
       midi_clock => SeqClock,
-      pattern => pattern(Seq1)}.
+      pattern => pattern(0, SeqClock)}.
 
 
     
