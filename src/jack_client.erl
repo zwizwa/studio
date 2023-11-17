@@ -120,17 +120,31 @@ handle_proc({Port,{data,<<255,253>>}},
 
 handle_proc({Port,{data,<<?TAG_PTERM:16,Pterm/binary>>}},
             State = #{port := Port}) ->
-    Tape = maps:get(tape, State, []),
     Term = type:decode({pterm,Pterm}),
     log:info("jack_client: pterm: ~p~n", [Term]),
+    TapeStack = maps:get(tape, State, []),
     case Term of
         {record, start} ->
             maps:put(tape, [], State);
         {record, stop} ->
-            log:info("Tape=~p~n", [lists:reverse(Tape)]),
+            Tape = lists:reverse(TapeStack),
+            log:info("Tape=~p~n", [Tape]),
+            Seq = studio_seq:split_loop(Tape),
+            NbClocks = 24 * 2,
+            SeqClock = studio_seq:time_scale(NbClocks, Seq),
+            Pattern = studio_seq:pattern(0, SeqClock),
+            log:info("Pattern=~p~n", [Pattern]),
+            %% Spawn temp task to RPC into this object
+            Pid = self(),
+            spawn(
+              fun() ->
+                      lists:foreach(
+                        fun(Cmd) -> tag_u32:call(Pid, Cmd) end,
+                        Pattern)
+              end),
             maps:put(tape, [], State);
         {record, Cmd} ->
-            maps:put(tape, [Cmd|Tape], State);
+            maps:put(tape, [Cmd|TapeStack], State);
         _ ->
             State
     end;

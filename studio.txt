@@ -9678,3 +9678,16 @@ Nov 17 09:22:31 tp exo_vm[480231]: FIXME: clear pattern nb = 1
 
 next: make the events numeric.
 E.g. combine track and note on/off into midi byte, use track as channel.
+
+Alright the compiler is ready.  Needs just testing.
+
+But first I want to fix compilation messages.
+
+
+Entry: refactor 
+Date: Fri Nov 17 02:40:29 PM CET 2023
+
+- test_studio_seq.erl move routines into studio_seq
+- compile to tag_u32 sequence
+- send tag_u32
+
