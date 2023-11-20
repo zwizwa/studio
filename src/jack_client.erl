@@ -1,14 +1,14 @@
-%% FIXME: The name "jack_client" does not cover it.
-%%
-%% This is really "Erlang Midi Client" or something, i.e. anything
-%% that talks the protocol on stdin.
-
-%% Standardized wrapper for synth_tools jack clients.
-%% These all have a midi port on stdio.
+%% Standardized wrapper for synth_tools jack clients.  These speak
+%% uc_tools tag protocol on stdio, implementing TAG_U32 / TAG_PTERM /
+%% TAG_STREAM (midi)
 
 -module(jack_client).
 -export([%% run_udp/1, handle_udp/2,
-         proc/1, handle_proc/2
+         proc/1, handle_proc/2,
+         %% RPC
+         start/1,
+         stop/1,
+         restart/1
         ]).
 
 -define(TAG_STREAM, 16#FFFB).
@@ -24,7 +24,6 @@ proc(#{ name := Name,  %% basename
         fun() ->
                 log:set_info_name({jack_client,Name}),
                 Self = self(),
-                Self ! start,
                 %% By default, take the processors that are compiled
                 %% as part of synth_tools package Nixos package.
                 Dir = tools:format("~s/linux",
@@ -45,41 +44,47 @@ spawn_params(Dir, Cmd) ->
        opts => [use_stdio, binary, exit_status, {packet,4}] %% FIXME
      }.
 
-handle_proc(start, #{ name := Name, spawn_port := SpawnPort, dir := Dir } = State) ->
-    case maps:find(port, State) of
-        {ok, _Port} ->
-            State;
-        error ->
-            Cmd = tools:format("~s.dynamic.host.elf",[Name]),
-            log:info("Cmd = ~p~n", [Cmd]),
-            maps:put(
-              port,
-              SpawnPort(spawn_params(Dir,Cmd)),
-              State)
-    end;
+handle_proc({Pid, start},
+            #{ name := Name,
+               spawn_port := SpawnPort,
+               dir := Dir } = State) ->
+    State1 = 
+        case maps:find(port, State) of
+            {ok, _Port} ->
+                %% Idempotent: already started.
+                State;
+            error ->
+                Cmd = tools:format("~s.dynamic.host.elf",[Name]),
+                log:info("Cmd = ~p~n", [Cmd]),
+                Port = SpawnPort(spawn_params(Dir,Cmd)),
+                %% FIXME: This delay should be replaced by an RPC to
+                %% the client, to ensure all external communication
+                %% functionality (Jack connection, TCP service, ...)
+                %% is up.
+                timer:sleep(250),
+                maps:put(port, Port, State)
+        end,
+    obj:reply(Pid, ok),
+    State1;
 
-handle_proc(stop, State) ->
+handle_proc({Pid, stop}, State) ->
     log:info("stop\n"),
-    case maps:find(port, State) of
-        {ok, Port} ->
-            port_close(Port),
-            %% Sleep workaround to make sure jack sees the unregister
-            %% before the register.  The right way to do this is to
-            %% wait for the unreg event, but that is a lot of work to
-            %% implement.
-            timer:sleep(250),
-            ok;
-        error ->
-            ok
-    end,
-    maps:remove(port, State);
-
-%% FIXME: Add restart with path
-handle_proc(restart, State) ->
-    lists:foldl(
-      fun(Cmd, S) -> handle_proc(Cmd, S) end,
-      State,
-      [stop, start]);
+    State1 = 
+        case maps:find(port, State) of
+            {ok, Port} ->
+                port_close(Port),
+                %% FIXME: This delay should be replaced by an RPC to the
+                %% client, to ensure all external communication
+                %% functionality (Jack connection, TCP service, ...) is
+                %% down.
+                timer:sleep(250),
+                maps:remove(port, State);
+            error ->
+                %% Idempotent: already stopped.
+                State
+        end,
+    obj:reply(Pid, ok),
+    State1;
 
 handle_proc({set_dir, Dir}, State) ->
     maps:put(dir, Dir, State);
@@ -96,7 +101,7 @@ handle_proc({midi, PortNb, Cmd}, State) ->
                 handle_proc({midi, PortNb, Midi}, State)
         end,
     case Cmd of
-        start    -> F(<<16#FA>>);
+        play     -> F(<<16#FA>>);
         continue -> F(<<16#FB>>);
         stop     -> F(<<16#FC>>);
         _ -> State
@@ -187,3 +192,10 @@ handle_proc(Msg, State) ->
     end.
 
 
+
+start(Pid) -> obj:call(Pid, start).
+stop(Pid)  -> obj:call(Pid, stop).
+restart(Pid) -> stop(Pid), start(Pid).
+
+
+    

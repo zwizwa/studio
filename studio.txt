@@ -9691,3 +9691,77 @@ Date: Fri Nov 17 02:40:29 PM CET 2023
 - compile to tag_u32 sequence
 - send tag_u32
 
+
+Entry: next
+Date: Sun Nov 19 01:05:15 PM CET 2023
+
+- shift to raw events in add() DONE
+
+- actually play the sequence
+
+The latter needs to be implemented still, but is straightforward.
+Best to do that in Neerpelt.
+
+Anything else on the train?
+
+
+
+Entry: next
+Date: Sun Nov 19 04:29:00 PM CET 2023
+
+- proper start/stop of jack
+- make a single solution for pulse + jack  (= always use dedicated card)
+
+
+Entry: synchronous start / stop
+Date: Mon Nov 20 09:44:13 AM CET 2023
+
+First: one tension point that is hard to resolve: should the Erlang
+processes that wrap an external Linux process be just not running, or
+running with a state that indicates off?
+
+Can wait.  More important is to have a synchronous start for Pd.
+
+Also starting to think that it might be better to use a Pd external to
+perform the linkage to midi.
+
+Another question: can libpd open a gui?
+Seems like this is too much to absorb at once.
+
+Ok I'm lost.
+
+Where to start?  There is no full plan.
+
+
+
+
+Entry: debugging
+Date: Mon Nov 20 11:11:04 AM CET 2023
+
+I think the add pattern is not adding the start to the timer.
+This needs to be changed somehow.
+
+It's not possible to delete events from the timer queue.  So maybe it
+is best to mark the event for deletion instead?
+
+I am running into a lot of issues with this simple model.
+
+What do I want to do?  Find an event in the timer and cancel it.
+
+Actually it might be simpler.  Delete loop can be implemented as:
+break loop + push to freelist.  But that does not solve the issue.
+
+It can be solved with indirection.  Instead of linking.
+
+
+Two changes:
+- O(1) loop delete
+- Indirection of next pointer.
+
+This way a loop can be changed on the fly: the currently scheduled
+event will just play the currently recorded event (separate).
+
+
+
+
+

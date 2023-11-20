@@ -134,6 +134,11 @@ jack_client_proc(#{ spawn_port := SpawnPort }, Name) ->
     %% FIXME: Maybe abstract the spawn mechanism?
     %% jack_client:proc(#{name => Name, spawn_port => SpawnPort}).
     Pid = exo:need({jack_client, Name}),
+
+    %% The jack_client wrapper no longer starts the port process
+    %% automatically, so we do that here.
+    jack_client:start(Pid),
+
     {ok, Pid}.
     
 
