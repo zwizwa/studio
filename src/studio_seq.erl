@@ -1,5 +1,5 @@
 -module(studio_seq).
--export([split_loop/1, time_scale/2, pattern/2]).
+-export([split_loop/1, time_scale/2, pattern/1]).
 
 %% Sequences are [{Timestamp, Stuff}].
 %% Normalize to T=0, average timestamp, pick first payload.
@@ -19,17 +19,18 @@ split_loop(Seq) ->
 %% clearing pattern and adding steps.  Each step is an event and the
 %% delay to the next event.  Pattern needs to start at 0 for this to
 %% work.
-pattern(PatNb, {ClockDiv, {Len,Seq=[{0,_}|_]}}) ->
-    [[clock_div, ClockDiv],
-     [pat_clear, PatNb]] ++
-    lists:zipwith(
-      fun({T,Stuff},{Tnext,_}) ->
-              {Type, Track, Arg1, Arg2} = Stuff,
-              Delay = Tnext - T,
-              [pat_add, PatNb, Type, Track, Arg1, Arg2, Delay] 
-      end,
-      Seq,
-      tl(Seq) ++ [{Len, sentinel_ignored}]).
+pattern({ClockDiv, {Len,Seq=[{0,_}|_]}}) ->
+    fun(PatNb) ->
+            [[clock_div, ClockDiv]] ++
+            lists:zipwith(
+              fun({T,Stuff},{Tnext,_}) ->
+                      {Type, Track, Arg1, Arg2} = Stuff,
+                      Delay = Tnext - T,
+                      [pat_add, PatNb, Type, Track, Arg1, Arg2, Delay] 
+              end,
+              Seq,
+              tl(Seq) ++ [{Len, sentinel_ignored}])
+    end.
 
 %% Shift the time tags to T=0 for first event.
 time_shift(Lst=[{T0,_}|_]) ->

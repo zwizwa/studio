@@ -41,7 +41,8 @@
 
 -module(jack_daemon).
 -export([start_link/1, handle/2,
-         start_client/2, client/1]).
+         start_client/2, client/1,
+         start/1, stop/1]).
 
 
 %% Wrap the daemon and listen on its stdout as a simple way to get
@@ -50,26 +51,56 @@
 %% Once midi port aliases are known, connect them to a specified port
 %% number on the jack client.
 
-start_link(Init = #{ hubs := _,
-                     spawn_port := _}) ->
-    {ok, serv:start(
-           {handler,
-            fun() -> 
-                    log:set_info_name(?MODULE),
-                    %% timer:send_after(2000, start),
-                    self() ! start,
-                    Init
-            end,
-            fun ?MODULE:handle/2})}.
-
-handle(start, State) ->
+do_start(State) ->
+    %% Precondition: not started
+    error = maps:find(port, State),
     SH = code:priv_dir(studio) ++ "/start_jackd.sh",
     tools:info("jackd_open: ~s~n",[SH]),
     Opts = [{line,1024}, binary, use_stdio, exit_status],
     Port = open_port({spawn, SH}, Opts),
     %% FIXME: sync?
     timer:send_after(1000, need_clients),
-    maps:put(port, Port, State);
+    maps:put(port, Port, State).
+
+start_link(Init = #{ hubs := _,
+                     spawn_port := _}) ->
+    {ok, serv:start(
+           {handler,
+            fun() -> 
+                    log:set_info_name(?MODULE),
+                    do_start(Init)
+            end,
+            fun ?MODULE:handle/2})}.
+
+handle({Pid, start}, State) ->
+    case maps:find(port, State) of
+        {ok, Port} ->
+            obj:reply(Pid, {ok, Port}),
+            State;
+        error ->
+            State1 = do_start(State),
+            obj:reply(Pid, {ok, maps:get(port, State1)}),
+            State1
+    end;
+        
+
+handle({Pid, stop}, State) ->
+    State1 =
+        case maps:find(port, State) of
+            {ok, Port} ->
+                port_close(Port),
+                %% FIXME: This delay should be replaced by an RPC to the
+                %% client, to ensure all external communication
+                %% functionality (Jack connection, TCP service, ...) is
+                %% down.
+                timer:sleep(250),
+                maps:remove(port, State);
+            error ->
+                %% Idempotent: already stopped.
+                State
+        end,
+    obj:reply(Pid, ok),
+    State1;
 
 handle(need_clients, State) ->
     need_clients(State);
@@ -171,3 +202,7 @@ start_client(Name, State=#{ hubs := Hubs, notify := Notify, spawn_port := SpawnP
 
 client(Name) ->
     maps:get(Name, obj:get(jack_daemon, clients)).
+
+
+stop(Pid) -> obj:call(Pid, stop).
+start(Pid) -> obj:call(Pid, start).

@@ -28,4 +28,8 @@ t() ->
       pattern => studio_seq:pattern(0, SeqClock)}.
 
 
+%% Incremental recording.  The "cursor" consists of 2 parts: the event
+%% data is written in the new step, while the delay is written in the
+%% old.
+
            

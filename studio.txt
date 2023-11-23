@@ -9735,7 +9735,7 @@ Where to start?  There is no full plan.
 
 
 
-Entry: debugging
+Entry: data structure tweaks
 Date: Mon Nov 20 11:11:04 AM CET 2023
 
 I think the add pattern is not adding the start to the timer.
@@ -9761,7 +9761,225 @@ Two changes:
 This way a loop can be changed on the fly: the currently scheduled
 event will just play the currently recorded event (separate).
 
+EDIT: that seems to work.  next step is to fix the player.
+
+Problem is that I do not know if an event is started already: it's not
+ok to start it twice.
+
+Yeah this data structure is tricky to maintain....
+
+Maybe each loop should just be running from the start already?
+I.e. there are no empty loops.
 
 
+What about this: there is always a "rest" at the end to act as a
+sentinel.
+
+( I really cannot focus on this. )
+
+It seems best to keep different invariants: all patterns are always
+active, or there is a flag that indicates whether a pattern is active
+or not.
+
+Maybe, now that deletion is O(1), this could be managed in the update.
+
+E.g. if a pattern is marked for deletion, its next pointer will be
+removed.  Then when it is scheduled it can be deleted.
+
+Best to also keep a freelist for patterns.
+
+
+Entry: new invariant
+Date: Mon Nov 20 01:39:31 PM CET 2023
+
+- an allocated pattern is started
+- deletion is lazy: on next schedule, there is no reschedule
+
+EDIT: did some refactoring
+i'd really like this to work
+
+next: lazy delete
+
+then everything should just work if a pattern is scheduled when it is
+created
+
+
+
+Entry: sequencer update
+Date: Tue Nov 21 03:31:45 PM CET 2023
+
+i think this might be too hard to manage
+
+one issue i have is the scheduling of events when creating a pattern.
+
+EDIT: i think i have something that would work.  next is to actually
+integrate.
+
+EDIT: it is very hard to look past this.  why is that?  more issues to
+come?
+
+
+Entry: sequencer
+Date: Wed Nov 22 09:53:49 AM CET 2023
+
+why is it so hard to focus on this?
+maybe because i really think it is pointless?
+
+recording additional events is a different problem
+
+maybe work on that
+
+yeah this is not trivial
+
+first problem: where to put the code?
+
+i think it makes sense to do it in Erlang, and leave the C code for
+just playback and basic data structure manipulation.
+
+alright... what came out of algebraic manipulation is this:
+
+- initialize the loop with an empty event containing the total duration
+
+- then on each new event patch the last duration and spill the rest
+  into the new note
+
+
+EDIT: I have a test
+
+What next?
+
+Transition from recording to playback.
+
+
+After recording the last event, the player automatically resumes.
+Maybe modify the first event in-place?
+
+Maybe not necessary.
+
+Start by scheduling the first event after a full cycle delay.
+
+Now what is missing?  Stuck again at not really wanting to try to be
+disappointed.
+
+EDIT: I think I have what I need to make actual recording work.  Just
+missing the energy.
+
+
+
+Entry: next
+Date: Wed Nov 22 04:06:58 PM CET 2023
+
+Time to just play I guess.
+
+
+Entry: maybe take a break from the synth
+Date: Thu Nov 23 10:42:24 AM CET 2023
+
+Because I don't know... It feels all so random, so hard to plan.
+Too much reliant on observation and changing my mind.
+
+Ha
+
+Maybe it is the right thing then!
+
+
+So, on with it.
+
+
+Entry: Actually finish up to recording
+Date: Thu Nov 23 10:43:48 AM CET 2023
+
+Time to get over the hump.
+
+The offline recorder should use the same mechanism as the online one:
+allocate new pattern in the cursor, push new events to it.
+
+Also should start out with pattern length.
+
+
+Entry: split it up
+Date: Thu Nov 23 11:29:04 AM CET 2023
+
+Nov 23 11:28:40 tp exo_vm[308696]: Tape=[{19840,{9,0,60,29}},
+Nov 23 11:28:40 tp exo_vm[308696]:       {26752,{8,0,60,35}},
+Nov 23 11:28:40 tp exo_vm[308696]:       {33664,{9,0,66,48}},
+Nov 23 11:28:40 tp exo_vm[308696]:       {40768,{8,0,66,8}},
+Nov 23 11:28:40 tp exo_vm[308696]:       {48768,{9,0,66,44}},
+Nov 23 11:28:40 tp exo_vm[308696]:       {57344,{8,0,66,2}},
+Nov 23 11:28:40 tp exo_vm[308696]:       {59328,{9,0,60,33}},
+Nov 23 11:28:40 tp exo_vm[308696]:       {68800,{8,0,60,25}},
+Nov 23 11:28:40 tp exo_vm[308696]:       {74240,{9,0,66,19}},
+Nov 23 11:28:40 tp exo_vm[308696]:       {82560,{8,0,66,8}},
+Nov 23 11:28:40 tp exo_vm[308696]:       {90304,{9,0,66,44}},
+Nov 23 11:28:40 tp exo_vm[308696]:       {97216,{8,0,66,58}}]
+
+I got to the point where the program is sent to hub.c but then it
+crashes and I can't see what is happening.
+
+1. How to attach a debugger?
+
+2. Do something simpler: start it up with a generated pattern
+
+In gdb process is exiting normally.
+It seems to crash here:
+reason: {timeout,2000,{req_u32,[4294967295,2],<<"restart">>}}
+
+
+
+Entry: attaching gdb
+Date: Thu Nov 23 11:31:11 AM CET 2023
+
+tom@tp:~$ ps aux|grep hub
+tom       871492  0.5  0.7 182760 117204 ?       SLsl 11:30   0:00 /i/exo/synth_tools/linux/hub.dynamic.host.elf
+
+tom@tp:/i/exo/synth_tools/linux$ gdb hub.dynamic.host.elf
+(gdb) attach 871492
+
+
+
+Entry: debugging
+Date: Thu Nov 23 12:20:12 PM CET 2023
+
+I think it's not receiving clocks.
+Check that first.
+Then print the patterns.
+
+
+Entry: usability
+Date: Thu Nov 23 01:30:34 PM CET 2023
+
+On train.  Jack running but FTPro is not plugged in.
+Trying restart.
+
+There is no clean restart functionality.
+
+
+Entry: start/stop
+Date: Thu Nov 23 01:38:48 PM CET 2023
+
+I think the mistake is entirely in not making this synchronous.
+
+1. Start/Stop should be idempotent
+2. After starting, the daemon is up.
+3. After stopping the daemon is down and can be started again.
+
+The synchronous process is necessary because start/stop is not atomic:
+there is an intermediate state where side-channels (Jack connections
+e.g.) might not work yet.
+
+I think that is the big lesson here when managing daemons using redo
+dependency management.
+
+Then second: to manage restarts, the _value_ of a daemon must change.
+For wrapped daemons this should be the value of the managed (Linux)
+process, not the Erlang.
+
+The port handler is probably enough.
+
+
+(exo@tp.zoo)264> jack_daemon:start(i:jack()).
+{ok,#Port<0.4297>}
+
+So change the redo rule as well.
 
 

@@ -8,7 +8,10 @@
          %% RPC
          start/1,
          stop/1,
-         restart/1
+         restart/1,
+         new_pattern/3,
+
+         test/2
         ]).
 
 -define(TAG_STREAM, 16#FFFB).
@@ -137,16 +140,11 @@ handle_proc({Port,{data,<<?TAG_PTERM:16,Pterm/binary>>}},
             Seq = studio_seq:split_loop(Tape),
             NbClocks = 24 * 2,
             SeqClock = studio_seq:time_scale(NbClocks, Seq),
-            Pattern = studio_seq:pattern(0, SeqClock),
-            log:info("Pattern=~p~n", [Pattern]),
+            MakePattern = studio_seq:pattern(SeqClock),
+            DTime = 48, %% Time until pattern starts playing.
             %% Spawn temp task to RPC into this object
             Pid = self(),
-            spawn(
-              fun() ->
-                      lists:foreach(
-                        fun(Cmd) -> tag_u32:call(Pid, Cmd) end,
-                        Pattern)
-              end),
+            spawn(fun() -> new_pattern(Pid, MakePattern, DTime) end),
             maps:put(tape, [], State);
         {record, Cmd} ->
             maps:put(tape, [Cmd|TapeStack], State);
@@ -197,5 +195,20 @@ start(Pid) -> obj:call(Pid, start).
 stop(Pid)  -> obj:call(Pid, stop).
 restart(Pid) -> stop(Pid), start(Pid).
 
-
+new_pattern(Pid, MakePattern, DTime) ->   
+    case tag_u32:call(Pid, [pat_alloc, DTime]) of
+        {[PatNb],<<>>} ->
+            log:info("pat_alloc -> ~p~n", [PatNb]),
+            Pattern = MakePattern(PatNb),
+            log:info("Pattern=~p~n", [Pattern]),
+            lists:foreach(
+              fun(Cmd) -> tag_u32:call(Pid, Cmd) end,
+              Pattern)
+    end.
     
+test(Pid,pattern) ->
+    MakePattern =
+        fun(PatNb) ->
+                ok
+        end,
+    new_pattern(Pid, MakePattern, 48).
