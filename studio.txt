@@ -10003,3 +10003,19 @@ actually playing.
 
 Alright I was going to change pat_add to a local context, i.e. use the
 cursor.
+
+EDIT: Done
+
+It is now making it to the play function:
+
+Nov 24 11:53:09 tp exo_vm[955034]: pattern 0
+Nov 24 11:53:09 tp exo_vm[955034]: step 3
+Nov 24 11:53:09 tp exo_vm[955034]: pat_tick 00 80 42 1c
+Nov 24 11:53:09 tp exo_vm[955034]: tick time=996
+Nov 24 11:53:09 tp exo_vm[955034]: pattern 0
+Nov 24 11:53:09 tp exo_vm[955034]: step 4
+Nov 24 11:53:09 tp exo_vm[955034]: pat_tick 00 90 42 1c
+
+Next: make sure this goes to the pd output.
+
+

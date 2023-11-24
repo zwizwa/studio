@@ -195,7 +195,15 @@ restart(Pid) -> stop(Pid), start(Pid).
 
 program(Pid, Program) ->   
     lists:foreach(
-      fun(Cmd) ->
+      fun({Cmd,Bin}) ->
+              %% Not sure what to do with errors, so let it crash on a
+              %% match error here.
+              case tag_u32:call(Pid, Cmd, Bin) of
+                  {[0|_],_} ->
+                      %% Each call needs to complete.
+                      ok
+              end;
+         (Cmd) ->
               %% Not sure what to do with errors, so let it crash on a
               %% match error here.
               case tag_u32:call(Pid, Cmd) of

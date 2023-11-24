@@ -23,10 +23,9 @@ pattern({ClockDiv, {Len,Seq=[{0,_}|_]}}) ->
     [[clock_div, ClockDiv],
      [pattern_begin]] ++
     lists:zipwith(
-      fun({T,Stuff},{Tnext,_}) ->
-              {Type, Track, Arg1, Arg2} = Stuff,
+      fun({T,Stuff},{Tnext,_}) when is_binary(Stuff) ->
               Delay = Tnext - T,
-              [step, Type, Track, Arg1, Arg2, Delay] 
+              {[step, Delay], Stuff} 
       end,
       Seq,
       tl(Seq) ++ [{Len, sentinel_ignored}]) ++
