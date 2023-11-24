@@ -20,17 +20,18 @@ split_loop(Seq) ->
 %% delay to the next event.  Pattern needs to start at 0 for this to
 %% work.
 pattern({ClockDiv, {Len,Seq=[{0,_}|_]}}) ->
-    fun(PatNb) ->
-            [[clock_div, ClockDiv]] ++
-            lists:zipwith(
-              fun({T,Stuff},{Tnext,_}) ->
-                      {Type, Track, Arg1, Arg2} = Stuff,
-                      Delay = Tnext - T,
-                      [pat_add, PatNb, Type, Track, Arg1, Arg2, Delay] 
-              end,
-              Seq,
-              tl(Seq) ++ [{Len, sentinel_ignored}])
-    end.
+    [[clock_div, ClockDiv],
+     [pattern_begin]] ++
+    lists:zipwith(
+      fun({T,Stuff},{Tnext,_}) ->
+              {Type, Track, Arg1, Arg2} = Stuff,
+              Delay = Tnext - T,
+              [step, Type, Track, Arg1, Arg2, Delay] 
+      end,
+      Seq,
+      tl(Seq) ++ [{Len, sentinel_ignored}]) ++
+    [[pattern_end]].
+
 
 %% Shift the time tags to T=0 for first event.
 time_shift(Lst=[{T0,_}|_]) ->

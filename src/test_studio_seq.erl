@@ -25,11 +25,19 @@ t() ->
     SeqClock = studio_seq:time_scale(24 * 2, Seq),
     #{samples => Seq,
       midi_clock => SeqClock,
-      pattern => studio_seq:pattern(0, SeqClock)}.
+      pattern => studio_seq:pattern(SeqClock)}.
 
 
-%% Incremental recording.  The "cursor" consists of 2 parts: the event
-%% data is written in the new step, while the delay is written in the
-%% old.
-
-           
+%% Run against jack_client hub.c
+t(Pid) ->
+    Program =
+      [[clock_div,833],
+       [pattern_begin],
+       [step,9,0,60,4,9],
+       [step,8,0,60,41,9],
+       [step,9,0,66,48,8],
+       [step,8,0,66,28,10],
+       [step,9,0,66,28,8],
+       [step,8,0,66,7,4],
+       [pattern_end]],
+    jack_client:program(Pid, Program).

@@ -114,8 +114,8 @@ handle({Port, {data, Data}}, #{port := Port} = State) ->
             log:info("UNEXPECTED: Data=~p~n", [Data])
     end;
 handle({Port, {exit_status, _}}=Msg, State = #{ port := Port }) ->
-    log:info("WARNING: ~p~n", [Msg]),
-    timer:send_after(2000, start),
+    log:info("WARNING: jack_daemon: ~p~n", [Msg]),
+    %% Don't restart here
     maps:remove(port, State);
 
 

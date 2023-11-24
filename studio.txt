@@ -9982,4 +9982,24 @@ The port handler is probably enough.
 
 So change the redo rule as well.
 
+EDIT: Done
 
+
+Entry: robustness
+Date: Fri Nov 24 09:20:59 AM CET 2023
+
+I still get jack daemons that are not stopped properly. Maybe add a
+probe before starting to indicate that a daemon is running already,
+then take the time to kill it?
+
+But overall this is an improvements.
+
+
+Entry: next
+Date: Fri Nov 24 09:23:04 AM CET 2023
+
+TODO: Push a simple pattern to the sequencer, and verify that it is
+actually playing.
+
+Alright I was going to change pat_add to a local context, i.e. use the
+cursor.
