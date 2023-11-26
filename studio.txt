@@ -10018,4 +10018,94 @@ Nov 24 11:53:09 tp exo_vm[955034]: pat_tick 00 90 42 1c
 
 Next: make sure this goes to the pd output.
 
+EDIT: ok works. cleaned it up a bit.
+
+
+Entry: next
+Date: Fri Nov 24 03:54:51 PM CET 2023
+
+Next step is context switch into building some sounds.  Not sure if I
+can do that right now, but maybe interesting to do with the kids.  Nah
+it's finished...
+
+
+Entry: next
+Date: Sun Nov 26 08:30:37 AM CET 2023
+
+So next is polish, and building some instruments and effects.
+
+It still doesn't start up right.
+Many details still not ok.
+
+It seems to not connect when the hub comes up.
+
+
+Entry: The other daemons
+Date: Sun Nov 26 08:44:39 AM CET 2023
+
+Maybe they should also be managed by redo.
+Because I think I have a case where one of them is not starting properly.
+
+Or maybe because the port process is no longer started automatically,
+this doesn't work well?
+
+Ok do it like this: at jack daemon start, it starts the required jack
+clients, but also make a redo rule for these.
+
+Indeed: control is not running.
+
+
+Entry: why is control client different?
+Date: Sun Nov 26 08:56:25 AM CET 2023
+
+The main problem in managing this stuff is the non-uniformity.  Maybe
+time to make the control client int a normal jack_client.
+
+Actually there are two:
+
+            %% Upstream alsa to jack midi bridge
+            a2jmidid -> jack_a2jmidid:start_link(#{});
+
+            %% RPC jack interface
+            control ->
+                jack_control:start_link(
+                  #{client => "studio_control",
+                    notify => Notify
+                   })
+
+
+What I want: all jack clients are supported by jack_client.erl
+
+If there are binaries that use a different protocol, let's figure out
+how to wrap that in jack_client.erl
+
+
+
+Entry: unify jack_client
+Date: Sun Nov 26 09:01:49 AM CET 2023
+
+a2jmidid uses just the line protocol
+
+what about this: since we are using socat anyway to allow
+exit-on-input-close, let's build something that speaks tag protocol
+
+there is already pd.c to get inspired by
+but that is mostly doing something else
+
+i really need just a small socat-like thing
+
+let's call it exec
+
+EDIT: draft ready
+
+
+Entry: unify i.jackd and jackd.local
+Date: Sun Nov 26 09:58:20 AM CET 2023
+
+I don't remember why these are split up, but they should be the same.
+
+Start by removing the a2j stuff, turn it into a proper jack client.
+
+
+
 

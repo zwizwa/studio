@@ -12,6 +12,7 @@
          program/2
         ]).
 
+-define(TAG_INFO,   16#FFFE).
 -define(TAG_STREAM, 16#FFFB).
 -define(TAG_PTERM,  16#FFEE).
 -define(TAG_U32,    16#FFF5).
@@ -123,6 +124,11 @@ handle_proc({Port,{data,<<255,253>>}},
             State = #{port := Port, ping_reply_to := ReplyTo}) ->
     obj:reply(ReplyTo, ok),
     maps:remove(ping_reply_to, State);
+
+handle_proc({Port,{data,<<?TAG_INFO:16, Log/binary>>}},
+            State = #{port := Port}) ->
+    log:info("info: ~s", [Log]),
+    State;
 
 handle_proc({Port,{data,<<?TAG_PTERM:16,Pterm/binary>>}},
             State = #{port := Port}) ->
