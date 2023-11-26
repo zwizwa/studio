@@ -189,7 +189,7 @@ start_client(Name, State=#{ hubs := Hubs, notify := Notify, spawn_port := SpawnP
             synth -> jack_client_proc(State, <<"synth">>);
 
             %% Upstream alsa to jack midi bridge
-            a2jmidid -> jack_a2jmidid:start_link(#{});
+            a2jmidid -> jack_client_proc(State, <<"a2jmidid">>);
 
             %% RPC jack interface
             control ->
