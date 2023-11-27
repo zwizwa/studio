@@ -10108,4 +10108,94 @@ Start by removing the a2j stuff, turn it into a proper jack client.
 
 
 
+Entry: jack_control
+Date: Sun Nov 26 03:19:22 PM CET 2023
+
+First, change it to {packet,4}.
+
+Actually, instead move the functionality to hub.c
+
+I'm actually thinking about moving clock.c into hub.c as well.
+There is just no need to microserverize everything.
+
+And maybe it's best to clone the behavior of a2jmidid as well instead.
+The 1-1 map is already an indication.
+
+But let's do this with jack_control first.
+
+The jack callbacks have been added to hub.c
+It already used pterm so this is easy.
+
+The connect is different:
+
+                char *src = &buf[1];
+                char *dst = src + strlen(src) + 1;
+                // LOG("connect %s %s\n", src, dst);
+                switch(buf[0]) {
+                case CMD_CONNECT:
+                    jack_connect(client, src, dst);
+                    break;
+                case CMD_DISCONNECT:
+                    jack_disconnect(client, src, dst);
+                    break;
+                }
+
+This needs to be embedded in a tag protocol.
+Preferably tag_u32
+
+Ok done.
+
+Next is to replace this from jack_control.erl:
+handle({Port,{data, Data}}, State = #{ port := Port, notify := Notify }) ->
+    Notify(Parsed),
+...
+
+The notify is passed to jack daemon, so maybe simplest that jack
+daemon uses its hub client reference to forward this.
+
+Getting lost in arbitrary connectivity shit...
+
+Think about this for a bit.  There are more of these "where's the
+other process" problems.
+
+
+Entry: global structure
+Date: Sun Nov 26 04:30:19 PM CET 2023
+
+Yeah maybe it's just time to stop for today.
+
+
+Entry: next
+Date: Mon Nov 27 11:10:21 AM CET 2023
+
+Find the other process.  That's a deep one.
+
+Maybe it can be avoided.
+The notify -> connect path is in the same object (jack_client of hub.c)
+What's not there is the data that is used to do the mapping.
+
+It seems that this mapping will have to happen in jack_daemon.
+
+So jack_client hub.c can send to jack_daemon, and jack daemon can send
+back to hub.c
+
+Notify is exo_midi:jack_notify/1
+
+Which uses:
+
+    Connect = 
+        fun(Src,Dst) ->
+                jack_control ! {connect, Src, Dst},
+                ok
+        end,
+
+So that can already change to
+
+exo:need({jack_client,<<"hub">>}) ! {connect, Src, Dst}.
+
+
+I need a break.
+It's getting worn out.
+
+
 

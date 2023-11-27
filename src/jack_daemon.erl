@@ -62,8 +62,7 @@ do_start(State) ->
     timer:send_after(1000, need_clients),
     maps:put(port, Port, State).
 
-start_link(Init = #{ hubs := _,
-                     spawn_port := _}) ->
+start_link(Init = #{ }) ->
     {ok, serv:start(
            {handler,
             fun() -> 
@@ -133,14 +132,26 @@ handle({client, Msg}, State) ->
 handle(Msg={_, {find, _}}, State) ->
     obj:handle(Msg, State);
 
+handle(Msg = {connect,_,_}, State) ->
+    {Hub, State1} = hub_client(State),
+    Hub ! Msg,
+    State1;
+
+%% Notifications from jack_client hub.c are sent here.
+handle(_Msg = {jack_control, ControlMsg}, State = #{notify := Notify}) ->
+    %% log:info("jack_daemon: ~p~n", [_Msg]),
+    Notify(ControlMsg),
+    State;
+
 handle(Msg={_,dump}, State) ->
     obj:handle(Msg, State).
 
 
-control_client(State) ->
+hub_client(State) ->
     State1 = need_clients(State),
     Clients = maps:get(clients, State1),
-    {maps:get(control, Clients), State1}.
+    {maps:get(hub, Clients), State1}.
+
 
 %% Clients are started on demand, to ensure it happens when daemon is
 %% started.
@@ -152,52 +163,22 @@ need_clients(State) ->
       clients,
       maps:from_list(
         [{Name,start_client(Name, State)}
-         || Name <- [control   %% RPC
-                    ,clock     %% synth_tools clock.c
+         || Name <- [clock     %% synth_tools clock.c
                     ,hub       %% synth_tools hub.c (MIDI / Erlang hub)
                     ,synth     %% synth_tools synth.c
                     ,a2jmidid  %% upstream alsa to jack midi bridge
                     ]]),
       State).
 
-jack_client_proc(#{ spawn_port := SpawnPort }, Name) ->
-    %% Let exo start the client.
-    %% FIXME: Maybe abstract the spawn mechanism?
-    %% jack_client:proc(#{name => Name, spawn_port => SpawnPort}).
+jack_client_proc(State, Name) ->
     Pid = exo:need({jack_client, Name}),
-
     %% The jack_client wrapper no longer starts the port process
     %% automatically, so we do that here.
     jack_client:start(Pid),
-
     {ok, Pid}.
-    
 
-start_client(Name, State=#{ hubs := Hubs, notify := Notify, spawn_port := SpawnPort }) ->
-    {ok, Pid} = 
-        case Name of
-
-            %% FIXME: Should these be started here?
-
-            %% Main MIDI clock source (synth_tools)
-            clock -> jack_client_proc(State, <<"clock">>);
-
-            %% Centralized midi hub from synth_tools.
-            hub   -> jack_client_proc(State, <<"hub">>);
-
-            %% Example MIDI synth (synth_tools)
-            synth -> jack_client_proc(State, <<"synth">>);
-
-            %% Upstream alsa to jack midi bridge
-            a2jmidid -> jack_client_proc(State, <<"a2jmidid">>);
-
-            %% RPC jack interface
-            control ->
-                jack_control:start_link(
-                  #{client => "studio_control",
-                    notify => Notify
-                   })
-        end,
+start_client(Name, State) ->
+    {ok, Pid} = jack_client_proc(State, atom_to_binary(Name)),
     Pid.
 
 client(Name) ->

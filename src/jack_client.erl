@@ -1,6 +1,18 @@
-%% Standardized wrapper for synth_tools jack clients.  These speak
-%% uc_tools tag protocol on stdio, implementing TAG_U32 / TAG_PTERM /
-%% TAG_STREAM (midi)
+%% To simplify:
+%%
+%% 1. All jack clients speak the uc_tools packet tag protocol, and
+%%    exit when stdin is closed (standard Erlang port behavior).
+%%
+%% 2. All jack clients are implemented as synth_tools/linux/*.c
+%%    compiled to .dynamic.host.elf
+%%
+%% 3. The "distribution" version has these installed in /nix/store,
+%%    while the development version uses /i/exo/
+%%
+%% 4. External jack clients (e.g. a2jmidid or Pd) use a wrapper .c
+%%    file that translates between the jack_client.erl protocol and
+%%    whatever the application needs.
+
 
 -module(jack_client).
 -export([%% run_udp/1, handle_udp/2,
@@ -16,6 +28,10 @@
 -define(TAG_STREAM, 16#FFFB).
 -define(TAG_PTERM,  16#FFEE).
 -define(TAG_U32,    16#FFF5).
+
+%% Jack control
+-define(CMD_CONNECT,1).
+-define(CMD_DISCONNECT,2).
 
 %% Start a processor or synth.
 proc(#{ name := Name,  %% basename
@@ -43,7 +59,7 @@ spawn_params(Dir, Cmd) ->
     #{ dir  => Dir,
        cmd  => Cmd,
        args => [],
-       opts => [use_stdio, binary, exit_status, {packet,4}] %% FIXME
+       opts => [use_stdio, binary, exit_status, {packet,4}]
      }.
 
 handle_proc({Pid, start},
@@ -110,6 +126,13 @@ handle_proc({midi, PortNb, Cmd}, State) ->
     end;
 
 
+handle_proc({connect, Src, Dst}=_Msg, State) ->
+    Bin = tools:format_binary("~s~s", [Src, Dst]),
+    Pid = self(),
+    Cmd = [jack_port, ?CMD_CONNECT, size(Src), size(Dst)],
+    spawn(fun() -> tag_u32:call(Pid, Cmd, Bin) end),
+    State;
+
 handle_proc({midi, Midi}, State) ->
     handle_proc({midi, 0, Midi}, State);
 
@@ -133,7 +156,7 @@ handle_proc({Port,{data,<<?TAG_INFO:16, Log/binary>>}},
 handle_proc({Port,{data,<<?TAG_PTERM:16,Pterm/binary>>}},
             State = #{port := Port}) ->
     Term = type:decode({pterm,Pterm}),
-    log:info("jack_client: pterm: ~p~n", [Term]),
+    %% log:info("jack_client: pterm: ~p~n", [Term]),
     TapeStack = maps:get(tape, State, []),
     case Term of
         {record, start} ->
@@ -152,6 +175,13 @@ handle_proc({Port,{data,<<?TAG_PTERM:16,Pterm/binary>>}},
             maps:put(tape, [], State);
         {record, Cmd} ->
             maps:put(tape, [Cmd|TapeStack], State);
+        {jack_control, ControlMsg} ->
+            %% Forward it to jack_daemon which is tied into the rest
+            %% of the system.  It seems safe to use the registered
+            %% name here.
+            %% log:info("jack_client: jack_control: ~999p~n",[ControlMsg]),
+            jack_daemon ! Term,
+            State;
         _ ->
             State
     end;

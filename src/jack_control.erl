@@ -1,6 +1,10 @@
 %% This uses a different API than jack_client.erl
 %% but the restart interface is kept similar.
 
+%% FIME: I don't think I'm going to change jack_control.erl|c, but
+%% instead move the connect/disconnect commands and notification logic
+%% to hub.c, then just remove it later.
+
 -module(jack_control).
 -export([start_link/1, handle/2,
         ports/0, ports/1, clients/0]).
@@ -20,7 +24,7 @@ start_link(#{client := Client, notify := _Notify}=Config) ->
                                       [os:getenv("SYNTH_TOOLS")]),
 
                    Cmd = tools:format("~s/jack_control.dynamic.host.elf jack_control",[Dir]),
-                   Args = [{spawn,Cmd},[{packet,1},binary,exit_status]],
+                   Args = [{spawn,Cmd},[{packet,4},binary,exit_status]],
                    handle(
                      restart_port,
                      maps:put(open_port, Args, Config))
