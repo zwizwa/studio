@@ -2,7 +2,7 @@
 -export([split_loop/1,
          time_scale/2,
          pattern/1,
-         save_patterns/1,
+         list_patterns/1,
          save_pattern/2,
          load_pattern/2,
          set_clock_div/2,
@@ -72,8 +72,8 @@ pattern_unpack(Bin) ->
 %% Queries
 
 %% i:hub()
-save_patterns(HubPid) ->
-    {[0], Bin} = tag_u32:call(HubPid, [save_patterns]),
+list_patterns(HubPid) ->
+    {[0], Bin} = tag_u32:call(HubPid, [list_patterns]),
     [Nb || <<Nb:16/little>> <= Bin].
 save_pattern(HubPid, Pattern) ->
     case tag_u32:call(HubPid, [save_pattern,Pattern]) of
@@ -87,7 +87,7 @@ load_pattern(HubPid, Bin) when is_binary(Bin) ->
     PatNb.
 
 save(HubPid) ->
-    Patterns = save_patterns(HubPid),
+    Patterns = list_patterns(HubPid),
     [begin
          {ok, Steps} = save_pattern(HubPid, Pattern),
          Steps
