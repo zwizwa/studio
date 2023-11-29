@@ -1,12 +1,12 @@
 -module(studio_seq).
 -export([split_loop/1,
          time_scale/2,
-         pattern/1,
          list_patterns/1,
          save_pattern/2,
          load_pattern/2,
          set_clock_div/2,
          pattern_unpack/1,
+         pattern_pack/1,
          save/1
         ]).
 
@@ -24,25 +24,6 @@ split_loop(Seq) ->
        F1 = time_shift(F),
        S1 = time_shift(S))}.
 
-%% Convert to pattern sequencer commands, setting global tempo,
-%% clearing pattern and adding steps.  Each step is an event and the
-%% delay to the next event.  Pattern needs to start at 0 for this to
-%% work.
-
-%% FIXME: Change this to binary set_raw_steps and remove the
-%% pattern_begin, pattern_end, step commands.
-
-pattern({ClockDiv, {Len,Seq=[{0,_}|_]}}) ->
-    [[clock_div, ClockDiv],
-     [pattern_begin]] ++
-    lists:zipwith(
-      fun({T,Stuff},{Tnext,_}) when is_binary(Stuff) ->
-              Delay = Tnext - T,
-              {[step, Delay], Stuff} 
-      end,
-      Seq,
-      tl(Seq) ++ [{Len, sentinel_ignored}]) ++
-    [[pattern_end]].
 
 
 %% Shift the time tags to T=0 for first event.
@@ -67,7 +48,17 @@ time_scale(NbClocks, Seq={Len, Evts}) ->
 %% calls.
 pattern_unpack(Bin) ->
     [{{A,B,C,D},Delay} || <<A,B,C,D,Delay:16/little>> <= Bin].
-   
+
+%% Convert back to binary.
+pattern_pack({Len,Seq=[{0,_}|_]}) ->
+    iolist_to_binary(
+      lists:zipwith(
+        fun({T,<<A,B,C,D>>},{Tnext,_}) ->
+                Delay = Tnext - T,
+                <<A,B,C,D,Delay:16/little>>
+        end,
+        Seq,
+        tl(Seq) ++ [{Len, sentinel_ignored}])).
 
 %% Queries
 

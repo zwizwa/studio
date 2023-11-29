@@ -166,12 +166,11 @@ handle_proc({Port,{data,<<?TAG_PTERM:16,Pterm/binary>>}},
             log:info("Tape=~p~n", [Tape]),
             Seq = studio_seq:split_loop(Tape),
             NbClocks = 24 * 2,
-            SeqClock = studio_seq:time_scale(NbClocks, Seq),
-            Program = studio_seq:pattern(SeqClock),
-            DTime = 48, %% Time until pattern starts playing.
+            {Div,Pattern} = studio_seq:time_scale(NbClocks, Seq),
+            PatternBin = studio_seq:pattern_pack(Pattern),
             %% Spawn temp task to RPC into this object
             Pid = self(),
-            spawn(fun() -> program(Pid, Program) end),
+            spawn(fun() -> studio_seq:load_pattern(Pid, PatternBin) end),
             maps:put(tape, [], State);
         {record, Cmd} ->
             maps:put(tape, [Cmd|TapeStack], State);

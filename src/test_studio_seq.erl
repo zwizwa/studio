@@ -25,26 +25,18 @@ bin_patterns() ->
 t() ->
     Seq = studio_seq:split_loop(seq()),
     SeqClock = studio_seq:time_scale(24 * 2, Seq),
+    {_,LenSeq} = SeqClock,
     #{samples => Seq,
       midi_clock => SeqClock,
-      pattern => studio_seq:pattern(SeqClock)}.
+      pattern => studio_seq:pattern_pack(LenSeq)}.
 
 
 %% Run against jack_client hub.c
-t(HubPid) ->
+t1(HubPid) ->
+    #{ pattern := StepsBin } = t(),
+    studio_seq:load_pattern(HubPid, StepsBin).
+    
+t2(HubPid) ->
     [studio_seq:load_pattern(HubPid, StepsBin)
      || StepsBin <- bin_patterns()].
 
-%% Old style, no longer implemented.
-t_old(HubPid) ->
-    Program =
-      [[clock_div,833],
-       [pattern_begin],
-       {[step,  9], <<0, 16#90, 60,  4>>},
-       {[step,  9], <<0, 16#80, 60, 41>>},
-       {[step,  8], <<0, 16#90, 66, 48>>},
-       {[step, 10], <<0, 16#80, 66, 28>>},
-       {[step,  8], <<0, 16#90, 66, 28>>},
-       {[step,  4], <<0, 16#80, 66,  7>>},
-       [pattern_end]],
-    jack_client:program(HubPid, Program).

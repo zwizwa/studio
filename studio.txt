@@ -10434,3 +10434,44 @@ Date: Wed Nov 29 03:18:45 PM CET 2023
 
 remove superfluous event interface
 first test pattern load/save
+
+
+Entry: next
+Date: Wed Nov 29 03:47:26 PM CET 2023
+
+would be nice to use the akai
+
+so how do i make this work?
+
+whenever hub.c sees the akai arriving, it should send an init sequence
+clearning the display, then loading pattern information.
+
+
+
+Entry: bugs
+Date: Wed Nov 29 04:03:26 PM CET 2023
+
+- don't store empty patterns
+
+
+Entry: next
+Date: Wed Nov 29 04:33:59 PM CET 2023
+
+- continue refactor akai_fire.c
+- move it into hub.c
+
+what is nice about this: the difficult part is done, which is
+timekeep.  the rest should just be mirroring state on the akai.
+
+
+Entry: confused now
+Date: Wed Nov 29 07:34:12 PM CET 2023
+
+Startup issues again after integrating the akai code.  It doesn't seem
+to actually start.  Also missing a good synchronization point to start
+it up.  This requires some focus.  Not really focused right now.
+
+Maybe do something else first: make sure the offline recorder still
+works.
+
+
