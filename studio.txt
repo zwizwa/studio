@@ -10349,3 +10349,65 @@ Date: Wed Nov 29 10:55:00 AM CET 2023
 
 See algo previous post.
 Let's try.
+
+EDIT: Seems to work.
+
+
+Entry: next
+Date: Wed Nov 29 02:00:15 PM CET 2023
+
+There are still some bugs transitioning between things.
+And still startup issues after crash.  Some lingering state.
+I really do not like the record button state.
+
+So, first the bugs
+- i see app_play twice DONE
+- stop after recording crashes
+
+
+Nov 29 14:09:11 tp exo_vm[1363188]: fd  0: EOF
+Nov 29 14:09:11 tp exo_vm[1237292]: =ERROR REPORT==== 29-Nov-2023::14:09:11.055059 ===
+Nov 29 14:09:11 tp exo_vm[1237292]: Error in process <0.4409.16> on node 'exo@tp.zoo' with exit value:
+Nov 29 14:09:11 tp exo_vm[1237292]: {{badmatch,[]},
+Nov 29 14:09:11 tp exo_vm[1237292]:  [{studio_seq,split_loop,1,[{file,"/i/exo/src/studio_seq.erl"},{line,18}]},
+Nov 29 14:09:11 tp exo_vm[1237292]:   {jack_client,handle_proc,2,[{file,"/i/exo/src/jack_client.erl"},{line,167}]},
+Nov 29 14:09:11 tp exo_vm[1237292]:   {serv,receive_loop,2,
+Nov 29 14:09:11 tp exo_vm[1237292]:         [{file,"/build/erl_tools-exo/src/serv.erl"},{line,203}]}]}
+Nov 29 14:09:11 tp exo_vm[1237292]: =SUPERVISOR REPORT==== 29-Nov-2023::14:09:11.055123 ===
+Nov 29 14:09:11 tp exo_vm[1237292]:     supervisor: {local,exo_sup}
+Nov 29 14:09:11 tp exo_vm[1237292]:     errorContext: child_terminated
+Nov 29 14:09:11 tp exo_vm[1237292]:     reason: {{badmatch,[]},
+Nov 29 14:09:11 tp exo_vm[1237292]:              [{studio_seq,split_loop,1,
+Nov 29 14:09:11 tp exo_vm[1237292]:                           [{file,"/i/exo/src/studio_seq.erl"},{line,18}]},
+Nov 29 14:09:11 tp exo_vm[1237292]:               {jack_client,handle_proc,2,
+Nov 29 14:09:11 tp exo_vm[1237292]:                            [{file,"/i/exo/src/jack_client.erl"},{line,167}]},
+Nov 29 14:09:11 tp exo_vm[1237292]:               {serv,receive_loop,2,
+Nov 29 14:09:11 tp exo_vm[1237292]:                     [{file,"/build/erl_tools-exo/src/serv.erl"},{line,203}]}]}
+Nov 29 14:09:11 tp exo_vm[1237292]:     offender: [{pid,<0.4409.16>},
+Nov 29 14:09:11 tp exo_vm[1237292]:                {id,{jack_client,<<"hub">>}},
+Nov 29 14:09:11 tp exo_vm[1237292]:                {mfargs,{exo,start_child,[{jack_client,<<"hub">>}]}},
+Nov 29 14:09:11 tp exo_vm[1237292]:                {restart_type,permanent},
+Nov 29 14:09:11 tp exo_vm[1237292]:                {significant,false},
+Nov 29 14:09:11 tp exo_vm[1237292]:                {shutdown,brutal_kill},
+Nov 29 14:09:11 tp exo_vm[1237292]:                {child_type,worker}]
+Nov 29 14:09:11 tp exo_vm[1237292]: =SUPERVISOR REPORT==== 29-Nov-2023::14:09:11.055396 ===
+Nov 29 14:09:11 tp exo_vm[1237292]:     supervisor: {local,exo_sup}
+Nov 29 14:09:11 tp exo_vm[1237292]:     errorContext: shutdown
+Nov 29 14:09:11 tp exo_vm[1237292]:     reason: reached_max_restart_intensity
+Nov 29 14:09:11 tp exo_vm[1237292]:     offender: [{pid,<0.4409.16>},
+Nov 29 14:09:11 tp exo_vm[1237292]:                {id,{jack_client,<<"hub">>}},
+Nov 29 14:09:11 tp exo_vm[1237292]:                {mfargs,{exo,start_child,[{jack_client,<<"hub">>}]}},
+Nov 29 14:09:11 tp exo_vm[1237292]:                {restart_type,permanent},
+Nov 29 14:09:11 tp exo_vm[1237292]:                {significant,false},
+Nov 29 14:09:11 tp exo_vm[1237292]:                {shutdown,brutal_kill},
+Nov 29 14:09:11 tp exo_vm[1237292]:                {child_type,worker}]
+
+
+
+
+
+
+Entry: idea
+Date: Wed Nov 29 02:09:47 PM CET 2023
+
+If the last pattern stays referenced, so I can implement delete.
