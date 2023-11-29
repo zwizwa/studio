@@ -4,52 +4,22 @@
 %% Some breadcrumbs:
 %%
 %% - In exo, this runs in the main supervisor.  Only jack_daemon is
-%%   stared, which then starts other functionality.
+%%   started, which then starts other jack_client instances.
 %%
-%% - Exo also starts midi_raw, which is independent of all jack code.
-%%   Its purpose is to be a hub for midi devices that are not
-%%   connected to jack.
+%% - The synth_tools/linux/hub.c jack_client sends jack events here,
+%%   we call the notification function which in turn can send connect
+%%   requests here.
 %%
-%% - While jack daemon is starting up, the daemon's stdout is parsed
-%%   and for each 'added' line, handle_connect/4 is called, which...
+%% - The hub.c also handles MIDI processing in C, remainingin the jack
+%%   data plane, but presenting a bridge to Erlang via tag_u32
+%%   protocol and Erlang pterm.
 %%
-%% - ... lazy starts jack_control, jack_midi and jack_audio clients.
-%%
-%% - jack_control handles port/alias events
-%%
-%% - jack_midi is a C port and Erlang wrapper that does some "data
-%%   plane" midi operations (e.g. clock generation, sequencer, sysex)
-%%   inside the C application, and furthermore bridges the Jack MIDI
-%%   world and the Erlang message world.  Some thought has been put in
-%%   here, so have a look at jack_midi.c
-%%
-%% - jack_audio is currently a dummy memcpy audio sink
-
-
-
-%% Notes
-%%
-%% - This evolved in a very ad-hoc way.  I currently do not have the
-%%   time to redesign it.  I guess it is ok, just that startup is a
-%%   little messy.
-%%
-%% - It is probably possible to remove the stdout parsing, but at this
-%%   time it is still used to ensure the jack clients are only started
-%%   once the daemon is up.  Once control deamon is up, events are
-%%   handled that way.
-
 
 -module(jack_daemon).
 -export([start_link/1, handle/2,
          start_client/2, client/1,
          start/1, stop/1]).
 
-
-%% Wrap the daemon and listen on its stdout as a simple way to get
-%% MIDI port connect notifications.
-
-%% Once midi port aliases are known, connect them to a specified port
-%% number on the jack client.
 
 do_start(State) ->
     %% Precondition: not started
@@ -132,21 +102,25 @@ handle({client, Msg}, State) ->
 handle(Msg={_, {find, _}}, State) ->
     obj:handle(Msg, State);
 
+
+%% ControlMsg from jack_client hub.c pterms are sent here because
+%% Notify plug is stored here.  In exo, this links to
+%% exo_midi:jack_notify/1 which looks up connectivity information in a
+%% database and sends {connect,_,_} events here.
+handle(_Msg = {jack_control, ControlMsg}, State = #{notify := Notify}) ->
+    %% log:info("jack_daemon: ~p~n", [_Msg]),
+    Notify(ControlMsg),
+    State;
+%% As sent by Notify explained above.
 handle(Msg = {connect,_,_}, State) ->
     {Hub, State1} = hub_client(State),
     Hub ! Msg,
     State1;
 
-%% Notifications from jack_client hub.c are sent here.
-handle(_Msg = {jack_control, ControlMsg}, State = #{notify := Notify}) ->
-    %% log:info("jack_daemon: ~p~n", [_Msg]),
-    Notify(ControlMsg),
-    State;
-
 handle(Msg={_,dump}, State) ->
     obj:handle(Msg, State).
 
-
+%% We only need the hub client.
 hub_client(State) ->
     State1 = need_clients(State),
     Clients = maps:get(clients, State1),
@@ -154,7 +128,10 @@ hub_client(State) ->
 
 
 %% Clients are started on demand, to ensure it happens when daemon is
-%% started.
+%% started.  Why are things split up?
+%% - a2jmidid is an external application that we just reuse
+%% - clock is kept seperate to ensure we design things to work as slave as well
+%% - hub contains all routing code, and hosts some state machines (sequencer, stateful routing)
 need_clients(State = #{ clients := _ }) ->
     State;
 need_clients(State) ->
@@ -165,7 +142,6 @@ need_clients(State) ->
         [{Name,start_client(Name, State)}
          || Name <- [clock     %% synth_tools clock.c
                     ,hub       %% synth_tools hub.c (MIDI / Erlang hub)
-                    ,synth     %% synth_tools synth.c
                     ,a2jmidid  %% upstream alsa to jack midi bridge
                     ]]),
       State).

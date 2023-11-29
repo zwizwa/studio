@@ -10199,3 +10199,153 @@ It's getting worn out.
 
 
 
+Entry: things just keep going wrong in weird ways
+Date: Mon Nov 27 02:27:35 PM CET 2023
+
+A new thing: 100% cpu usage in beam.smp
+
+I might have introduced an infinite loop
+
+It seems fine after doing another pull (and editing some irrelevant
+things).
+
+Yeah no idea what this was.  Transition issue?
+
+
+Entry: next
+Date: Mon Nov 27 03:20:18 PM CET 2023
+
+- multitrack recording
+- save recordings
+- rotation etc...
+- more pd patches
+
+What's first?
+
+You know.  Today is not a day to do overview stuff.
+Any details to work out?
+
+
+
+
+
+Entry: get to the point
+Date: Tue Nov 28 04:19:19 PM CET 2023
+
+1. Use at least two instruments.
+
+2. Really work on making things easier to develop and test.
+Distributed systems that crash are a huge pain. Was thinking about
+reviving expect tests, but that does seem like a distraction.
+
+3. Dump the state
+
+
+
+Entry: state dump
+Date: Tue Nov 28 05:46:28 PM CET 2023
+
+
+Nov 28 17:45:29 tp exo_vm[1311780]: pattern 0:
+Nov 28 17:45:29 tp exo_vm[1311780]:   00 90 3c 47 10
+Nov 28 17:45:29 tp exo_vm[1311780]:   00 80 3c 1f 7
+Nov 28 17:45:29 tp exo_vm[1311780]:   00 90 42 13 8
+Nov 28 17:45:29 tp exo_vm[1311780]:   00 80 42 16 11
+Nov 28 17:45:29 tp exo_vm[1311780]:   00 90 42 11 7
+Nov 28 17:45:29 tp exo_vm[1311780]:   00 80 42 05 5
+Nov 28 17:45:29 tp exo_vm[1311780]: pattern 1:
+Nov 28 17:45:29 tp exo_vm[1311780]:   00 90 3c 47 11
+Nov 28 17:45:29 tp exo_vm[1311780]:   00 90 42 4f 2
+Nov 28 17:45:29 tp exo_vm[1311780]:   00 80 3c 30 5
+Nov 28 17:45:29 tp exo_vm[1311780]:   00 80 42 47 7
+Nov 28 17:45:29 tp exo_vm[1311780]:   00 90 42 35 5
+Nov 28 17:45:29 tp exo_vm[1311780]:   00 80 42 4f 7
+Nov 28 17:45:29 tp exo_vm[1311780]:   00 90 42 4f 5
+Nov 28 17:45:29 tp exo_vm[1311780]:   00 80 42 6f 6
+
+
+Entry: confused
+Date: Tue Nov 28 07:15:27 PM CET 2023
+
+It's hard to simplify this.
+
+Maybe it is better to just keep it all in C, inside the same binary.
+
+
+
+Entry: recorder locking
+Date: Tue Nov 28 07:39:32 PM CET 2023
+
+the real problem here is that I want to run an iterator over the data
+structure in the low-priority message handling thread, and not have
+that interfere with what happens in the RT thread.
+
+so it would probably make sense to somehow lock the data structure:
+playback is still possible when a pattern is dumped, but record is not
+allowed.  all ofline pattern processing would do the same.
+
+
+come back to the fundamental tension: use multiple statements and
+transactions lock/unlock, or use larger data structures and atomic
+messages.
+
+
+
+Entry: binary tag_u32 rpc
+Date: Tue Nov 28 10:36:50 PM CET 2023
+
+Works for list of patterns and pattern steps.
+
+EDIT: got same interface for save and load
+
+
+Entry: implement full save and load
+Date: Wed Nov 29 09:55:39 AM CET 2023
+
+This is really so much work...
+Mostly trying to figure it out, reworking.
+
+Let's wait with load and save until the very basics work.
+
+The "bootstrap recorder" is implemented, at least almost.
+But that is not the most important one.
+
+
+Entry: online recording
+Date: Wed Nov 29 10:35:36 AM CET 2023
+
+How to make that work?
+Sequencer is playing.
+
+Ah!
+
+If sequencer is not playing, use the bootstrap sequencer recorder.
+If it is playing, use the online recorder.
+
+It's hard to keep the idea in the head...
+
+
+
+What do I want?
+
+I want it to behave as an infinite tape where I can just add events.
+
+That won't work in my setup, so I can make finite segments, and
+discard them if they are empty.
+
+Press record: it will initialize a sequence.
+
+There will be a "start of loop" event that will create a new sequence
+if record is still on.  If the previous sequence was empty it can be
+re-used.
+
+If record is pressed off again, the current sequence is finalized.
+Deleted if empty.
+
+
+
+Entry: is that it?
+Date: Wed Nov 29 10:55:00 AM CET 2023
+
+See algo previous post.
+Let's try.
