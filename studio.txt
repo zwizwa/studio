@@ -10411,3 +10411,26 @@ Entry: idea
 Date: Wed Nov 29 02:09:47 PM CET 2023
 
 If the last pattern stays referenced, so I can implement delete.
+-> better to just use the akai
+
+Entry: 
+Date: Wed Nov 29 03:14:06 PM CET 2023
+
+- integrate the akai?
+- delete / mute pattern?
+
+
+Entry: akai
+Date: Wed Nov 29 03:15:15 PM CET 2023
+
+display led for new pattern
+colors for track codes
+pulse the events
+later implement merge
+
+
+Entry: cleanup
+Date: Wed Nov 29 03:18:45 PM CET 2023
+
+remove superfluous event interface
+first test pattern load/save

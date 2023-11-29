@@ -16,6 +16,12 @@ seq() ->
      {88576, <<0, 16#90, 66, 48>>},
      {94912, <<0, 16#80, 66, 71>>}].
 
+bin_patterns() ->
+    [<<0,144,60,29,4,0,0,144,66,71,2,0,0,128,60,44,4,0,0,128,
+       66,33,12,0,0,144,66,26,5,0,0,128,66,28,10,0,0,144,66,
+       24,6,0,0,128,66,28,5,0>>,
+     <<255,0,0,0,12,0,0,144,72,84,7,0,0,128,72,35,29,0>>].
+
 t() ->
     Seq = studio_seq:split_loop(seq()),
     SeqClock = studio_seq:time_scale(24 * 2, Seq),
@@ -25,7 +31,12 @@ t() ->
 
 
 %% Run against jack_client hub.c
-t(Pid) ->
+t(HubPid) ->
+    [studio_seq:load_pattern(HubPid, StepsBin)
+     || StepsBin <- bin_patterns()].
+
+%% Old style, no longer implemented.
+t_old(HubPid) ->
     Program =
       [[clock_div,833],
        [pattern_begin],
@@ -36,4 +47,4 @@ t(Pid) ->
        {[step,  8], <<0, 16#90, 66, 28>>},
        {[step,  4], <<0, 16#80, 66,  7>>},
        [pattern_end]],
-    jack_client:program(Pid, Program).
+    jack_client:program(HubPid, Program).

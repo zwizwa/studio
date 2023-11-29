@@ -2,12 +2,12 @@
 -export([split_loop/1,
          time_scale/2,
          pattern/1,
-         get_patterns/1,
-         get_raw_steps/2,
-         get_steps/2,
-         get_raw_steps/2,
-         set_raw_steps/3,
-         set_clock_div/2
+         save_patterns/1,
+         save_pattern/2,
+         load_pattern/2,
+         set_clock_div/2,
+         pattern_unpack/1,
+         save/1
         ]).
 
 %% Sequences are [{Timestamp, Stuff}].
@@ -62,28 +62,37 @@ time_scale(NbClocks, Seq={Len, Evts}) ->
 
 
 
+%% The API uses a binary blob for the sequencer pattern data.  Simple
+%% enough to encode arrays this way, so seems best to avoid multiple
+%% calls.
+pattern_unpack(Bin) ->
+    [{{A,B,C,D},Delay} || <<A,B,C,D,Delay:16/little>> <= Bin].
+   
+
 %% Queries
 
 %% i:hub()
-get_patterns(HubPid) ->
-    {[0], Bin} = tag_u32:call(HubPid, [get_patterns]),
+save_patterns(HubPid) ->
+    {[0], Bin} = tag_u32:call(HubPid, [save_patterns]),
     [Nb || <<Nb:16/little>> <= Bin].
-get_steps(HubPid, Pattern) ->
-    case tag_u32:call(HubPid, [get_pattern,Pattern]) of
-        {[0], Bin} ->
-            [{{A,B,C,D},Delay} || <<A,B,C,D,Delay:16/little>> <= Bin];
-        _ ->
-            error
-    end.
-get_raw_steps(HubPid, Pattern) ->
-    case tag_u32:call(HubPid, [get_pattern,Pattern]) of
+save_pattern(HubPid, Pattern) ->
+    case tag_u32:call(HubPid, [save_pattern,Pattern]) of
         {[0], Bin} ->
             {ok, Bin};
         _ ->
             error
     end.
-set_raw_steps(HubPid, NbClocks, Bin) when is_binary(Bin) ->
-    tag_u32:call(HubPid, [set_pattern, NbClocks], Bin).
+load_pattern(HubPid, Bin) when is_binary(Bin) ->
+    {[0, PatNb], <<>>} = tag_u32:call(HubPid, [load_pattern], Bin),
+    PatNb.
+
+save(HubPid) ->
+    Patterns = save_patterns(HubPid),
+    [begin
+         {ok, Steps} = save_pattern(HubPid, Pattern),
+         Steps
+     end || Pattern <- Patterns].
+    
 
 %% i:clock()
 set_clock_div(ClockPid, Div) ->        
