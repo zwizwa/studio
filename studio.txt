@@ -10475,3 +10475,118 @@ Maybe do something else first: make sure the offline recorder still
 works.
 
 
+Entry: fire update is happening too late
+Date: Wed Nov 29 08:23:10 PM CET 2023
+
+So let's do it manually for now.
+Ok it seems that the data just doesn't arrive.
+
+
+Entry: wtf moment
+Date: Wed Nov 29 08:47:46 PM CET 2023
+
+1. a2jmidid seems to crash
+2. nothing making it to the akai midi output
+
+wtf => take a break
+
+wondering if ocnecting loops in jack is illegal?
+
+hyp: the input buffer _is_ an output buffer, and if it's read before
+it's written and there is feedback, then this doesn't work.
+
+i think i just proved or at least demonstrated that is what is going
+on: fire_out -> z_debug: nothing showed up if this was read fore
+fire_out was written
+
+if this is the case, we have a problem. "gui controllers" won't work
+well.
+
+EDIT: There has to be documentation about this.  Maybe best to ask on
+IRC.
+
+Maybe it is best to use them as alsa ports only.
+
+
+
+
+
+Entry: Date: Wed Nov 29 10:21:17 PM CET 2023
+
+restarting hub is problematic because it is used to connect the graph
+that might be where some retart weirdness comes from
+
+
+Entry: jack question
+Date: Thu Nov 30 08:29:20 AM CET 2023
+
+hi. is it legal to create midi loops in a client graph? i'm using
+jackdmp 1.9.19 with a2jmidid version 9. i'm writing code for the akai
+flstudio fire midi controller that has connections from my client to
+a2jmidid in both directions, one direction to receive button presses,
+one direction for button color control etc. getting strange behavior
+where the data to the midi controller (via a2jmidid) doesn't seem to
+arrive, while i can see it coming out of the jack port of my
+application. started wondering whether loops are actually allowed...
+
+
+anyay, i would be surprised if it is not allowed.
+
+is this the reason that midi buffers are not not cleared by default
+maybe?  that way it would automatically "insert delays" in cycle
+situations.
+
+ha!
+
+Nov 29 22:36:50 tp exo_vm[1452268]: sysex: f0 47 7f 43 65 02 00 00 00 00 00 01 00 00 00 02 00 00 00 03 00 00 00 04 00 00 00 05 00 00 00 06 00 00 00 07 00 00 00 08 00 00 00 09 00 00 00 0a 00 00 00 0b 00 00 00 0c 00 00 00 0d 00 00 00 0e 00 00 00 0f 00 00 00 10 00 00 00 11 00 00 00 12 00 00 00 13 00 00 00 14 00 00 00 15 00 00 00 16 00 00 00 17 00 00 00 18 00 00 00 19 00 00 00 1a 00 00 00 1b 00 00 00 1c 00 00 00 1d 00 00 00 1e 00 00 00 1f 00 00 00 20 00 00 00 21 00 00 00 22 00 00 00 23 00 00 00 24 00 00 00 25 00 00 00 26 00 00 00 27 00 00 00 28 00 00 00 29 00 00 00 2a 00 00 00 2b 00 00 00 2c 00 00 00 2d 00 00 00 2e 00 00 00 2f 00 00 00 30 00 00 00 31 00 00 00 32 00 00 00 33 00 00 00 34 00 00 00 35 00 00 00 36 00 00 00 37 40 40 40 38 40 40 40 39 40 40 40 3a 00 00 00 3b 00 00 00 3c 00 00 00 3d 00 00 00 3e 00 00 00 3f 00 00 00 f7
+Nov 29 22:36:50 tp exo_vm[1452268]: z_debug: f0 47 7f 43 65 02 00 00 00 00 00 01 00 00 00 02 00 00 00 03 00 00 00 04 00 00 00 05 00 00 00 06 00 00 00 07 00 00 00 08 00 00 00 09 00 00 00 0a 00 00 00 0b 00 00 00 0c 00 00 00 0d 00 00 00 0e 00 00 00 0f 00 00 00 10 00 00 00 11 00 00 00 12 00 00 00 13 00 00 00 14 00 00 00 15 00 00 00 16 00 00 00 17 00 00 00 18 00 00 00 19 00 00 00 1a 00 00 00 1b 00 00 00 1c 00 00 00 1d 00 00 00 1e 00 00 00 1f 00 00 00 20 00 00 00 21 00 00 00 22 00 00 00 23 00 00 00 24 00 00 00 25 00 00 00 26 00 00 00 27 00 00 00 28 00 00 00 29 00 00 00 2a 00 00 00 2b 00 00 00 2c 00 00 00 2d 00 00 00 2e 00 00 00 2f 00 00 00 30 00 00 00 31 00 00 00 32 00 00 00 33 00 00 00 34 00 00 00 35 00 00 00 36 00 00 00 37 40 40 40 38 40 40 40 39 40 40 40 3a 00 00 00 3b 00 00 00 3c 00 00 00 3d 00 00 00 3e 00 00 00
+
+It's missing the last "3f 00 00 00 f7"
+
+Ah no that arrives later
+
+I do get:
+
+Nov 29 22:36:50 tp exo_vm[1381092]: JackAudioDriver::ProcessGraphAsyncMaster: Process error
+Nov 29 22:36:50 tp exo_vm[1452268]:  3f 00 00 00 f7
+Nov 29 22:36:50 tp exo_vm[1381092]: JackEngine::XRun: client = hub was not finished, state = Running
+Nov 29 22:36:50 tp exo_vm[1381092]: JackAudioDriver::ProcessGraphAsyncMaster: Process error
+
+But the message gets across.
+
+EDIT: Found a post online mentioning issues with a2jmidid and sysex,
+mentioning that j2amidi_bridge worked.
+
+https://linuxmusicians.com/viewtopic.php?t=25434
+
+I had problems with this before, the 3if sysex implementation.
+
+So it seems that first I need to figure out what j2amidi_bridge does
+as compared to a2jmidid.
+
+EDIT: This is not for now
+
+Find something else to do.
+
+
+
+Entry: fixing this sysex thing
+Date: Fri Dec  1 09:00:44 AM CET 2023
+
+Not just for the Fire.  It really needs to work, also for the 3if.
+
+What I smell: I am going to end up doing this myself, creating an alsa
+seq client etc.
+
+strogon15: behavior of Jack regarding Sysex messages longer than the
+period length is currently undefined, afaik
+
+
+This shit really doesn't work properly.
+Loosing patience.
+
+12 works
+24 doesn't
+16 works
+20 doesn't
+
