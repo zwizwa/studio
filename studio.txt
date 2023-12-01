@@ -10590,3 +10590,47 @@ Loosing patience.
 16 works
 20 doesn't
 
+EDIT: It was just a hardcoded 
+
+so i have a fix for now.  later maybe make a pull request.
+
+
+
+Entry: pattern display
+Date: Fri Dec  1 02:45:42 PM CET 2023
+
+First: where do we keep the state?
+
+The sequencer's data structure is probably enough.  It can be used to
+regenerate.  So it's ok to just send events to the gui.
+
+Maybe start with adding a mute option.
+
+Ok that was easy.  Now some thinking is needed for the next step.
+
+When a pattern is created, the led needs to be turned on.
+How does that work?
+Can this be a direct C call?
+
+That's where the difficulty is: how do these things communicate?
+
+
+
+
+Entry: next
+Date: Fri Dec  1 03:50:02 PM CET 2023
+
+two things are needed:
+- button press event needs to call into the sequencer
+- sequencer event needs to update the akai state
+
+i think i want to do this with callbacks
+otherwise things will get nested
+
+EDIT:
+added these callbacks.
+
+EDIT:
+alright, works!
+
+just needs a fix to not let empty patterns linger
