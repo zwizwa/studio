@@ -10634,3 +10634,273 @@ EDIT:
 alright, works!
 
 just needs a fix to not let empty patterns linger
+
+
+
+Entry: what next?
+Date: Sat Dec  2 10:34:41 AM CET 2023
+
+- eliminate empty patterns
+
+two parts: don't turn on the LED until there is actual data recorded,
+and remove an empty pattern when recording stops.
+
+EDIT: implemented
+
+- find a way to test this?
+
+EDIT: did, finding some inconsistencies in delete...
+EDIT: think it's fixed
+
+
+Entry: jack ringbuffer
+Date: Sat Dec  2 11:58:42 AM CET 2023
+
+lock-free ringbuffers
+
+straightforward. but it does seem to move the data splitting to the
+user end.
+
+
+
+Entry: next
+Date: Sat Dec  2 04:55:26 PM CET 2023
+
+- test on hardware
+- still issue with jack_client:restart/start
+- dry run / no jack audio / dummy?
+
+
+Entry: pd ideas
+Date: Sat Dec  2 05:04:19 PM CET 2023
+
+- fm
+- bassdrum / snare / hihats / toms
+- chopped bass
+
+EDIT: Started some fm @ synthfest
+
+
+Entry: fixes
+Date: Mon Dec  4 10:08:07 AM CET 2023
+
+Seeing crashes.
+
+It's really not clear how to make this all fit together nicely, so
+maybe build a monolith anyway.  Give up on the jack thing.
+
+
+Entry: restart the whole thing
+Date: Mon Dec  4 10:25:42 AM CET 2023
+
+Currently the individual jack clients do not have dependencies
+specified, so do that first.
+
+EDIT: Keeping it simple, reusing jack_base_clients.
+
+So what is next?
+   
+Maybe it's time to dive into Rust and Zig.
+
+
+Entry: sequencer known bugs
+Date: Mon Dec  4 12:04:22 PM CET 2023
+
+empty patterns still survive sometimes?
+some corner case
+
+EDIT: It's not empty.  Nothing sounds, but the pattern contains:
+
+studio_seq:save_pattern(i:hub(),6).
+{ok,<<255,0,0,0,4,0,0,128,72,56,44,0>>}
+
+255,0,0,0,4,0,
+0,128,72,56,44,0
+
+Ha
+It contains the note off!
+
+That will need to be fixed somehow.
+
+
+Entry: next
+Date: Mon Dec  4 12:55:47 PM CET 2023
+
+visualisation
+offline pattern processing
+get rid of pterm
+
+i think this needs a break though
+
+visualise in grid
+
+
+Entry: note off
+Date: Mon Dec  4 01:47:42 PM CET 2023
+
+Maybe it's best to bundle the note on/off together.  E.g. use the
+sequencer to schedule the corresponding note off event.
+
+Or just leave this as is, and always perform a merge.
+
+(exo@tp.zoo)16> rp(studio_seq:save(i:hub())).
+rp(studio_seq:save(i:hub())).
+[<<255,0,0,0,4,0,0,145,65,21,2,0,0,145,66,48,2,0,0,129,65,
+   90,3,0,0,129,66,40,37,0>>,
+ <<255,0,0,0,19,0,0,145,48,66,15,0,0,129,48,9,1,0,0,145,72,
+   61,8,0,0,129,72,33,5,0>>,
+ <<255,0,0,0,18,0,0,145,61,86,4,0,0,129,61,79,4,0,0,145,61,
+   71,3,0,0,129,61,118,19,0>>,
+ <<255,0,0,0,18,0,0,144,63,103,3,0,0,128,63,95,4,0,0,144,
+   63,79,3,0,0,128,63,118,4,0,0,144,63,95,3,0,0,128,63,127,
+   13,0>>,
+ <<255,0,0,0,1,0,0,144,63,79,4,0,0,144,61,86,3,0,0,144,60,
+   52,0,0,0,128,63,103,3,0,0,128,61,79,4,0,0,128,60,44,33,0>>,
+ <<255,0,0,0,30,0,0,144,72,33,8,0,0,128,72,14,8,0,0,144,72,
+   33,2,0>>,
+ <<255,0,0,0,4,0,0,128,72,56,44,0>>,
+ <<255,0,0,0,9,0,0,144,72,29,6,0,0,128,72,77,9,0,0,144,70,
+   21,5,0,0,128,70,65,10,0,0,144,65,38,8,0,0,128,65,38,1,0>>,
+ <<255,0,0,0,33,0,0,145,60,21,3,0,0,145,63,103,2,0,0,129,
+   60,97,4,0,0,129,63,40,6,0>>,
+ <<255,0,0,0,6,0,0,145,66,26,4,0,0,129,66,15,11,0,0,145,66,
+   48,5,0,0,129,66,44,22,0>>,
+ <<255,0,0,0,31,0,0,145,60,27,2,0,0,145,63,53,2,0,0,129,60,
+   84,3,0,0,145,66,58,1,0,0,129,63,95,4,0,0,129,66,95,5,0>>,
+ <<255,0,0,0,4,0,0,145,66,17,4,0,0,129,66,12,12,0,0,145,
+   66,48,5,0,0,129,66,48,23,0>>]
+
+
+Entry: what next?
+Date: Mon Dec  4 02:29:47 PM CET 2023
+
+maybe do some dsp things
+what about making rai work with pd again?
+
+thing to do is to step away from cerebral "path finding" starting from
+exisiting stucture.  prob just needs quiet and let imagination work
+starting from physical interface.
+
+it's simple
+- make synths
+- make pattern processors
+
+maybe for next couple of weeks i stay away from the hardware
+controllers. maybe interesting to try out Rust and Zig
+but let's look ack at the todo list
+
+5 weeks belgium:
+- looper
+- drum machine
+- Pd processors (bass, guitar)
+- FPGA revive
+- sample library management
+
+after:
+- delta1010 analog fpga
+
+Sample / midi pattern library management would probably be the next
+thing to do.
+
+Before that, maybe try out jack fifos first.
+
+
+Entry: smp
+Date: Tue Dec  5 12:14:05 AM CET 2023
+
+start multiple jack clients to test smp
+run single synth controller
+
+
+
+Entry: next
+Date: Tue Dec  5 11:19:33 AM CET 2023
+
+It actually feels like it is time to stop this for a bit.
+Loosing focus.
+
+Going to play with zig a bit.
+
+
+
+Entry: Rust
+Date: Thu Dec  7 12:11:10 PM CET 2023
+
+I don't think I'm going to use Zig.
+Zig might be more something for /etc/net
+For hacky stuff.
+Rust is more for designy stuff.
+
+Anyway, next up is midi loop processing and offline sample processing.
+
+
+
+Entry: what is loop rotation?
+Date: Thu Dec  7 03:17:12 PM CET 2023
+
+Thinking that it might be a lot simpler to always convert to absolute,
+perform the processing, then convert back to relative.  The reason is
+that the first event might change, and that is a "global" change that
+is best covered by a global transform.
+
+
+Entry: heap
+Date: Fri Dec  8 03:22:54 PM CET 2023
+
+I have a binary heap to do time-based processing.
+Thinking it might be good to just use quicksort instead.
+
+But it does require some thought about how to do this in practice in
+the sequencer struct.
+
+
+Entry: next
+Date: Sat Dec  9 09:14:10 AM CET 2023
+
+Try quicksort?  Sorting is going to be a thing.  But that's again a
+dependency.  Try not to depend on anything.  These will be very hard
+to remove.
+
+
+Entry: pattern processing
+Date: Sat Dec  9 09:17:36 AM CET 2023
+
+Here's the thing: I probably will want to perform in-place programming
+for the existing sequencer data structure, since this will run on
+target.  For things that run off-target, use a duplicate of the
+sequencer.
+
+So what is a good representation?
+
+
+Entry: Pattern rotate
+Date: Sat Dec  9 09:54:44 AM CET 2023
+
+This is an operation that should work well on something that is
+already encoded as a loop.
+
+Maybe the core representation needs to be changed a bit?
+
+Basically a loop is:
+- A thing that gets it started
+- The loop itself
+
+Currently the thing that gets it started is incorporated in the loop:
+it is the rest at the beginning.
+
+This feels stuck.
+
+Let's storify. I got into this to learn Rust, but instead I'm solving
+representation problems.  Is that a good idea to do now?  Or should I
+focus on other things Rust?
+
+But maybe, Rust is also really about data structures?
+
+Let this go where it wants to go.
+
+
+
+Entry: moving studio.txt
+Date: Sun Dec 10 09:24:51 AM CET 2023
+
+away from studio repo, to papers repo
