@@ -42,11 +42,16 @@ proc(#{ name := Name,  %% basename
         fun() ->
                 log:set_info_name({jack_client,Name}),
                 Self = self(),
-                %% By default, take the processors that are compiled
-                %% as part of synth_tools package Nixos package.
+                %% This has changed.  All synth_tools binaries are no
+                %% longer part of the "system", but are referred to
+                %% here using late binding of host-local
+                %% ~/.result/synth_tools which is used as the
+                %% gc-registered output of /etc/net/bin/nix.build.sh
                 Dir = tools:format("~s/linux",
+                                   [[os:getenv("HOME"),"/.result/synth_tools"]]
                                    %% ["/i/exo/synth_tools"]
-                                   [os:getenv("SYNTH_TOOLS")]),
+                                   %% [os:getenv("SYNTH_TOOLS")]
+                                  ),
                 maps:merge(
                   #{ dir => Dir,
                      tape => []
