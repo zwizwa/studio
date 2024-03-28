@@ -1,4 +1,12 @@
-studio
+ARCHIVE ONLY
+------------
+
+This project is now part of  https://github.com/zwizwa/synth_tools
+
+
+
+`studio`
+--------
 
 Incubator project for audio/midi processing code.  This is currently
 partly hard-coded to my setup (mixer, analog synths, midi controllers,
